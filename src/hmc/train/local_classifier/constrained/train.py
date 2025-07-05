@@ -1,5 +1,4 @@
 import logging
-
 import torch
 
 from hmc.train.local_classifier.baseline.valid import valid_step
@@ -8,6 +7,9 @@ from hmc.train.utils import (
     show_local_losses,
     show_local_score,
 )
+
+import networkx as nx
+import numpy as np
 
 from hmc.model.local_classifier.constrained.utils import get_constr_out
 
@@ -63,6 +65,33 @@ def train_step(args):
     args.best_model = [None] * args.max_depth
     logging.info("Best val loss created %s", args.best_val_loss)
 
+    # Compute matrix of ancestors R
+    # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is descendant of class j
+    R = np.zeros(args.hmc_dataset.A.shape)
+    np.fill_diagonal(R, 1)
+    g = nx.DiGraph(
+        args.hmc_dataset.A
+    )  # train.A is the matrix where the direct connections are stored
+    for i in range(len(args.hmc_dataset.A)):
+        # here we need to use the function nx.descendants() \
+        # because in the directed graph the edges have source \
+        # from the descendant and point towards the ancestor
+        ancestors = list(nx.descendants(g, i))
+        if ancestors:
+            R[i, ancestors] = 1
+    R = torch.tensor(R)
+    # Transpose to get the descendants for each node
+    R = R.transpose(1, 0)
+    R = R.unsqueeze(0).to(args.device)
+
+    class_indices_per_level = {
+        lvl: torch.tensor(
+            [args.hmc_dataset.nodes_idx[n] for n in args.hmc_dataset.levels[lvl]],
+            device=args.device,
+        )
+        for lvl in args.hmc_dataset.levels.keys()
+    }
+
     # optimizers = [
     #     torch.optim.Adam(
     #         model.parameters(),
@@ -74,10 +103,10 @@ def train_step(args):
     # args.optimizers = optimizers
 
     args.optimizers = torch.optim.Adam(
-            args.model.parameters(),
-            lr=args.lr_values[0],
-            weight_decay=args.weight_decay_values[0],
-        )
+        args.model.parameters(),
+        lr=args.lr_values[0],
+        weight_decay=args.weight_decay_values[0],
+    )
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
@@ -100,17 +129,28 @@ def train_step(args):
                 if args.level_active[index]:
                     output = outputs[str(index)].double()
                     target = targets[index].double()
-                    
+                    child_indices = class_indices_per_level[
+                        index
+                    ]  # [n_classes_nivel_atual]
                     # MCLoss
                     if index == 0:
                         loss = args.criterions[index](output, target)
                     else:
-                        R = args.hmc_dataset.all_matrix_r[index].to(args.device)
-                        constr_output = get_constr_out(output, R)
-                        train_output = target * output.double()
-                        train_output = get_constr_out(train_output, R)
-                        train_output = (1 - target) * constr_output.double() + target * train_output
-                        loss = args.criterions[index](train_output, target)
+                        # Índices globais dos pais para cada amostra
+                        parent_target = targets[index - 1]
+                        parent_indices = class_indices_per_level[index - 1]
+                        parent_index_each_sample = parent_target.argmax(dim=1)
+                        parent_global_idxs = parent_indices[parent_index_each_sample]
+                        # Constrói a máscara usando R_global (shape: [1, n, n])
+                        mask = torch.stack(
+                            [
+                                R[0, child_indices, parent_global_idxs[b]]
+                                for b in range(output.shape[0])
+                            ],
+                            dim=0,
+                        )  # [batch, n_classes_nivel_atual]
+                        masked_output = output + (1 - mask) * (-1e9)
+                        loss = args.criterions[index](masked_output, target)
                     local_train_losses[index] += loss
 
         # Backward pass (cálculo dos gradientes)
@@ -118,7 +158,7 @@ def train_step(args):
             if i in args.active_levels and args.level_active[i]:
                 total_loss.backward()
         args.optimizers.step()
-        #for optimizer in args.optimizers:
+        # for optimizer in args.optimizers:
         #    optimizer.step()
 
         local_train_losses = [

@@ -5,6 +5,9 @@ from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.model.local_classifier.constrained.utils import get_constr_out
 
+import networkx as nx
+import numpy as np
+
 # Set a logger config
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -48,6 +51,34 @@ def valid_step(args):
     # Get local scores
     local_val_score = {level: None for _, level in enumerate(args.active_levels)}
     threshold = 0.3
+
+    # Compute matrix of ancestors R
+    # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is descendant of class j
+    R = np.zeros(args.hmc_dataset.A.shape)
+    np.fill_diagonal(R, 1)
+    g = nx.DiGraph(
+        args.hmc_dataset.A
+    )  # train.A is the matrix where the direct connections are stored
+    for i in range(len(args.hmc_dataset.A)):
+        # here we need to use the function nx.descendants() \
+        # because in the directed graph the edges have source \
+        # from the descendant and point towards the ancestor
+        ancestors = list(nx.descendants(g, i))
+        if ancestors:
+            R[i, ancestors] = 1
+    R = torch.tensor(R)
+    # Transpose to get the descendants for each node
+    R = R.transpose(1, 0)
+    R = R.unsqueeze(0).to(args.device)
+
+    class_indices_per_level = {
+        lvl: torch.tensor(
+            [args.hmc_dataset.nodes_idx[n] for n in args.hmc_dataset.levels[lvl]],
+            device=args.device,
+        )
+        for lvl in args.hmc_dataset.levels.keys()
+    }
+
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             inputs, targets = inputs.to(args.device), [
@@ -59,8 +90,28 @@ def valid_step(args):
                 if args.level_active[index]:
                     output = outputs[str(index)]
                     target = targets[index]
-                    loss = args.criterions[index](output, target)
-                    local_val_losses[index] += loss
+                    child_indices = class_indices_per_level[
+                        index
+                    ]  # [n_classes_nivel_atual]
+                    # MCLoss
+                    if index == 0:
+                        loss = args.criterions[index](output, target)
+                    else:
+                        # Índices globais dos pais para cada amostra
+                        parent_target = targets[index - 1]
+                        parent_indices = class_indices_per_level[index - 1]
+                        parent_index_each_sample = parent_target.argmax(dim=1)
+                        parent_global_idxs = parent_indices[parent_index_each_sample]
+                        # Constrói a máscara usando R_global (shape: [1, n, n])
+                        mask = torch.stack(
+                            [
+                                R[0, child_indices, parent_global_idxs[b]]
+                                for b in range(output.shape[0])
+                            ],
+                            dim=0,
+                        )  # [batch, n_classes_nivel_atual]
+                        masked_output = output + (1 - mask) * (-1e9)
+                        loss = args.criterions[index](masked_output, target)
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")

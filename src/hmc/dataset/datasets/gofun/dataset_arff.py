@@ -31,7 +31,6 @@ class HMCDatasetArff:
             self.Y,
             self.Y_local,
             self.A,
-            self.edges_matrix_dict,
             self.terms,
             self.g,
             self.levels,
@@ -173,27 +172,14 @@ def parse_arff(arff_file, is_go=False):
                 Y_local.append([np.stack(y) for y in y_local_])
         X = np.array(X)
         Y = np.stack(Y)
-        edges_matrix_dict = {}
-        for idx, level_nodes in enumerate(levels.values()):
-            if idx != 0:
-                level_nodes = [node.replace("/", ".") for node in level_nodes]
-                edges_matrix_dict[idx] = np.array(
-                    nx.to_numpy_array(g, nodelist=level_nodes)
-                )
 
-        logger.info(
-            "Shape of edges matrix: %s",
-            {k: v.shape for k, v in edges_matrix_dict.items()},
-        )
         logger.info("Parsed ARFF file: %s", arff_file)
-        logger.info("Number of matrix: %d", len(edges_matrix_dict))
 
         return (
             X,
             Y,
             Y_local,
             np.array(nx.to_numpy_array(g, nodelist=nodes)),
-            edges_matrix_dict,
             nodes,
             g,
             levels,

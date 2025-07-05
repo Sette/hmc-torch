@@ -68,7 +68,6 @@ class ConstrainedHMCLocalModel(nn.Module):
         num_layers=None,
         dropout=None,
         active_levels=None,
-        all_matrix_r=None,
     ):
         super(ConstrainedHMCLocalModel, self).__init__()
         if not input_size:
@@ -86,7 +85,6 @@ class ConstrainedHMCLocalModel(nn.Module):
         self.mum_layers = num_layers
         self.hidden_size = hidden_size
         self.dropout = dropout
-        self.all_matrix_r = all_matrix_r
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
         if isinstance(levels_size, int):
@@ -99,7 +97,7 @@ class ConstrainedHMCLocalModel(nn.Module):
             num_layers = {level: num_layers for level in active_levels}
         if isinstance(dropout, float):
             dropout = {level: dropout for level in active_levels}
-            
+
         logging.info(
             "HMCLocalConstrainedModel: input_size=%s, levels_size=%s, "
             "hidden_size=%s, num_layers=%s, dropout=%s, "
@@ -123,12 +121,5 @@ class ConstrainedHMCLocalModel(nn.Module):
     def forward(self, x):
         outputs = {}
         for index, level in self.levels.items():
-            if self.training:
-                # During training, we return the not-constrained output
-                local_output = level(x)
-            else:
-                # During inference, we return the constrained output
-                local_output = get_constr_out(level(x), self.all_matrix_r[int(index)])
-            outputs[index] = local_output
+            outputs[index] = level(x)  # sempre retorna os logits brutos
         return outputs
-

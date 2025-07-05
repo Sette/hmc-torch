@@ -5,7 +5,7 @@ import optuna
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.model.local_classifier.baseline.model import HMCLocalModelHPO
+from hmc.model.local_classifier.baseline.model import HMCLocalModel
 from hmc.train.utils import (
     create_job_id_name,
     save_dict_to_json,
