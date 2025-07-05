@@ -81,7 +81,7 @@ def train_step(args):
                     output = outputs[str(index)]
                     target = targets[index]
 
-                    loss = args.criterions[index](output, target.double())
+                    loss = args.criterions[index](output.double(), target)
                     local_train_losses[index] += loss
 
         # Backward pass (cálculo dos gradientes)
@@ -103,8 +103,8 @@ def train_step(args):
         show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
-            local_val_losses, local_val_score = valid_step(args)
-            show_local_losses(local_val_losses, dataset="Val")
+            valid_step(args)
+            #show_local_losses(local_val_losses, dataset="Val")
             # show_local_score(local_val_score, dataset="Val")
 
             if not any(args.level_active):

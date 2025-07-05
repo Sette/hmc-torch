@@ -1,7 +1,7 @@
 import logging
 import torch
 
-from hmc.train.local_classifier.baseline.valid import valid_step
+from hmc.train.local_classifier.constrained.valid import valid_step
 from hmc.train.utils import (
     show_global_loss,
     show_local_losses,
@@ -86,7 +86,7 @@ def train_step(args):
 
     class_indices_per_level = {
         lvl: torch.tensor(
-            [args.hmc_dataset.nodes_idx[n] for n in args.hmc_dataset.levels[lvl]],
+            [args.hmc_dataset.nodes_idx[n.replace('/', '.')] for n in args.hmc_dataset.levels[lvl]],
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -123,8 +123,6 @@ def train_step(args):
 
             # Zerar os gradientes antes de cada batch
             args.optimizers.zero_grad()
-            # for optimizer in args.optimizers:
-            #     optimizer.zero_grad()
             for index in args.active_levels:
                 if args.level_active[index]:
                     output = outputs[str(index)].double()
@@ -150,7 +148,7 @@ def train_step(args):
                             dim=0,
                         )  # [batch, n_classes_nivel_atual]
                         masked_output = output + (1 - mask) * (-1e9)
-                        loss = args.criterions[index](masked_output, target)
+                        loss = args.criterions[index](torch.sigmoid(masked_output), target)
                     local_train_losses[index] += loss
 
         # Backward pass (cálculo dos gradientes)
@@ -170,12 +168,13 @@ def train_step(args):
         )
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        show_local_losses(local_train_losses, dataset="Train")
-        show_global_loss(global_train_loss, dataset="Train")
+        # show_local_losses(local_train_losses, dataset="Train")
+        # show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
-            local_val_losses, local_val_score = valid_step(args)
-            show_local_losses(local_val_losses, dataset="Val")
+            logging.info("Validating at epoch %d", epoch)
+            valid_step(args)
+            # show_local_losses(local_val_losses, dataset="Val")
             # show_local_score(local_val_score, dataset="Val")
 
             if not any(args.level_active):

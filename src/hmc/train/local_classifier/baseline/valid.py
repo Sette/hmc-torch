@@ -72,7 +72,7 @@ def valid_step(args):
             )
             # local_val_score[idx] = score
             logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
+                "Level %d: Validation set precision=%.4f, recall=%.4f, f1-score=%.4f",
                 idx,
                 score[0],
                 score[1],

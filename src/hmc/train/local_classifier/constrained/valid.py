@@ -73,7 +73,7 @@ def valid_step(args):
 
     class_indices_per_level = {
         lvl: torch.tensor(
-            [args.hmc_dataset.nodes_idx[n] for n in args.hmc_dataset.levels[lvl]],
+            [args.hmc_dataset.nodes_idx[n.replace('/', '.')] for n in args.hmc_dataset.levels[lvl]],
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -95,7 +95,7 @@ def valid_step(args):
                     ]  # [n_classes_nivel_atual]
                     # MCLoss
                     if index == 0:
-                        loss = args.criterions[index](output, target)
+                        loss = args.criterions[index](output.double(), target)
                     else:
                         # Índices globais dos pais para cada amostra
                         parent_target = targets[index - 1]
@@ -111,7 +111,7 @@ def valid_step(args):
                             dim=0,
                         )  # [batch, n_classes_nivel_atual]
                         masked_output = output + (1 - mask) * (-1e9)
-                        loss = args.criterions[index](masked_output, target)
+                        loss = args.criterions[index](torch.sigmoid(masked_output), target)
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")
@@ -123,64 +123,61 @@ def valid_step(args):
                         y_val[index] = torch.cat(
                             (y_val[index], target.to("cpu")), dim=0
                         )
-    for idx in args.active_levels:
-        if args.level_active[idx]:
-            y_pred_binary = local_outputs[idx].data > threshold
+    for level_idx in args.active_levels:
+        if args.level_active[level_idx]:
+            y_pred_binary = local_outputs[level_idx].data > threshold
 
             score = precision_recall_fscore_support(
-                y_val[idx], y_pred_binary, average="micro"
+                y_val[level_idx], y_pred_binary, average="micro"
             )
             # local_val_score[idx] = score
             logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
-                idx,
+                "Level %d: Validation set precision=%.4f, recall=%.4f, f1-score=%.4f",
+                level_idx,
                 score[0],
                 score[1],
                 score[2],
             )
 
-            local_val_score[idx] = score[2]
+            local_val_score[level_idx] = round(score[2], 4)
 
     local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    for i in args.active_levels:
-        if args.level_active[i]:
-            if args.best_model[i] is None:
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
-                logging.info("Level %d: initialized best model", i)
+    for level_idx in args.active_levels:
+        if args.level_active[level_idx]:
+            if args.best_model[level_idx] is None:
+                args.best_model[level_idx] = args.model.levels[str(level_idx)].state_dict()
+                logging.info("Level %d: initialized best model", level_idx)
             if (
-                round(local_val_score[i], 4) > args.best_val_score[i]
-                and round(local_val_losses[i].item(), 4) < args.best_val_loss[i]
+                local_val_score[level_idx]
+                > args.best_val_score[level_idx]
             ):
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
-                args.best_val_score[i] = round(local_val_score[i], 4)
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
-                args.patience_counters[i] = 0
+                args.best_val_loss[level_idx] = round(local_val_losses[level_idx], 4)
+                args.best_val_score[level_idx] = local_val_score[level_idx]
+                args.best_model[level_idx] = args.model.levels[str(level_idx)].state_dict()
+                args.patience_counters[level_idx] = 0
                 logging.info(
-                    "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
+                    "Level %d: improved (F1 score=%.4f)", level_idx, local_val_score[level_idx]
                 )
             else:
-                if (
-                    round(local_val_score[i], 4) < args.best_val_score[i]
-                    or round(local_val_losses[i].item(), 4) > args.best_val_loss[i]
-                ):
-                    # Incrementar o contador de paciência
-                    args.patience_counters[i] += 1
+                # Incrementar o contador de paciência
+                args.patience_counters[level_idx] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    level_idx,
+                    args.patience_counters[level_idx],
+                    args.early_stopping_patience,
+                )
+                if args.patience_counters[level_idx] >= args.early_stopping_patience:
+                    args.level_active[level_idx] = False
+                    # args.active_levels.remove(level_idx)
                     logging.info(
-                        "Level %d: no improvement (patience %d/%d)",
-                        i,
-                        args.patience_counters[i],
-                        args.early_stopping_patience,
+                        "🚫 Early stopping triggered for level %d — freezing its parameters",
+                        level_idx,
                     )
-                    if args.patience_counters[i] >= args.early_stopping_patience:
-                        args.level_active[i] = False
-                        # args.active_levels.remove(i)
-                        logging.info(
-                            "🚫 Early stopping triggered for level %d — freezing its parameters",
-                            i,
-                        )
-                        # ❄️ Congelar os parâmetros desse nível
-                        for param in args.model.levels[str(i)].parameters():
-                            param.requires_grad = False
-    return local_val_losses, local_val_score
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(level_idx)].parameters():
+                        param.requires_grad = False
+                            
+    return None
