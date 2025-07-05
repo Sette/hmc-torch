@@ -175,4 +175,4 @@ def train_local(args):
         train_step(args)
         for i in args.active_levels:
             args.model.levels[str(i)].load_state_dict(args.best_model[i])
-        # test_step(args)
+        test_step(args)
