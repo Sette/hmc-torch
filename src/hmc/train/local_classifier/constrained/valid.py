@@ -97,10 +97,7 @@ def valid_step(args):
             if args.best_model[i] is None:
                 args.best_model[i] = args.model.levels[str(i)].state_dict()
                 logging.info("Level %d: initialized best model", i)
-            if (
-                round(local_val_score[i], 4) > args.best_val_score[i]
-                and round(local_val_losses[i].item(), 4) < args.best_val_loss[i]
-            ):
+            if round(local_val_score[i], 4) > args.best_val_score[i]:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
@@ -110,26 +107,22 @@ def valid_step(args):
                     "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
                 )
             else:
-                if (
-                    round(local_val_score[i], 4) < args.best_val_score[i]
-                    or round(local_val_losses[i].item(), 4) > args.best_val_loss[i]
-                ):
-                    # Incrementar o contador de paciência
-                    args.patience_counters[i] += 1
+                # Incrementar o contador de paciência
+                args.patience_counters[i] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    i,
+                    args.patience_counters[i],
+                    args.early_stopping_patience,
+                )
+                if args.patience_counters[i] >= args.early_stopping_patience:
+                    args.level_active[i] = False
+                    # args.active_levels.remove(i)
                     logging.info(
-                        "Level %d: no improvement (patience %d/%d)",
+                        "🚫 Early stopping triggered for level %d — freezing its parameters",
                         i,
-                        args.patience_counters[i],
-                        args.early_stopping_patience,
                     )
-                    if args.patience_counters[i] >= args.early_stopping_patience:
-                        args.level_active[i] = False
-                        # args.active_levels.remove(i)
-                        logging.info(
-                            "🚫 Early stopping triggered for level %d — freezing its parameters",
-                            i,
-                        )
-                        # ❄️ Congelar os parâmetros desse nível
-                        for param in args.model.levels[str(i)].parameters():
-                            param.requires_grad = False
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(i)].parameters():
+                        param.requires_grad = False
     return local_val_losses, local_val_score
