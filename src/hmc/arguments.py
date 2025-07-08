@@ -45,14 +45,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--patience",
-        type=int,
-        default=5,
-        required=False,
-        help="Number of epochs with no improvement after which training will be stopped.",
-    )
-
-    parser.add_argument(
         "--dataset_type",
         type=str,
         choices=["csv", "torch", "arff"],
@@ -168,6 +160,15 @@ def get_parser():
         required=False,
         metavar="WEIGHT_DECAY",
         help="List of values for weight decay (used when HPO is disabled).",
+    )
+
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=3,
+        metavar="PATIENCE",
+        required=False,
+        help="Number of epochs with no improvement after which training will be stopped.",
     )
 
     parser.add_argument(
