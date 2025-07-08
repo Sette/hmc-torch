@@ -83,7 +83,11 @@ def train_step(args):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         # args.active_levels = [i for i, active in enumerate(args.level_active) if active]
-        logging.info("Active levels: %s", args.active_levels)
+        # logging.info("Active levels: %s", args.active_levels)
+        logging.info(
+            "Level active: %s",
+            [level for level, level_bool in enumerate(args.level_active) if level_bool],
+        )
 
         for inputs, targets, _ in args.train_loader:
 
