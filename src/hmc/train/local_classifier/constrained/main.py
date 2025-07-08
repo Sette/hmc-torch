@@ -8,12 +8,12 @@ from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
 from hmc.dataset.manager.dataset_manager import initialize_dataset_experiments
-from hmc.model.local_classifier.constrained.model import HMCLocalConstrainedModel
+from hmc.model.local_classifier.constrained.model import ConstrainedHMCLocalModel
 from hmc.train.local_classifier.constrained.hpo.hpo_local import (
     optimize_hyperparameters_per_level,
 )
-from hmc.train.local_classifier.core.test import test_step
-from hmc.train.local_classifier.core.train import train_step
+from hmc.train.local_classifier.constrained.test import test_step
+from hmc.train.local_classifier.constrained.train import train_step
 
 
 def train_local(args):
@@ -166,7 +166,7 @@ def train_local(args):
             "all_matrix_r": hmc_dataset.all_matrix_r,
         }
 
-        model = HMCLocalConstrainedModel(**params)
+        model = ConstrainedHMCLocalModel(**params)
         args.model = model
         logging.info(model)
         # Create the model

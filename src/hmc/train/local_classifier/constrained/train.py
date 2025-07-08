@@ -74,10 +74,10 @@ def train_step(args):
     # args.optimizers = optimizers
 
     args.optimizers = torch.optim.Adam(
-            args.model.parameters(),
-            lr=args.lr_values[0],
-            weight_decay=args.weight_decay_values[0],
-        )
+        args.model.parameters(),
+        lr=args.lr_values[0],
+        weight_decay=args.weight_decay_values[0],
+    )
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
@@ -98,9 +98,9 @@ def train_step(args):
             #     optimizer.zero_grad()
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)].double()
+                    output = outputs[index].double()
                     target = targets[index].double()
-                    
+
                     # MCLoss
                     if index == 0:
                         loss = args.criterions[index](output, target)
@@ -109,7 +109,9 @@ def train_step(args):
                         constr_output = get_constr_out(output, R)
                         train_output = target * output.double()
                         train_output = get_constr_out(train_output, R)
-                        train_output = (1 - target) * constr_output.double() + target * train_output
+                        train_output = (
+                            1 - target
+                        ) * constr_output.double() + target * train_output
                         loss = args.criterions[index](train_output, target)
                     local_train_losses[index] += loss
 
@@ -118,7 +120,7 @@ def train_step(args):
             if i in args.active_levels and args.level_active[i]:
                 total_loss.backward()
         args.optimizers.step()
-        #for optimizer in args.optimizers:
+        # for optimizer in args.optimizers:
         #    optimizer.step()
 
         local_train_losses = [
