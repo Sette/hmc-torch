@@ -41,13 +41,13 @@ def valid_step(args):
 
     args.model.eval()
     local_val_losses = [0.0] * args.max_depth
-    y_val = [0.0] * args.max_depth
+    y_val = {level: [] for _, level in enumerate(args.active_levels)}
 
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
     local_val_score = {level: None for _, level in enumerate(args.active_levels)}
-    threshold = 0.3
+    threshold = 0.2
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             inputs, targets = inputs.to(args.device), [
@@ -57,7 +57,7 @@ def valid_step(args):
 
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)]
+                    output = outputs[index]
                     target = targets[index]
                     loss = args.criterions[index](output, target)
                     local_val_losses[index] += loss
@@ -72,6 +72,7 @@ def valid_step(args):
                         y_val[index] = torch.cat(
                             (y_val[index], target.to("cpu")), dim=0
                         )
+
     for idx in args.active_levels:
         if args.level_active[idx]:
             y_pred_binary = local_outputs[idx].data > threshold
@@ -101,6 +102,7 @@ def valid_step(args):
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
+                logging.info("Level %d: best model updated", i)
                 args.best_model[i] = args.model.levels[str(i)].state_dict()
                 args.patience_counters[i] = 0
                 logging.info(
@@ -125,4 +127,3 @@ def valid_step(args):
                     # ❄️ Congelar os parâmetros desse nível
                     for param in args.model.levels[str(i)].parameters():
                         param.requires_grad = False
-    return local_val_losses, local_val_score

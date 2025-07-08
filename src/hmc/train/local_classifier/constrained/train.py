@@ -2,7 +2,8 @@ import logging
 
 import torch
 
-from hmc.train.local_classifier.baseline.valid import valid_step
+from hmc.train.local_classifier.constrained.valid import valid_step
+from hmc.train.local_classifier.constrained.test import test_step
 from hmc.train.utils import (
     show_global_loss,
     show_local_losses,
@@ -51,7 +52,7 @@ def train_step(args):
     args.model = args.model.to(args.device)
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
-    args.early_stopping_patience = 10
+    args.early_stopping_patience = args.patience
     args.patience_counters = [0] * args.hmc_dataset.max_depth
     # args.level_active = [True] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
@@ -140,8 +141,9 @@ def train_step(args):
         show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
-            local_val_losses, local_val_score = valid_step(args)
-            show_local_losses(local_val_losses, dataset="Val")
+            valid_step(args)
+            test_step(args)
+            # show_local_losses(local_val_losses, dataset="Val")
             # show_local_score(local_val_score, dataset="Val")
 
             if not any(args.level_active):
