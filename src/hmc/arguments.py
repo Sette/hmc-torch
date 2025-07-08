@@ -173,7 +173,7 @@ def get_parser():
     parser.add_argument(
         "--epochs_to_evaluate",
         type=int,
-        default=1,
+        default=10,
         metavar="EPOCHS_TO_EVALUATE",
         required=False,
         help="Number of epochs to evaluate the model during training.",
