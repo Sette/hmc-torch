@@ -176,6 +176,6 @@ def train_local(args):
         train_step(args)
         for i in args.active_levels:
             args.model.levels[str(i)].load_state_dict(
-                torch.load(f"best_model_level_{i}.pth")
+                torch.load(f"best_model_constrained_level_{i}.pth")
             )
         test_step(args)

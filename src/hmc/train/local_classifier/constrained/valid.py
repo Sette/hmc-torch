@@ -109,7 +109,8 @@ def valid_step(args):
                 # Salvar em disco
                 logging.info("Saving best model for Level %d", i)
                 torch.save(
-                    args.model.levels[str(i)].state_dict(), f"best_model_level_{i}.pth"
+                    args.model.levels[str(i)].state_dict(),
+                    f"best_model_constrained_level_{i}.pth",
                 )
                 logging.info("best model updated and saved for Level %d", i)
 

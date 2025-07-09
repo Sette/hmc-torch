@@ -38,7 +38,8 @@ def valid_step(args):
 
     # Get local scores
     local_val_score = {level: None for _, level in enumerate(args.active_levels)}
-    threshold = 0.3
+    threshold = 0.2
+
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             inputs, targets = inputs.to(args.device), [
@@ -88,10 +89,7 @@ def valid_step(args):
             if args.best_model[i] is None:
                 args.best_model[i] = args.model.levels[str(i)].state_dict()
                 logging.info("Level %d: initialized best model", i)
-            if (
-                round(local_val_score[i], 4) > args.best_val_score[i]
-                and round(local_val_losses[i].item(), 4) < args.best_val_loss[i]
-            ):
+            if round(local_val_score[i], 4) > args.best_val_score[i]:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
@@ -100,27 +98,29 @@ def valid_step(args):
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
                 )
+                # Salvar em disco
+                logging.info("Saving best model for Level %d", i)
+                torch.save(
+                    args.model.levels[str(i)].state_dict(), f"best_model_level_{i}.pth"
+                )
+                logging.info("best model updated and saved for Level %d", i)
+
             else:
-                if (
-                    round(local_val_score[i], 4) < args.best_val_score[i]
-                    or round(local_val_losses[i].item(), 4) > args.best_val_loss[i]
-                ):
-                    # Incrementar o contador de paciência
-                    args.patience_counters[i] += 1
+                # Incrementar o contador de paciência
+                args.patience_counters[i] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    i,
+                    args.patience_counters[i],
+                    args.early_stopping_patience,
+                )
+                if args.patience_counters[i] >= args.early_stopping_patience:
+                    args.level_active[i] = False
+                    # args.active_levels.remove(i)
                     logging.info(
-                        "Level %d: no improvement (patience %d/%d)",
+                        "🚫 Early stopping triggered for level %d — freezing its parameters",
                         i,
-                        args.patience_counters[i],
-                        args.early_stopping_patience,
                     )
-                    if args.patience_counters[i] >= args.early_stopping_patience:
-                        args.level_active[i] = False
-                        # args.active_levels.remove(i)
-                        logging.info(
-                            "🚫 Early stopping triggered for level %d — freezing its parameters",
-                            i,
-                        )
-                        # ❄️ Congelar os parâmetros desse nível
-                        for param in args.model.levels[str(i)].parameters():
-                            param.requires_grad = False
-    return local_val_losses, local_val_score
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(i)].parameters():
+                        param.requires_grad = False

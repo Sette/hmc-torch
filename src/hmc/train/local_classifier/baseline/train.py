@@ -2,7 +2,7 @@ import logging
 
 import torch
 
-from hmc.train.local_classifier.constrained.valid import valid_step
+from hmc.train.local_classifier.baseline.valid import valid_step
 from hmc.train.utils import (
     show_global_loss,
     show_local_losses,
@@ -41,7 +41,7 @@ def train_step(args):
     args.model = args.model.to(args.device)
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
-    args.early_stopping_patience = 10
+    args.early_stopping_patience = args.patience
     args.patience_counters = [0] * args.hmc_dataset.max_depth
     # args.level_active = [True] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
@@ -64,7 +64,10 @@ def train_step(args):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         # args.active_levels = [i for i, active in enumerate(args.level_active) if active]
-        logging.info("Active levels: %s", args.active_levels)
+        logging.info(
+            "Level active: %s",
+            [level for level, level_bool in enumerate(args.level_active) if level_bool],
+        )
 
         for inputs, targets, _ in args.train_loader:
 
@@ -78,7 +81,7 @@ def train_step(args):
 
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)]
+                    output = outputs[index].double()
                     target = targets[index]
 
                     loss = args.criterions[index](output, target.double())
@@ -103,8 +106,8 @@ def train_step(args):
         show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
-            local_val_losses, local_val_score = valid_step(args)
-            show_local_losses(local_val_losses, dataset="Val")
+            valid_step(args)
+            # show_local_losses(local_val_losses, dataset="Val")
             # show_local_score(local_val_score, dataset="Val")
 
             if not any(args.level_active):
