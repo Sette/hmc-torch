@@ -41,7 +41,7 @@ def valid_step(args):
 
     args.model.eval()
     local_val_losses = [0.0] * args.max_depth
-    y_val = {level: [] for _, level in enumerate(args.active_levels)}
+    local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
@@ -57,20 +57,20 @@ def valid_step(args):
 
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[index]
+                    output = outputs[index].double()
                     target = targets[index]
                     loss = args.criterions[index](output, target)
                     local_val_losses[index] += loss
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")
-                        y_val[index] = target.to("cpu")
+                        local_inputs[index] = target.to("cpu")
                     else:
                         local_outputs[index] = torch.cat(
                             (local_outputs[index], output.to("cpu")), dim=0
                         )
-                        y_val[index] = torch.cat(
-                            (y_val[index], target.to("cpu")), dim=0
+                        local_inputs[index] = torch.cat(
+                            (local_inputs[index], target.to("cpu")), dim=0
                         )
 
     for idx in args.active_levels:
@@ -78,11 +78,11 @@ def valid_step(args):
             y_pred_binary = local_outputs[idx].data > threshold
 
             score = precision_recall_fscore_support(
-                y_val[idx], y_pred_binary, average="micro"
+                local_inputs[idx], y_pred_binary, average="micro"
             )
             # local_val_score[idx] = score
             logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
+                "Validation score Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
                 idx,
                 score[0],
                 score[1],
@@ -102,12 +102,17 @@ def valid_step(args):
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
-                logging.info("Level %d: best model updated", i)
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
                 args.patience_counters[i] = 0
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
                 )
+                # Salvar em disco
+                logging.info("Saving best model for Level %d", i)
+                torch.save(
+                    args.model.levels[str(i)].state_dict(), f"best_model_level_{i}.pth"
+                )
+                logging.info("best model updated and saved for Level %d", i)
+
             else:
                 # Incrementar o contador de paciência
                 args.patience_counters[i] += 1

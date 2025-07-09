@@ -180,4 +180,13 @@ def get_parser():
         help="Number of epochs to evaluate the model during training.",
     )
 
+    parser.add_argument(
+        "--epochs_to_test",
+        type=int,
+        default=20,
+        metavar="EPOCHS_TO_TEST",
+        required=False,
+        help="Number of epochs to test the model during training.",
+    )
+
     return parser

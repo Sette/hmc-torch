@@ -39,16 +39,15 @@ def test_step(args):
         - Logs evaluation progress and results.
         - Saves local test scores (precision, recall, f-score, support) for each active level to a JSON file.
     """
-
     args.model.eval()
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    threshold = 0.3
+    threshold = 0.2
 
     Y_true_global = []
     with torch.no_grad():
-        for inputs, targets, global_targets in args.test_loader:
+        for i, (inputs, targets, global_targets) in enumerate(args.test_loader):
             inputs = inputs.to(args.device)
             targets = [target.to(args.device).float() for target in targets]
             global_targets = global_targets.to("cpu")
@@ -57,17 +56,21 @@ def test_step(args):
             for index in args.active_levels:
                 output = outputs[index].to("cpu")
                 target = targets[index].to("cpu")
-                local_inputs[index].append(target)
-                local_outputs[index].append(output)
+
+                if i == 0:
+                    local_outputs[index] = output
+                    local_inputs[index] = target
+                else:
+                    local_outputs[index] = torch.cat(
+                        (local_outputs[index], output), dim=0
+                    )
+                    local_inputs[index] = torch.cat(
+                        (local_inputs[index], target), dim=0
+                    )
+
         Y_true_global.append(global_targets)
         # Concat all outputs and targets by level
-    local_inputs = {
-        level: torch.cat(local_input, dim=0)
-        for level, local_input in local_inputs.items()
-    }
-    local_outputs = {
-        key: torch.cat(outputs, dim=0) for key, outputs in local_outputs.items()
-    }
+
     # Get local scores
     local_test_score = {
         level: {"f1score": None, "precision": None, "recall": None}
@@ -76,6 +79,9 @@ def test_step(args):
 
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
+        args.model.levels[str(idx)].load_state_dict(
+            torch.load(f"best_model_level_{idx}.pth")
+        )
         y_pred_binary = local_outputs[idx].data > threshold
 
         # y_pred_binary = (local_outputs[idx] > threshold).astype(int)

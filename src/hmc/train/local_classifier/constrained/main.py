@@ -175,5 +175,7 @@ def train_local(args):
         #                                     hidden_size=args.hidden_dim)
         train_step(args)
         for i in args.active_levels:
-            args.model.levels[str(i)].load_state_dict(args.best_model[i])
+            args.model.levels[str(i)].load_state_dict(
+                torch.load(f"best_model_level_{i}.pth")
+            )
         test_step(args)
