@@ -12,8 +12,8 @@ from hmc.model.local_classifier.baseline.model import HMCLocalModel
 from hmc.train.local_classifier.baseline.hpo.hpo_local import (
     optimize_hyperparameters_per_level,
 )
-from hmc.train.local_classifier.core.test import test_step
-from hmc.train.local_classifier.core.train import train_step
+from hmc.train.local_classifier.baseline.test import test_step
+from hmc.train.local_classifier.baseline.train import train_step
 
 
 def train_local(args):
@@ -125,6 +125,7 @@ def train_local(args):
     args.input_dim = args.input_dims[args.data]
     args.max_depth = hmc_dataset.max_depth
     args.to_eval = hmc_dataset.to_eval
+    args.constrained = False
     if args.active_levels is None:
         args.active_levels = [i for i in range(args.max_depth)]
     else:
@@ -174,5 +175,7 @@ def train_local(args):
         #                                     hidden_size=args.hidden_dim)
         train_step(args)
         for i in args.active_levels:
-            args.model.levels[str(i)].load_state_dict(args.best_model[i])
+            args.model.levels[str(i)].load_state_dict(
+                torch.load(f"best_model_level_{i}.pth")
+            )
         test_step(args)

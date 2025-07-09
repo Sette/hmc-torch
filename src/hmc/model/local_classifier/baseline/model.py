@@ -94,7 +94,7 @@ class HMCLocalModel(nn.Module):
             num_layers = {level: num_layers for level in active_levels}
         if isinstance(dropout, float):
             dropout = {level: dropout for level in active_levels}
-            
+
         logging.info(
             "HMCLocalModel: input_size=%s, levels_size=%s, "
             "hidden_size=%s, num_layers=%s, dropout=%s, "
@@ -118,7 +118,7 @@ class HMCLocalModel(nn.Module):
     def forward(self, x):
         outputs = {}
         for index, level in self.levels.items():
+            index = int(index)
             local_output = level(x)
             outputs[index] = local_output
         return outputs
-
