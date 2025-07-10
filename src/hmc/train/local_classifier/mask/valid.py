@@ -50,7 +50,7 @@ def valid_step(args):
 
     # Get local scores
     local_val_score = {level: None for _, level in enumerate(args.active_levels)}
-    threshold = 0.3
+    threshold = 0.2
 
     # Compute matrix of ancestors R
     # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is descendant of class j
@@ -73,7 +73,10 @@ def valid_step(args):
 
     class_indices_per_level = {
         lvl: torch.tensor(
-            [args.hmc_dataset.nodes_idx[n.replace('/', '.')] for n in args.hmc_dataset.levels[lvl]],
+            [
+                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                for n in args.hmc_dataset.levels[lvl]
+            ],
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -111,7 +114,9 @@ def valid_step(args):
                             dim=0,
                         )  # [batch, n_classes_nivel_atual]
                         masked_output = output + (1 - mask) * (-1e9)
-                        loss = args.criterions[index](torch.sigmoid(masked_output), target)
+                        loss = args.criterions[index](
+                            torch.sigmoid(masked_output), target
+                        )
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")
@@ -146,19 +151,22 @@ def valid_step(args):
     for level_idx in args.active_levels:
         if args.level_active[level_idx]:
             if args.best_model[level_idx] is None:
-                args.best_model[level_idx] = args.model.levels[str(level_idx)].state_dict()
+                args.best_model[level_idx] = args.model.levels[
+                    str(level_idx)
+                ].state_dict()
                 logging.info("Level %d: initialized best model", level_idx)
-            if (
-                local_val_score[level_idx]
-                > args.best_val_score[level_idx]
-            ):
+            if local_val_score[level_idx] > args.best_val_score[level_idx]:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[level_idx] = round(local_val_losses[level_idx], 4)
                 args.best_val_score[level_idx] = local_val_score[level_idx]
-                args.best_model[level_idx] = args.model.levels[str(level_idx)].state_dict()
+                args.best_model[level_idx] = args.model.levels[
+                    str(level_idx)
+                ].state_dict()
                 args.patience_counters[level_idx] = 0
                 logging.info(
-                    "Level %d: improved (F1 score=%.4f)", level_idx, local_val_score[level_idx]
+                    "Level %d: improved (F1 score=%.4f)",
+                    level_idx,
+                    local_val_score[level_idx],
                 )
             else:
                 # Incrementar o contador de paciência
@@ -179,5 +187,5 @@ def valid_step(args):
                     # ❄️ Congelar os parâmetros desse nível
                     for param in args.model.levels[str(level_idx)].parameters():
                         param.requires_grad = False
-                            
+
     return None

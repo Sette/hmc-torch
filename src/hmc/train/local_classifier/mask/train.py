@@ -8,9 +8,6 @@ from hmc.train.utils import (
     show_local_score,
 )
 
-import networkx as nx
-import numpy as np
-
 from hmc.model.local_classifier.constrained.utils import get_constr_out
 
 # Set a logger config
