@@ -68,7 +68,6 @@ class ConstrainedHMCLocalModel(nn.Module):
         num_layers=None,
         dropout=None,
         active_levels=None,
-        all_matrix_r=None,
     ):
         super(ConstrainedHMCLocalModel, self).__init__()
         if not input_size:
@@ -86,7 +85,6 @@ class ConstrainedHMCLocalModel(nn.Module):
         self.mum_layers = num_layers
         self.hidden_size = hidden_size
         self.dropout = dropout
-        self.all_matrix_r = all_matrix_r
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
         if isinstance(levels_size, int):

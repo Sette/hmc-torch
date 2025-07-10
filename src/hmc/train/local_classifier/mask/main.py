@@ -164,7 +164,6 @@ def train_local(args):
             "num_layers": num_layers_values,
             "dropout": dropout_values,
             "active_levels": args.active_levels,
-            "all_matrix_r": hmc_dataset.all_matrix_r,
         }
 
         model = ConstrainedHMCLocalModel(**params)
