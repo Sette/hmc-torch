@@ -7,13 +7,72 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.dataset.manager.dataset_manager import initialize_dataset_experiments
+# Import necessary modules for mask training local classifiers
+from hmc.train.local_classifier.mask.hpo.hpo_local import (
+    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_mask,
+)
+from hmc.train.local_classifier.mask.test import (
+    test_step as test_step_mask,
+)
+
+from hmc.train.local_classifier.mask.train import (
+    train_step as train_step_mask,
+)
+
+# Import necessary modules for constrained training local classifiers
+from hmc.model.local_classifier.constrained.model import ConstrainedHMCLocalModel
+from hmc.train.local_classifier.constrained.hpo.hpo_local import (
+    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_constrained,
+)
+from hmc.train.local_classifier.constrained.test import (
+    test_step as test_step_constrained,
+)
+
+from hmc.train.local_classifier.constrained.train import (
+    train_step as train_step_constrained,
+)
+
+# Import necessary modules for training baseline local classifiers
 from hmc.model.local_classifier.baseline.model import HMCLocalModel
 from hmc.train.local_classifier.baseline.hpo.hpo_local import (
-    optimize_hyperparameters_per_level,
+    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_baseline,
 )
-from hmc.train.local_classifier.baseline.test import test_step
-from hmc.train.local_classifier.baseline.train import train_step
+from hmc.train.local_classifier.baseline.test import (
+    test_step as test_step_baseline,
+)
+
+from hmc.train.local_classifier.baseline.train import (
+    train_step as train_step_baseline,
+)
+
+from hmc.dataset.manager.dataset_manager import initialize_dataset_experiments
+
+
+def get_train_methods(x):
+    match x:
+        case "local_constrained":
+            return {
+                "model": ConstrainedHMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters_per_level_constrained,
+                "test_step": test_step_constrained,
+                "train_step": train_step_constrained,
+            }
+        case "local_baseline":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters_per_level_baseline,
+                "test_step": test_step_baseline,
+                "train_step": train_step_baseline,
+            }
+        case "local_mask":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters_per_level_mask,
+                "test_step": test_step_mask,
+                "train_step": train_step_mask,
+            }
+        case _:
+            raise ValueError(f"Método '{x}' não reconhecido.")
 
 
 def train_local(args):
@@ -45,6 +104,12 @@ def train_local(args):
 
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
+
+    train_methods = get_train_methods(args.method)
+
+    if args.method == "local_constrained":
+        logging.info("Using constrained local model")
+
     # Load train, val and test set
 
     if args.device.startswith("cuda") and not torch.cuda.is_available():
@@ -125,7 +190,7 @@ def train_local(args):
     args.input_dim = args.input_dims[args.data]
     args.max_depth = hmc_dataset.max_depth
     args.to_eval = hmc_dataset.to_eval
-    args.constrained = False
+    args.constrained = True
     if args.active_levels is None:
         args.active_levels = [i for i in range(args.max_depth)]
     else:
@@ -138,7 +203,7 @@ def train_local(args):
     if args.hpo == "true":
         logging.info("Hyperparameter optimization")
         args.n_trials = 30
-        best_params = optimize_hyperparameters_per_level(args=args)
+        best_params = train_methods["optimize_hyperparameters"](args=args)
 
         logging.info(best_params)
     else:
@@ -166,12 +231,15 @@ def train_local(args):
             "active_levels": args.active_levels,
         }
 
-        model = HMCLocalModel(**params)
+        if args.method == "local_constrained":
+            params["all_matrix_r"] = hmc_dataset.all_matrix_r_constrained
+
+        model = train_methods["model"](**params)
         args.model = model
         logging.info(model)
         # Create the model
         # model = HMCLocalClassificationModel(levels_size=hmc_dataset.levels_size,
         #                                     input_size=args.input_dims[data],
         #                                     hidden_size=args.hidden_dim)
-        train_step(args)
-        test_step(args)
+        train_methods["train_step"](args)
+        train_methods["test_step"](args)

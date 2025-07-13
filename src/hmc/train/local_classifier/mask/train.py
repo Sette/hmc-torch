@@ -86,7 +86,10 @@ def train_step(args):
 
     class_indices_per_level = {
         lvl: torch.tensor(
-            [args.hmc_dataset.nodes_idx[n.replace('/', '.')] for n in args.hmc_dataset.levels[lvl]],
+            [
+                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                for n in args.hmc_dataset.levels[lvl]
+            ],
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -125,7 +128,7 @@ def train_step(args):
             args.optimizers.zero_grad()
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)].double()
+                    output = outputs[index].double()
                     target = targets[index].double()
                     child_indices = class_indices_per_level[
                         index
@@ -148,7 +151,9 @@ def train_step(args):
                             dim=0,
                         )  # [batch, n_classes_nivel_atual]
                         masked_output = output + (1 - mask) * (-1e9)
-                        loss = args.criterions[index](torch.sigmoid(masked_output), target)
+                        loss = args.criterions[index](
+                            torch.sigmoid(masked_output), target
+                        )
                     local_train_losses[index] += loss
 
         # Backward pass (cálculo dos gradientes)

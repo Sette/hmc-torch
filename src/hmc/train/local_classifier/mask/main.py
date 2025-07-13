@@ -173,6 +173,4 @@ def train_local(args):
         #                                     input_size=args.input_dims[data],
         #                                     hidden_size=args.hidden_dim)
         train_step(args)
-        for i in args.active_levels:
-            args.model.levels[str(i)].load_state_dict(args.best_model[i])
         test_step(args)

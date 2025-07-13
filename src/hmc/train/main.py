@@ -11,6 +11,8 @@ from hmc.train.global_classifier.baseline.train_global import train_global_basel
 from hmc.train.global_classifier.constrained.train_global import train_global
 from hmc.train.global_classifier.constrained.train_globalLM import train_globalLM
 
+from hmc.train import train_local
+
 from hmc.utils.dir import create_job_id
 
 # Set a logger config
@@ -204,26 +206,13 @@ def main():
         if args.method == "global":
             train_global(dataset_name, args)
 
-        if args.method == "local":
-            from hmc.train.local_classifier.baseline.main import train_local
-
-            train_local(args)
-
-        if args.method == "local_constrained":
-            from hmc.train.local_classifier.constrained.main import train_local
-
-            train_local(args)
-
-        if args.method == "local_mask":
-            from hmc.train.local_classifier.mask.main import train_local
-
-            train_local(args)
-
         if args.method == "globalLM":
             train_globalLM(dataset_name, args)
 
         if args.method == "global_baseline":
             train_global_baseline(dataset_name, args)
+        else:
+            train_local(args)
 
 
 if __name__ == "__main__":
