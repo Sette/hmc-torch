@@ -101,7 +101,7 @@ if [ "$ACTIVE_LEVELS" ]; then
 fi
 
 
-if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ]; }; then
+if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
         cmd+=" \
             --lr_values ${LR_VALUES[@]} \
             --dropout_values ${DROPOUT_VALUES[@]} \
