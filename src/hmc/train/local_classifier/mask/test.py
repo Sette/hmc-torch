@@ -44,7 +44,7 @@ def test_step(args):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    threshold = 0.3
+    threshold = 0.2
 
     Y_true_global = []
     with torch.no_grad():
