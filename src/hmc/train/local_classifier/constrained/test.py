@@ -80,7 +80,7 @@ def test_step(args):
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
         args.model.levels[str(idx)].load_state_dict(
-            torch.load(f"best_model_level_{idx}.pth")
+            torch.load(f"best_model_constrained_level_{idx}.pth")
         )
         y_pred_binary = local_outputs[idx].data > threshold
 
