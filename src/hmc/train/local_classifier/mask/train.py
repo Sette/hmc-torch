@@ -111,7 +111,7 @@ def train_step(args):
         weight_decay=args.weight_decay_values[0],
     )
 
-    n_warmup_epochs = 5  # defina quantas épocas quer pré-treinar o nível 0
+    n_warmup_epochs = 20  # defina quantas épocas quer pré-treinar o nível 0
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
@@ -177,23 +177,31 @@ def train_step(args):
                 and args.level_active[i]
             ):
                 total_loss.backward()
+                logging.info(
+                    "Level %d, Loss: %.4f",
+                    i,
+                    total_loss.item() / len(args.train_loader),
+                )
         args.optimizers.step()
         # for optimizer in args.optimizers:
         #    optimizer.step()
 
-        local_train_losses = [
-            loss / len(args.train_loader) for loss in local_train_losses
-        ]
-        non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-        global_train_loss = (
-            sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
-        )
+        if epoch <= n_warmup_epochs:
+            local_train_losses[0] = local_train_losses[0] / len(args.train_loader)
+        else:
+            local_train_losses = [
+                loss / len(args.train_loader) for loss in local_train_losses
+            ]
+            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
+            global_train_loss = (
+                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
+            )
+            # show_global_loss(global_train_loss, dataset="Train")
+            # show_local_losses(local_train_losses, dataset="Train")
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        # show_local_losses(local_train_losses, dataset="Train")
-        # show_global_loss(global_train_loss, dataset="Train")
 
-        if epoch % args.epochs_to_evaluate == 0:
+        if epoch % args.epochs_to_evaluate == 0 and epoch > n_warmup_epochs:
             logging.info("Validating at epoch %d", epoch)
             valid_step(args)
             # show_local_losses(local_val_losses, dataset="Val")

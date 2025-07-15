@@ -57,7 +57,7 @@ def get_train_methods(x):
                 "test_step": test_step_constrained,
                 "train_step": train_step_constrained,
             }
-        case "local_baseline":
+        case "local":
             return {
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters_per_level_baseline,
