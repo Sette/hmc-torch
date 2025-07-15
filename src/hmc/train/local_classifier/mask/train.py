@@ -111,7 +111,7 @@ def train_step(args):
         weight_decay=args.weight_decay_values[0],
     )
 
-    n_warmup_epochs = 20  # defina quantas épocas quer pré-treinar o nível 0
+    n_warmup_epochs = 100  # defina quantas épocas quer pré-treinar o nível 0
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
