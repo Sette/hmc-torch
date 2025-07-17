@@ -232,7 +232,7 @@ def train_local(args):
         }
 
         if args.method == "local_constrained":
-            params["all_matrix_r"] = hmc_dataset.all_matrix_r_constrained
+            params["all_matrix_r"] = hmc_dataset.all_matrix_r
 
         model = train_methods["model"](**params)
         args.model = model

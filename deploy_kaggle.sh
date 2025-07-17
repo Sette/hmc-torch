@@ -30,7 +30,7 @@ if [ "$GIT_CLONE_CHOICE" = "y" ]; then
     echo "Executando git clone no servidor..."
     ssh "$REMOTE_HOST" "
         export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-        git clone -b fix --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
+        git clone -b develop --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
         cd $REMOTE_PATH &&
         git config core.sshCommand 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' \
     "
@@ -45,7 +45,7 @@ echo -n "Do you want to run git pull before starting training? (y/n): "
 read GIT_PULL_CHOICE
 GIT_PULL_CHOICE=$(echo "$GIT_PULL_CHOICE" | tr '[:upper:]' '[:lower:]')  # Converte para minúsculas
 
-if [ "$GIT_PULL_CHOICE" = "s" ]; then
+if [ "$GIT_PULL_CHOICE" = "y" ]; then
     echo "Executando git pull no servidor..."
     ssh "$REMOTE_HOST" "
         export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
@@ -124,4 +124,5 @@ echo "Usando PyTorch com CUDA..."
 ssh "$REMOTE_HOST" "
     cd $REMOTE_PATH &&
     source .venv/bin/activate &&
-    chmod +x $SCRIPT_TO_RUN && ./$SCRIPT_TO_RUN --device cuda --dataset_path /kaggle/input/gene-ontology-original --method local_constrained \
+    chmod +x $SCRIPT_TO_RUN && ./$SCRIPT_TO_RUN --device cuda --dataset_path /kaggle/input/gene-ontology-original --method local \
+    "
