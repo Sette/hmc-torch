@@ -35,6 +35,11 @@ def test_step(args):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
+    for level in args.active_levels:
+        args.model.levels[str(level)].load_state_dict(
+            torch.load(f"best_model_baseline_level_{level}.pth")
+        )
+
     threshold = 0.2
 
     Y_true_global = []
@@ -46,7 +51,8 @@ def test_step(args):
             outputs = args.model(inputs.float())
 
             for index in args.active_levels:
-                output = outputs[index].to("cpu")
+                output = outputs[str(index)].to("cpu")
+
                 target = targets[index].to("cpu")
                 local_inputs[index].append(target)
                 local_outputs[index].append(output)
@@ -90,7 +96,8 @@ def test_step(args):
 
     save_dict_to_json(
         local_test_score,
-        f"results/train/{args.dataset_name}-{job_id}.json",
+        f"results/train/{args.method}-{args.dataset_name}-{job_id}.json",
+
     )
 
     # Save the trained model

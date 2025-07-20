@@ -86,7 +86,11 @@ def train_step(args):
 
     class_indices_per_level = {
         lvl: torch.tensor(
-            [args.hmc_dataset.nodes_idx[n.replace('/', '.')] for n in args.hmc_dataset.levels[lvl]],
+            [
+                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                for n in args.hmc_dataset.levels[lvl]
+            ],
+
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -108,6 +112,8 @@ def train_step(args):
         weight_decay=args.weight_decay_values[0],
     )
 
+    n_warmup_epochs = 100  # defina quantas épocas quer pré-treinar o nível 0
+
     for epoch in range(1, args.epochs + 1):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
@@ -123,55 +129,81 @@ def train_step(args):
 
             # Zerar os gradientes antes de cada batch
             args.optimizers.zero_grad()
-            for index in args.active_levels:
-                if args.level_active[index]:
-                    output = outputs[str(index)].double()
-                    target = targets[index].double()
-                    child_indices = class_indices_per_level[
-                        index
-                    ]  # [n_classes_nivel_atual]
-                    # MCLoss
-                    if index == 0:
-                        loss = args.criterions[index](output, target)
-                    else:
-                        # Índices globais dos pais para cada amostra
-                        parent_target = targets[index - 1]
-                        parent_indices = class_indices_per_level[index - 1]
-                        parent_index_each_sample = parent_target.argmax(dim=1)
-                        parent_global_idxs = parent_indices[parent_index_each_sample]
-                        # Constrói a máscara usando R_global (shape: [1, n, n])
-                        mask = torch.stack(
-                            [
-                                R[0, child_indices, parent_global_idxs[b]]
-                                for b in range(output.shape[0])
-                            ],
-                            dim=0,
-                        )  # [batch, n_classes_nivel_atual]
-                        masked_output = output + (1 - mask) * (-1e9)
-                        loss = args.criterions[index](torch.sigmoid(masked_output), target)
-                    local_train_losses[index] += loss
+
+            # Se ainda estamos no warm-up, só treine o nível 0
+            if epoch <= n_warmup_epochs:
+                index = 0
+                output = outputs[index].double()
+                target = targets[index].double()
+                loss = args.criterions[index](output, target)
+                local_train_losses[index] += loss
+            else:
+                for index in args.active_levels:
+                    if args.level_active[index]:
+                        output = outputs[index].double()
+                        target = targets[index].double()
+                        child_indices = class_indices_per_level[
+                            index
+                        ]  # [n_classes_nivel_atual]
+                        # MCLoss
+                        if index == 0:
+                            loss = args.criterions[index](output, target)
+                        else:
+                            # Índices globais dos pais para cada amostra
+                            parent_target = targets[index - 1]
+                            parent_indices = class_indices_per_level[index - 1]
+                            parent_index_each_sample = parent_target.argmax(dim=1)
+                            parent_global_idxs = parent_indices[
+                                parent_index_each_sample
+                            ]
+                            # Constrói a máscara usando R_global (shape: [1, n, n])
+                            mask = torch.stack(
+                                [
+                                    R[0, child_indices, parent_global_idxs[b]]
+                                    for b in range(output.shape[0])
+                                ],
+                                dim=0,
+                            )  # [batch, n_classes_nivel_atual]
+                            masked_output = output + (1 - mask) * (-1e9)
+                            loss = args.criterions[index](
+                                torch.sigmoid(masked_output), target
+                            )
+                        local_train_losses[index] += loss
 
         # Backward pass (cálculo dos gradientes)
         for i, total_loss in enumerate(local_train_losses):
-            if i in args.active_levels and args.level_active[i]:
+            if i == 0 or (
+                epoch > n_warmup_epochs
+                and i in args.active_levels
+                and args.level_active[i]
+            ):
                 total_loss.backward()
+                logging.info(
+                    "Level %d, Loss: %.4f",
+                    i,
+                    total_loss.item() / len(args.train_loader),
+                )
+
         args.optimizers.step()
         # for optimizer in args.optimizers:
         #    optimizer.step()
 
-        local_train_losses = [
-            loss / len(args.train_loader) for loss in local_train_losses
-        ]
-        non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-        global_train_loss = (
-            sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
-        )
+        if epoch <= n_warmup_epochs:
+            local_train_losses[0] = local_train_losses[0] / len(args.train_loader)
+        else:
+            local_train_losses = [
+                loss / len(args.train_loader) for loss in local_train_losses
+            ]
+            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
+            global_train_loss = (
+                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
+            )
+            # show_global_loss(global_train_loss, dataset="Train")
+            # show_local_losses(local_train_losses, dataset="Train")
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        # show_local_losses(local_train_losses, dataset="Train")
-        # show_global_loss(global_train_loss, dataset="Train")
 
-        if epoch % args.epochs_to_evaluate == 0:
+        if epoch % args.epochs_to_evaluate == 0 and epoch > n_warmup_epochs:
             logging.info("Validating at epoch %d", epoch)
             valid_step(args)
             # show_local_losses(local_val_losses, dataset="Val")

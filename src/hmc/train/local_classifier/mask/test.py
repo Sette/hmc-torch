@@ -55,7 +55,8 @@ def test_step(args):
             outputs = args.model(inputs.float())
 
             for index in args.active_levels:
-                output = outputs[str(index)].to("cpu")
+                output = outputs[index].to("cpu")
+
                 target = targets[index].to("cpu")
                 local_inputs[index].append(target)
                 local_outputs[index].append(output)
@@ -99,7 +100,8 @@ def test_step(args):
 
     save_dict_to_json(
         local_test_score,
-        f"results/train/{args.dataset_name}-{job_id}.json",
+        f"results/train/{args.method}-{args.dataset_name}-{job_id}.json",
+
     )
 
     # Save the trained model
