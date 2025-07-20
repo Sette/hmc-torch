@@ -82,6 +82,7 @@ def train_step(args):
             for index in args.active_levels:
                 if args.level_active[index]:
                     output = outputs[str(index)].double()
+
                     target = targets[index]
 
                     loss = args.criterions[index](output, target.double())

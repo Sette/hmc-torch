@@ -90,6 +90,7 @@ def train_step(args):
                 args.hmc_dataset.nodes_idx[n.replace("/", ".")]
                 for n in args.hmc_dataset.levels[lvl]
             ],
+
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -182,6 +183,7 @@ def train_step(args):
                     i,
                     total_loss.item() / len(args.train_loader),
                 )
+
         args.optimizers.step()
         # for optimizer in args.optimizers:
         #    optimizer.step()

@@ -103,6 +103,7 @@ def valid_step(args):
                 torch.save(
                     args.model.levels[str(i)].state_dict(),
                     f"best_model_baseline_level_{i}.pth",
+
                 )
                 logging.info("best model updated and saved for Level %d", i)
 

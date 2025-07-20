@@ -77,6 +77,7 @@ def valid_step(args):
                 args.hmc_dataset.nodes_idx[n.replace("/", ".")]
                 for n in args.hmc_dataset.levels[lvl]
             ],
+
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -117,6 +118,7 @@ def valid_step(args):
                         loss = args.criterions[index](
                             torch.sigmoid(masked_output), target
                         )
+
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")
@@ -175,6 +177,7 @@ def valid_step(args):
                     f"best_model_mask_level_{i}.pth",
                 )
                 logging.info("best model updated and saved for Level %d", i)
+
             else:
                 # Incrementar o contador de paciência
                 args.patience_counters[level_idx] += 1
@@ -194,5 +197,4 @@ def valid_step(args):
                     # ❄️ Congelar os parâmetros desse nível
                     for param in args.model.levels[str(level_idx)].parameters():
                         param.requires_grad = False
-
     return None

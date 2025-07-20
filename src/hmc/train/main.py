@@ -206,6 +206,20 @@ def main():
         if args.method == "global":
             train_global(dataset_name, args)
 
+        if args.method == "local":
+            from hmc.train.local_classifier.baseline.main import train_local
+
+            train_local(args)
+
+        if args.method == "local_constrained":
+            from hmc.train.local_classifier.constrained.main import train_local
+
+            train_local(args)
+
+        if args.method == "local_mask":
+            from hmc.train.local_classifier.mask.main import train_local
+
+            train_local(args)
         if args.method == "globalLM":
             train_globalLM(dataset_name, args)
 
