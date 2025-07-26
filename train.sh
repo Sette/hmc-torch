@@ -54,6 +54,7 @@ usage() {
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"
+    echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
     echo "  --help                    Display this message and exit"
     exit 0
 }
@@ -78,6 +79,7 @@ while [ "$#" -gt 0 ]; do
         --method) METHOD="$2"; shift ;;
         --hpo) HPO="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
+        --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --help) usage ;;
         *) echo "Invalid option: $1"; usage ;;
     esac
@@ -94,6 +96,7 @@ done
                 --seed $SEED \
                 --output_path $OUTPUT_PATH \
                 --method $METHOD \
+                --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
                 --hpo $HPO"
 
 if [ "$ACTIVE_LEVELS" ]; then

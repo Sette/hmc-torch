@@ -1,7 +1,9 @@
 import logging
-
+import os
 import torch
 from sklearn.metrics import precision_recall_fscore_support
+
+from hmc.utils.dir import create_dir
 
 
 def valid_step(args):
@@ -32,13 +34,19 @@ def valid_step(args):
 
     args.model.eval()
     local_val_losses = [0.0] * args.max_depth
-    y_val = [0.0] * args.max_depth
 
+    local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
     local_val_score = {level: None for _, level in enumerate(args.active_levels)}
     threshold = 0.2
+
+    R_global = args.hmc_dataset.R.to(args.device)
+    R_global = R_global.squeeze(0)
+
+    # regularization = "soft"
+    regularization = "none"
 
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
@@ -47,29 +55,82 @@ def valid_step(args):
             ]
             outputs = args.model(inputs.float())
 
+            total_loss = 0.0
+
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)]
+                    output = outputs[index]
                     target = targets[index]
                     loss = args.criterions[index](output.double(), target)
-                    local_val_losses[index] += loss
 
-                    if i == 0:
-                        local_outputs[index] = output.to("cpu")
-                        y_val[index] = target.to("cpu")
-                    else:
+                    if regularization == "soft":
+                        # --- REGULARIZAÇÃO HIERÁRQUICA SOFT GLOBAL, VETORIZADA ---
+                        lambda_hier = 0.1
+
+                        # Submatriz de R_global das classes desse nível!
+                        local_dict = args.hmc_dataset.local_nodes_idx[index]
+
+                        global_dict = args.hmc_dataset.nodes_idx
+
+                        # print(global_dict)
+
+                        classes_local_to_global = [
+                            int(global_dict[node.replace("/", ".")])
+                            for node, i in sorted(
+                                local_dict.items(), key=lambda x: x[1]
+                            )
+                        ]
+
+                        R_sub = R_global[torch.tensor(classes_local_to_global)][
+                            :, torch.tensor(classes_local_to_global)
+                        ]
+                        # Remove diagonal
+                        R_mask = R_sub - torch.eye(R_sub.size(0), device=output.device)
+                        R_mask = R_mask.unsqueeze(0)  # (1, n_local, n_local)
+
+                        probs = output  # (batch, num_classes_local)
+
+                        # Vetorização da penalidade
+                        probs_i = probs.unsqueeze(2)  # (batch, num_classes_local, 1)
+                        probs_j = probs.unsqueeze(1)  # (batch, 1, num_classes_local)
+                        diff = (
+                            probs_j - probs_i
+                        )  # (batch, num_classes_local, num_classes_local)
+
+                        penalty = torch.clamp(diff * R_mask, min=0).sum() / output.size(
+                            0
+                        )
+
+                        # Soma regularização soft à loss principal do nível
+                        loss = loss + lambda_hier * penalty
+                        # --------------------------------------------------------
+
+                    local_val_losses[index] += loss.item()
+                    total_loss += loss
+
+                    # *** Para métricas e concatenação ***
+                    # Se quiser outputs binários para avaliação:
+                    binary_outputs = (output > threshold).float()
+
+                    # Acumulação de outputs e targets para métricas
+                    if i == 0:  # Primeira iteração: inicia tensor
+                        local_outputs[index] = binary_outputs
+                        local_inputs[index] = target
+                    else:  # Nas seguintes, empilha ao longo do batch
                         local_outputs[index] = torch.cat(
-                            (local_outputs[index], output.to("cpu")), dim=0
+                            (local_outputs[index], binary_outputs), dim=0
                         )
-                        y_val[index] = torch.cat(
-                            (y_val[index], target.to("cpu")), dim=0
+                        local_inputs[index] = torch.cat(
+                            (local_inputs[index], target), dim=0
                         )
+
     for idx in args.active_levels:
         if args.level_active[idx]:
-            y_pred_binary = local_outputs[idx].data > threshold
+            y_pred = local_outputs[idx].int().numpy()
+            y_true = local_inputs[idx].int().numpy()
 
             score = precision_recall_fscore_support(
-                y_val[idx], y_pred_binary, average="micro"
+                y_true, y_pred, average="micro", zero_division=0
             )
             # local_val_score[idx] = score
             logging.info(
@@ -82,6 +143,9 @@ def valid_step(args):
 
             local_val_score[idx] = score[2]
 
+    results_path = f"results/train/{args.method}-{args.dataset_name}"
+    create_dir(results_path)
+
     local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
     logging.info("Levels to evaluate: %s", args.active_levels)
     for i in args.active_levels:
@@ -89,9 +153,9 @@ def valid_step(args):
             if args.best_model[i] is None:
                 args.best_model[i] = args.model.levels[str(i)].state_dict()
                 logging.info("Level %d: initialized best model", i)
-            if round(local_val_score[i], 4) > args.best_val_score[i]:
+            if round(local_val_losses[i], 4) < args.best_val_loss[i]:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
+                args.best_val_loss[i] = round(local_val_losses[i], 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
                 args.best_model[i] = args.model.levels[str(i)].state_dict()
                 args.patience_counters[i] = 0
@@ -102,8 +166,7 @@ def valid_step(args):
                 logging.info("Saving best model for Level %d", i)
                 torch.save(
                     args.model.levels[str(i)].state_dict(),
-                    f"best_model_baseline_level_{i}.pth",
-
+                    os.path.join(results_path, f"best_model_baseline_level_{i}.pth"),
                 )
                 logging.info("best model updated and saved for Level %d", i)
 

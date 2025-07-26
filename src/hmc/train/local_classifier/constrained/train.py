@@ -63,17 +63,7 @@ def train_step(args):
     args.best_model = [None] * args.max_depth
     logging.info("Best val loss created %s", args.best_val_loss)
 
-    # optimizers = [
-    #     torch.optim.Adam(
-    #         model.parameters(),
-    #         lr=args.lr_values[int(idx)],
-    #         weight_decay=args.weight_decay_values[int(idx)],
-    #     )
-    #     for idx, model in args.model.levels.items()
-    # ]
-    # args.optimizers = optimizers
-
-    args.optimizers = torch.optim.Adam(
+    args.optimizer = torch.optim.Adam(
         args.model.parameters(),
         lr=args.lr_values[0],
         weight_decay=args.weight_decay_values[0],
@@ -97,35 +87,30 @@ def train_step(args):
             outputs = args.model(inputs.float())
 
             # Zerar os gradientes antes de cada batch
-            args.optimizers.zero_grad()
-            # for optimizer in args.optimizers:
-            #     optimizer.zero_grad()
+            args.optimizer.zero_grad()
+            total_loss = 0.0
+
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[index].double()
+                    output = outputs[index]
                     target = targets[index]
 
                     # MCLoss
                     if index == 0:
-                        loss = args.criterions[index](output, target)
+                        loss = args.criterions[index](output.double(), target)
                     else:
                         R = args.hmc_dataset.all_matrix_r[index].to(args.device)
                         constr_output = get_constr_out(output, R)
-                        train_output = target * output.double()
-                        train_output = get_constr_out(train_output, R)
-                        train_output = (
-                            1 - target
-                        ) * constr_output.double() + target * train_output
+                        train_output = target * output + (1 - target) * constr_output
                         loss = args.criterions[index](train_output, target)
-                    local_train_losses[index] += loss
+                    local_train_losses[
+                        index
+                    ] += loss.item()  # Acumula para estatísticas
+                    total_loss += loss  # Soma das losses para o backward
 
-        # Backward pass (cálculo dos gradientes)
-        for i, total_loss in enumerate(local_train_losses):
-            if i in args.active_levels and args.level_active[i]:
-                total_loss.backward()
-        args.optimizers.step()
-        # for optimizer in args.optimizers:
-        #    optimizer.step()
+        # Backward e step
+        total_loss.backward()
+        args.optimizer.step()
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses

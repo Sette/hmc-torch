@@ -92,26 +92,24 @@ def show_local_losses(local_losses, dataset="Train"):
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
         if local_loss is not None and local_loss != 0.0:
-            formatted_string += "%s Loss %.4f for level %d // " % (
-                dataset,
-                local_loss.item(),
+            formatted_string += "level %d: %.4f // " % (
                 level,
+                local_loss,
             )
     logging.info(formatted_string)
 
 
 def show_global_loss(global_loss, dataset="Train"):
-    logging.info("Global average loss %s Loss: %s", dataset, global_loss.item())
+    logging.info("Global average loss %s Loss: %s", dataset, global_loss)
 
 
 def show_local_score(local_scores, dataset="Train"):
     formatted_string = ""
     for level, local_score in local_scores.items():
         if local_score is not None and local_score != 0.0:
-            formatted_string += "%s Score %s for level %s // " % (
-                dataset,
-                local_score,
+            formatted_string += "level %s score %s // " % (
                 level,
+                local_score,
             )
 
     logging.info(formatted_string)

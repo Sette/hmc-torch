@@ -60,6 +60,10 @@ def train_step(args):
     )
     args.model.train()
 
+    R_global = args.hmc_dataset.R.to(args.device)
+    R_global = R_global.squeeze(0)
+    print(R_global.shape)
+
     for epoch in range(1, args.epochs + 1):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
@@ -79,20 +83,20 @@ def train_step(args):
             # Zerar os gradientes antes de cada batch
             args.optimizer.zero_grad()
 
+            total_loss = 0.0
+
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[str(index)].double()
-
+                    output = outputs[index]  # Preferencialmente float32
                     target = targets[index]
+                    loss = args.criterions[index](output.double(), target)
 
-                    loss = args.criterions[index](output, target.double())
-                    local_train_losses[index] += loss
+                    local_train_losses[index] += loss.item()  # Acumula média por batch
+                    total_loss += loss  # Soma da loss para backward
 
-        # Backward pass (cálculo dos gradientes)
-        for i, total_loss in enumerate(local_train_losses):
-            if i in args.active_levels and args.level_active[i]:
-                total_loss.backward()
-        args.optimizer.step()
+            # Após terminar loop dos níveis, execute backward
+            total_loss.backward()
+            args.optimizer.step()
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses

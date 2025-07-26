@@ -1,5 +1,5 @@
 import logging
-
+import os
 import torch
 from sklearn.metrics import (
     average_precision_score,
@@ -11,6 +11,8 @@ from hmc.train.utils import (
     save_dict_to_json,
 )
 from hmc.utils.dir import create_dir
+
+from hmc.train.utils import local_to_global_predictions
 
 
 def test_step(args):
@@ -35,14 +37,19 @@ def test_step(args):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
+    results_path = f"results/train/{args.method}-{args.dataset_name}"
+
     for level in args.active_levels:
         args.model.levels[str(level)].load_state_dict(
-            torch.load(f"best_model_baseline_level_{level}.pth")
+            torch.load(
+                os.path.join(results_path, f"best_model_baseline_level_{level}.pth")
+            )
         )
 
     threshold = 0.2
 
     Y_true_global = []
+    Y_pred = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
             inputs = inputs.to(args.device)
@@ -51,12 +58,12 @@ def test_step(args):
             outputs = args.model(inputs.float())
 
             for index in args.active_levels:
-                output = outputs[str(index)].to("cpu")
-
+                output = outputs[index].to("cpu")
                 target = targets[index].to("cpu")
+                binary_outputs = (output.data > threshold).float()
                 local_inputs[index].append(target)
-                local_outputs[index].append(output)
-        Y_true_global.append(global_targets)
+                local_outputs[index].append(binary_outputs)
+            Y_true_global.append(global_targets)
         # Concat all outputs and targets by level
     local_inputs = {
         level: torch.cat(local_input, dim=0)
@@ -73,7 +80,7 @@ def test_step(args):
 
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
-        y_pred_binary = local_outputs[idx].data > threshold
+        y_pred_binary = local_outputs[idx]
 
         # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
@@ -97,7 +104,6 @@ def test_step(args):
     save_dict_to_json(
         local_test_score,
         f"results/train/{args.method}-{args.dataset_name}-{job_id}.json",
-
     )
 
     # Save the trained model
@@ -108,20 +114,25 @@ def test_step(args):
     # args.model.save(f"results/train/{args.dataset_name}-{job_id}.pt")
 
     # Concat global targets
-    # Y_true_global_original = torch.cat(Y_true_global, dim=0).numpy()
+    Y_true_global_original = torch.cat(Y_true_global, dim=0).numpy()
 
-    # Y_pred_global = local_to_global_predictions(
-    #     local_outputs,
-    #     args.hmc_dataset.train.local_nodes_idx,
-    #     args.hmc_dataset.train.nodes_idx,
-    # )
+    Y_pred_global = local_to_global_predictions(
+        local_outputs,
+        args.hmc_dataset.train.local_nodes_idx,
+        args.hmc_dataset.train.nodes_idx,
+    )
 
-    # Y_true_global_converted = local_to_global_predictions(
-    #     local_inputs, train.local_nodes_idx, train.nodes_idx
-    # )
+    Y_true_global_converted = local_to_global_predictions(
+        local_inputs,
+        args.hmc_dataset.train.local_nodes_idx,
+        args.hmc_dataset.train.nodes_idx,
+    )
 
-    # score = average_precision_score(
-    #     Y_true_global_original[:, to_eval], Y_pred_global[:, to_eval], average="micro"
-    # )
+    score = precision_recall_fscore_support(
+        Y_true_global_original[:, args.hmc_dataset.train.to_eval],
+        Y_true_global_converted[:, args.hmc_dataset.train.to_eval],
+        average="micro",
+        zero_division=0,
+    )
 
-    # logging.info(score)
+    logging.info("Score global:%s" % str(score))

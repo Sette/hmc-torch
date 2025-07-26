@@ -56,22 +56,29 @@ def valid_step(args):
             outputs = args.model(inputs.float())
 
             for index in args.active_levels:
-                if args.level_active[index]:
-                    output = outputs[index].double()
-                    target = targets[index]
-                    loss = args.criterions[index](output, target)
-                    local_val_losses[index] += loss
+                if not args.level_active[index]:
+                    continue  # Pula se não estiver ativo
 
-                    if i == 0:
-                        local_outputs[index] = output.to("cpu")
-                        local_inputs[index] = target.to("cpu")
-                    else:
-                        local_outputs[index] = torch.cat(
-                            (local_outputs[index], output.to("cpu")), dim=0
-                        )
-                        local_inputs[index] = torch.cat(
-                            (local_inputs[index], target.to("cpu")), dim=0
-                        )
+                output = outputs[
+                    index
+                ]  # Recomendo não usar .double() desnecessariamente
+                target = targets[index]
+                loss = args.criterions[index](output, target)
+                local_val_losses[
+                    index
+                ] += loss.item()  # Usa .item() para obter valor escalar da loss
+
+                # Acumulação de outputs e targets para métricas
+                if i == 0:  # Primeira iteração: inicia tensor
+                    local_outputs[index] = output
+                    local_inputs[index] = target
+                else:  # Nas seguintes, empilha ao longo do batch
+                    local_outputs[index] = torch.cat(
+                        (local_outputs[index], output), dim=0
+                    )
+                    local_inputs[index] = torch.cat(
+                        (local_inputs[index], target), dim=0
+                    )
 
     for idx in args.active_levels:
         if args.level_active[idx]:

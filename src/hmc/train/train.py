@@ -112,7 +112,7 @@ def train_local(args):
 
     # Load train, val and test set
 
-    if args.device.startswith("cuda") and not torch.cuda.is_available():
+    if not torch.cuda.is_available():
         print("CUDA não está disponível. Usando CPU.")
         args.device = torch.device("cpu")
     else:
