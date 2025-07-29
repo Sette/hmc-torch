@@ -142,7 +142,6 @@ def test_step(args):
         Y_true_global_original[:, args.hmc_dataset.train.to_eval],
         Y_pred_global[:, args.hmc_dataset.train.to_eval],
         average="micro",
-        zero_division=0,
     )
 
     logging.info("Average precision score: %.4f", avg_score)
