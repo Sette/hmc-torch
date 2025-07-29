@@ -128,6 +128,8 @@ def test_step(args):
         args.hmc_dataset.train.nodes_idx,
     )
 
+    logging.info(f"Y_true_global_converted: {Y_true_global_converted}")
+
     score = precision_recall_fscore_support(
         Y_true_global_original[:, args.hmc_dataset.train.to_eval],
         Y_true_global_converted[:, args.hmc_dataset.train.to_eval],
