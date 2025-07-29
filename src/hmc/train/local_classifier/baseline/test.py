@@ -60,9 +60,8 @@ def test_step(args):
             for index in args.active_levels:
                 output = outputs[index].to("cpu")
                 target = targets[index].to("cpu")
-                binary_outputs = (output.data > threshold).float()
                 local_inputs[index].append(target)
-                local_outputs[index].append(binary_outputs)
+                local_outputs[index].append(output)
             Y_true_global.append(global_targets)
         # Concat all outputs and targets by level
     local_inputs = {
@@ -77,11 +76,11 @@ def test_step(args):
         level: {"f1score": None, "precision": None, "recall": None}
         for _, level in enumerate(args.active_levels)
     }
-
+    all_y_pred_binary = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
-        y_pred_binary = local_outputs[idx]
-
+        y_pred_binary = local_outputs[idx].to("cpu").numpy() > threshold
+        all_y_pred_binary.append(y_pred_binary)
         # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
         score = precision_recall_fscore_support(
@@ -115,7 +114,7 @@ def test_step(args):
     Y_true_global_original = torch.cat(Y_true_global, dim=0).numpy()
 
     Y_pred_global = local_to_global_predictions(
-        local_outputs,
+        all_y_pred_binary,
         args.hmc_dataset.train.local_nodes_idx,
         args.hmc_dataset.train.nodes_idx,
     )
@@ -126,11 +125,21 @@ def test_step(args):
         args.hmc_dataset.train.nodes_idx,
     )
 
+    logging.info(f"Y_true_global_converted: {Y_pred_global}")
+
     score = precision_recall_fscore_support(
         Y_true_global_original[:, args.hmc_dataset.train.to_eval],
-        Y_true_global_converted[:, args.hmc_dataset.train.to_eval],
+        Y_pred_global[:, args.hmc_dataset.train.to_eval],
         average="micro",
         zero_division=0,
     )
 
     logging.info("Score global:%s" % str(score))
+
+    avg_score = average_precision_score(
+        Y_true_global_original[:, args.hmc_dataset.train.to_eval],
+        Y_pred_global[:, args.hmc_dataset.train.to_eval],
+        average="micro",
+    )
+
+    logging.info("Average precision score: %.4f", avg_score)

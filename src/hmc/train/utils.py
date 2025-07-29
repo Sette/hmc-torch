@@ -61,7 +61,6 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
         if "/" in node:
             node = node.replace("/", ".")
         global_indices.append(nodes_idx.get(node))
-    logging.info(global_indices)
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
