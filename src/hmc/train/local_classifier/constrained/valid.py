@@ -61,9 +61,9 @@ def valid_step(args):
 
                 output = outputs[
                     index
-                ]  # Recomendo não usar .double() desnecessariamente
+                ]
                 target = targets[index]
-                loss = args.criterions[index](output, target)
+                loss = args.criterions[index](output.double(), target)
                 local_val_losses[
                     index
                 ] += loss.item()  # Usa .item() para obter valor escalar da loss
@@ -85,7 +85,7 @@ def valid_step(args):
             y_pred_binary = local_outputs[idx].data > threshold
 
             score = precision_recall_fscore_support(
-                local_inputs[idx], y_pred_binary, average="micro"
+                local_inputs[idx].to('cpu'), y_pred_binary.to('cpu'), average="micro"
             )
             # local_val_score[idx] = score
             logging.info(
@@ -107,7 +107,7 @@ def valid_step(args):
                 logging.info("Level %d: initialized best model", i)
             if round(local_val_score[i], 4) > args.best_val_score[i]:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i].item(), 4)
+                args.best_val_loss[i] = round(local_val_losses[i], 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
                 args.patience_counters[i] = 0
                 logging.info(

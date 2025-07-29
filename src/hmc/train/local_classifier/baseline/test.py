@@ -99,11 +99,9 @@ def test_step(args):
 
     job_id = create_job_id_name(prefix="test")
 
-    create_dir("results/train")
-
     save_dict_to_json(
         local_test_score,
-        f"results/train/{args.method}-{args.dataset_name}-{job_id}.json",
+        f"{results_path}/{args.method}-{args.dataset_name}-{job_id}.json",
     )
 
     # Save the trained model

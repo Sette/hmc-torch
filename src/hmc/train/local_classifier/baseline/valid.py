@@ -45,9 +45,6 @@ def valid_step(args):
     R_global = args.hmc_dataset.R.to(args.device)
     R_global = R_global.squeeze(0)
 
-    # regularization = "soft"
-    regularization = "none"
-
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             inputs, targets = inputs.to(args.device), [
@@ -62,49 +59,6 @@ def valid_step(args):
                     output = outputs[index]
                     target = targets[index]
                     loss = args.criterions[index](output.double(), target)
-
-                    if regularization == "soft":
-                        # --- REGULARIZAÇÃO HIERÁRQUICA SOFT GLOBAL, VETORIZADA ---
-                        lambda_hier = 0.1
-
-                        # Submatriz de R_global das classes desse nível!
-                        local_dict = args.hmc_dataset.local_nodes_idx[index]
-
-                        global_dict = args.hmc_dataset.nodes_idx
-
-                        # print(global_dict)
-
-                        classes_local_to_global = [
-                            int(global_dict[node.replace("/", ".")])
-                            for node, i in sorted(
-                                local_dict.items(), key=lambda x: x[1]
-                            )
-                        ]
-
-                        R_sub = R_global[torch.tensor(classes_local_to_global)][
-                            :, torch.tensor(classes_local_to_global)
-                        ]
-                        # Remove diagonal
-                        R_mask = R_sub - torch.eye(R_sub.size(0), device=output.device)
-                        R_mask = R_mask.unsqueeze(0)  # (1, n_local, n_local)
-
-                        probs = output  # (batch, num_classes_local)
-
-                        # Vetorização da penalidade
-                        probs_i = probs.unsqueeze(2)  # (batch, num_classes_local, 1)
-                        probs_j = probs.unsqueeze(1)  # (batch, 1, num_classes_local)
-                        diff = (
-                            probs_j - probs_i
-                        )  # (batch, num_classes_local, num_classes_local)
-
-                        penalty = torch.clamp(diff * R_mask, min=0).sum() / output.size(
-                            0
-                        )
-
-                        # Soma regularização soft à loss principal do nível
-                        loss = loss + lambda_hier * penalty
-                        # --------------------------------------------------------
-
                     local_val_losses[index] += loss.item()
                     total_loss += loss
 
@@ -126,8 +80,8 @@ def valid_step(args):
 
     for idx in args.active_levels:
         if args.level_active[idx]:
-            y_pred = local_outputs[idx].int().numpy()
-            y_true = local_inputs[idx].int().numpy()
+            y_pred = local_outputs[idx].to('cpu').int().numpy()
+            y_true = local_inputs[idx].to('cpu').int().numpy()
 
             score = precision_recall_fscore_support(
                 y_true, y_pred, average="micro", zero_division=0
