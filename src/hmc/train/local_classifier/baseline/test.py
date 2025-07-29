@@ -131,7 +131,7 @@ def test_step(args):
 
     score = precision_recall_fscore_support(
         Y_true_global_original[:, args.hmc_dataset.train.to_eval],
-        Y_true_global_converted[:, args.hmc_dataset.train.to_eval],
+        Y_pred_global[:, args.hmc_dataset.train.to_eval],
         average="micro",
         zero_division=0,
     )
