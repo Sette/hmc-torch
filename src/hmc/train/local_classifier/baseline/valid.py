@@ -126,8 +126,8 @@ def valid_step(args):
 
     for idx in args.active_levels:
         if args.level_active[idx]:
-            y_pred = local_outputs[idx].int().numpy()
-            y_true = local_inputs[idx].int().numpy()
+            y_pred = local_outputs[idx].to("cpu").int().numpy()
+            y_true = local_inputs[idx].to("cpu").int().numpy()
 
             score = precision_recall_fscore_support(
                 y_true, y_pred, average="micro", zero_division=0
