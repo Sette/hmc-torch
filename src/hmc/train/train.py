@@ -11,39 +11,29 @@ from torch.utils.data import DataLoader
 from hmc.train.local_classifier.mask.hpo.hpo_local import (
     optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_mask,
 )
-from hmc.train.local_classifier.mask.test import (
-    test_step as test_step_mask,
+
+from hmc.train.local_classifier.core.hpo.hpo_local import (
+    optimize_hyperparameters,
 )
 
-from hmc.train.local_classifier.mask.train import (
-    train_step as train_step_mask,
+from hmc.train.local_classifier.core.test import (
+    test_step as test_step_core,
+)
+
+from hmc.train.local_classifier.core.train import (
+    train_step as train_step_core,
+)
+
+from hmc.train.local_classifier.core.valid import (
+    valid_step as valid_step_core,
 )
 
 # Import necessary modules for constrained training local classifiers
 from hmc.model.local_classifier.constrained.model import ConstrainedHMCLocalModel
-from hmc.train.local_classifier.constrained.hpo.hpo_local import (
-    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_constrained,
-)
-from hmc.train.local_classifier.constrained.test import (
-    test_step as test_step_constrained,
-)
 
-from hmc.train.local_classifier.constrained.train import (
-    train_step as train_step_constrained,
-)
 
 # Import necessary modules for training baseline local classifiers
 from hmc.model.local_classifier.baseline.model import HMCLocalModel
-from hmc.train.local_classifier.baseline.hpo.hpo_local import (
-    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_baseline,
-)
-from hmc.train.local_classifier.baseline.test import (
-    test_step as test_step_baseline,
-)
-
-from hmc.train.local_classifier.baseline.train import (
-    train_step as train_step_baseline,
-)
 
 from hmc.dataset.manager.dataset_manager import initialize_dataset_experiments
 
@@ -53,23 +43,23 @@ def get_train_methods(x):
         case "local_constrained":
             return {
                 "model": ConstrainedHMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters_per_level_constrained,
-                "test_step": test_step_constrained,
-                "train_step": train_step_constrained,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step_core,
+                "train_step": train_step_core,
             }
         case "local":
             return {
                 "model": HMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters_per_level_baseline,
-                "test_step": test_step_baseline,
-                "train_step": train_step_baseline,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step_core,
+                "train_step": train_step_core,
             }
         case "local_mask":
             return {
                 "model": HMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters_per_level_mask,
-                "test_step": test_step_mask,
-                "train_step": train_step_mask,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step_core,
+                "train_step": train_step_core,
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")

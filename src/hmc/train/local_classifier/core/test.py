@@ -123,14 +123,6 @@ def test_step(args):
         args.hmc_dataset.train.nodes_idx,
     )
 
-    Y_pred_global = local_to_global_predictions(
-        all_y_pred,
-        args.hmc_dataset.train.local_nodes_idx,
-        args.hmc_dataset.train.nodes_idx,
-    )
-
-    logging.info(f"Y_true_global_converted: {Y_pred_global}")
-
     score = precision_recall_fscore_support(
         Y_true_global_original[:, args.hmc_dataset.train.to_eval],
         Y_pred_global_binary[:, args.hmc_dataset.train.to_eval],
