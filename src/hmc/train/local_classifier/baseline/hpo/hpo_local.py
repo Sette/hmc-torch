@@ -166,8 +166,7 @@ def optimize_hyperparameters_per_level(args):
                     patience_counter = 0
                 else:
                     if (
-                        round(local_val_f1, 4) < best_val_f1
-                        or round(local_val_loss.item(), 4) > best_val_loss
+                        round(local_val_loss.item(), 4) > best_val_loss
                     ):
                         patience_counter += 1
 

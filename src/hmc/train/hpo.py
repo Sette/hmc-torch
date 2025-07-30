@@ -5,15 +5,13 @@ import optuna
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.model.local_classifier.constrained.model import ConstrainedHMCLocalModel
+from hmc.model.local_classifier.baseline.model import HMCLocalModel
 from hmc.train.utils import (
     create_job_id_name,
     save_dict_to_json,
     show_global_loss,
     show_local_losses,
 )
-from hmc.model.local_classifier.constrained.model import get_constr_out
-
 from hmc.utils.dir import create_dir
 
 
@@ -60,7 +58,7 @@ def optimize_hyperparameters_per_level(args):
         optuna.TrialPruned: If a trial is pruned by Optuna's early stopping mechanism.
     """
 
-    def objective(trial, level):
+    def objective(trial):
         """
         Objective function for Optuna hyperparameter optimization of a hierarchical multi-class local classifier.
         This function defines the training and validation loop for a single Optuna trial, optimizing hyperparameters
@@ -86,8 +84,7 @@ def optimize_hyperparameters_per_level(args):
         weight_decay = trial.suggest_float(
             "weight_decay_level_%d" % level, 1e-6, 1e-2, log=True
         )
-
-        active_levels_train = [level]
+]
 
         params = {
             "levels_size": args.levels_size[level],
@@ -95,28 +92,29 @@ def optimize_hyperparameters_per_level(args):
             "hidden_size": hidden_dim,
             "num_layers": num_layers,
             "dropout": dropout,
-            "active_levels": active_levels_train,
-            "all_matrix_r": args.hmc_dataset.all_matrix_r,
+            "active_levels": args.active_levels,
         }
 
-        args.model = ConstrainedHMCLocalModel(**params).to(args.device)
+        args.model = HMCLocalModel(**params).to(args.device)
 
         optimizer = torch.optim.Adam(
             args.model.parameters(),
             lr=lr_by_level,
             weight_decay=weight_decay,
         )
+        args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
         args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
         patience = args.patience if args.patience is not None else 3
-        patience_counter = patience
+        patience_counter = 0
         level_active = [False] * args.hmc_dataset.max_depth
         level_active[level] = True
 
         best_val_loss = float("inf")
         best_val_f1 = 0.0
+        threshold = 0.3
         # best_val_precision = 0.0
 
         logging.info("Levels to evaluate: %s", args.active_levels)
@@ -133,17 +131,17 @@ def optimize_hyperparameters_per_level(args):
                 output = args.model(inputs.float())
 
                 # Zerar os gradientes antes de cada batch
-                optimizer.zero_grad()
+                args.optimizer.zero_grad()
                 target = targets[level].float()
 
-                loss = args.criterions[level](output[level], target)
+                loss = args.criterions[level](output[str(level)], target)
                 local_train_losses[level] += loss
 
             # Backward pass (cálculo dos gradientes)
             for total_loss in local_train_losses:
                 if total_loss > 0:
                     total_loss.backward()
-            optimizer.step()
+            args.optimizer.step()
 
             local_train_losses = [
                 loss / len(args.train_loader) for loss in local_train_losses
@@ -160,18 +158,18 @@ def optimize_hyperparameters_per_level(args):
             if epoch % args.epochs_to_evaluate == 0:
                 local_val_loss, local_val_f1 = val_optimizer(args)
                 if (
-                    local_val_loss < best_val_loss
+                    round(local_val_f1, 4) > best_val_f1
                 ):
                     best_val_f1 = round(local_val_f1, 4)
-                    best_val_loss = local_val_loss
-                    patience_counter = patience
+                    best_val_loss = local_val_loss.item()
+                    patience_counter = 0
                 else:
                     if (
-                        local_val_loss > best_val_loss
+                        round(local_val_loss.item(), 4) > best_val_loss
                     ):
-                        patience_counter -= 1
+                        patience_counter += 1
 
-                if patience_counter == 0:
+                if patience_counter >= patience:
                     logging.info(
                         "Early stopping triggered for trial %d at epoch %d.",
                         trial.number,
@@ -188,7 +186,7 @@ def optimize_hyperparameters_per_level(args):
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return best_val_loss
+        return best_val_f1
 
     best_params_per_level = {}
 
@@ -264,38 +262,22 @@ def val_optimizer(args):
 
     with torch.no_grad():
         for level, (inputs, targets, _) in enumerate(args.val_loader):
-            if level == args.level:
-                if torch.cuda.is_available():
-                    inputs, targets = inputs.to(args.device), [
-                        target.to(args.device) for target in targets
-                    ]
-                outputs = args.model(inputs.float())
-                output = outputs[args.level]
-                target = targets[args.level].float()
+            if torch.cuda.is_available():
+                inputs, targets = inputs.to(args.device), [
+                    target.to(args.device) for target in targets
+                ]
+            outputs = args.model(inputs.float())
+            output = outputs[str(args.level)]
 
-                if args.constrained and level != 0:
-                    constr_output = get_constr_out(
-                        output, args.hmc_dataset.all_matrix_r[level].to(args.device)
-                    )
-                    train_output = target * output.double()
-                    train_output = get_constr_out(
-                        train_output,
-                        args.hmc_dataset.all_matrix_r[level].to(args.device),
-                    )
-                    train_output = (
-                        1 - target
-                    ) * constr_output.double() + target * train_output
-                else:
-                    train_output = output
+            target = targets[args.level].float()
+            local_val_loss += args.criterions[args.level](output, target)
 
-                local_val_loss += args.criterions[args.level](output, target)
-
-                if level == 0:
-                    output_val = output.to("cpu")
-                    y_val = target.to("cpu")
-                else:
-                    output_val = torch.cat((output_val, output.to("cpu")), dim=0)
-                    y_val = torch.cat((y_val, target.to("cpu")), dim=0)
+            if level == 0:
+                output_val = output.to("cpu")
+                y_val = target.to("cpu")
+            else:
+                output_val = torch.cat((output_val, output.to("cpu")), dim=0)
+                y_val = torch.cat((y_val, target.to("cpu")), dim=0)
 
     local_val_precision = average_precision_score(y_val, output_val, average="micro")
     score = precision_recall_fscore_support(
