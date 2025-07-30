@@ -2,7 +2,7 @@ import logging
 
 import torch
 
-from hmc.train.local_classifier.baseline.valid import valid_step
+from hmc.train.local_classifier.core.valid import valid_step
 from hmc.train.utils import (
     show_global_loss,
     show_local_losses,

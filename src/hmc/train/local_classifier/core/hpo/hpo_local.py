@@ -15,7 +15,7 @@ from hmc.train.utils import (
 from hmc.utils.dir import create_dir
 
 
-def optimize_hyperparameters_per_level(args):
+def optimize_hyperparameters(args):
     """
     Optimize hyperparameters for each active level of a hierarchical multi-class (HMC) local classifier using Optuna.
     This function performs hyperparameter optimization for each specified level in \
@@ -77,17 +77,23 @@ def optimize_hyperparameters_per_level(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%d" % level, 64, 512, log=True)
-        lr_by_level = trial.suggest_float("lr_level_%d" % level, 1e-6, 1e-3, log=True)
-        dropout = trial.suggest_float("dropout_level_%d" % level, 0.3, 0.8, log=True)
-        num_layers = trial.suggest_int("num_layers_level_%d" % level, 1, 3, log=True)
-        weight_decay = trial.suggest_float(
-            "weight_decay_level_%d" % level, 1e-6, 1e-2, log=True
-        )
-]
+        hidden_dim = [
+            trial.suggest_int("hidden_dim_level_%d" % level, 64, 512, log=True)
+            for level in range(args.hmc_dataset.max_depth)
+        ]
+        dropout = [
+            trial.suggest_float("dropout_level_%d" % level, 0.3, 0.8, log=True)
+            for level in range(args.hmc_dataset.max_depth)
+        ]
+        num_layers = [
+            trial.suggest_int("num_layers_level_%d" % level, 1, 3, log=True)
+            for level in range(args.hmc_dataset.max_depth)
+        ]
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
+        lr = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
 
         params = {
-            "levels_size": args.levels_size[level],
+            "levels_size": args.levels_size,
             "input_size": args.input_dims[args.data],
             "hidden_size": hidden_dim,
             "num_layers": num_layers,
@@ -99,18 +105,18 @@ def optimize_hyperparameters_per_level(args):
 
         optimizer = torch.optim.Adam(
             args.model.parameters(),
-            lr=lr_by_level,
+            lr=lr,
             weight_decay=weight_decay,
         )
         args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
         args.criterions = [criterion.to(args.device) for criterion in args.criterions]
-
+        args.level_active = [
+            level in args.active_levels for level in range(args.max_depth)
+        ]
         patience = args.patience if args.patience is not None else 3
         patience_counter = 0
-        level_active = [False] * args.hmc_dataset.max_depth
-        level_active[level] = True
 
         best_val_loss = float("inf")
         best_val_f1 = 0.0
@@ -128,20 +134,26 @@ def optimize_hyperparameters_per_level(args):
                 inputs, targets = inputs.to(args.device), [
                     target.to(args.device) for target in targets
                 ]
-                output = args.model(inputs.float())
+                outputs = args.model(inputs.float())
 
                 # Zerar os gradientes antes de cada batch
                 args.optimizer.zero_grad()
-                target = targets[level].float()
 
-                loss = args.criterions[level](output[str(level)], target)
-                local_train_losses[level] += loss
+                total_loss = 0.0
 
-            # Backward pass (cálculo dos gradientes)
-            for total_loss in local_train_losses:
-                if total_loss > 0:
-                    total_loss.backward()
-            args.optimizer.step()
+                for index in args.active_levels:
+                    if args.level_active[index]:
+                        output = outputs[index]  # Preferencialmente float32
+                        target = targets[index]
+                        loss = args.criterions[index](output.double(), target)
+                        local_train_losses[
+                            index
+                        ] += loss.item()  # Acumula média por batch
+                        total_loss += loss  # Soma da loss para backward
+
+                # Após terminar loop dos níveis, execute backward
+                total_loss.backward()
+                args.optimizer.step()
 
             local_train_losses = [
                 loss / len(args.train_loader) for loss in local_train_losses
@@ -157,16 +169,12 @@ def optimize_hyperparameters_per_level(args):
 
             if epoch % args.epochs_to_evaluate == 0:
                 local_val_loss, local_val_f1 = val_optimizer(args)
-                if (
-                    round(local_val_f1, 4) > best_val_f1
-                ):
+                if round(local_val_f1, 4) > best_val_f1:
                     best_val_f1 = round(local_val_f1, 4)
                     best_val_loss = local_val_loss.item()
                     patience_counter = 0
                 else:
-                    if (
-                        round(local_val_loss.item(), 4) > best_val_loss
-                    ):
+                    if round(local_val_loss.item(), 4) > best_val_loss:
                         patience_counter += 1
 
                 if patience_counter >= patience:
@@ -201,17 +209,15 @@ def optimize_hyperparameters_per_level(args):
         args.active_levels = [int(x) for x in args.active_levels]
         logging.info("Active levels: %s", args.active_levels)
 
+    study = optuna.create_study()
+
+    study.optimize(
+        lambda trial: objective(trial),
+        n_trials=args.n_trials,
+    )
+
     for level in args.active_levels:
-        args.level = level
-        logging.info("\n🔍 Optimizing hyperparameters for level %d...\n", level)
-
-        study = optuna.create_study()
-
-        study.optimize(
-            lambda trial: objective(trial, args.level),
-            n_trials=args.n_trials,
-        )
-
+        logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
         level_parameters = {
             "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
             "lr": study.best_params[f"lr_level_{level}"],
@@ -222,9 +228,7 @@ def optimize_hyperparameters_per_level(args):
 
         best_params_per_level[level] = level_parameters
 
-        logging.info(
-            "✅ Best hyperparameters for level %s: %s", level, study.best_params
-        )
+    logging.info("✅ Best hyperparameters for level %s: %s", level, study.best_params)
 
     job_id = create_job_id_name(prefix="hpo")
 
@@ -253,47 +257,117 @@ def val_optimizer(args):
     """
 
     args.model.eval()
-    local_val_loss = 0.0
-    output_val = 0.0
-    y_val = 0.0
-    local_val_precision = 0.0
-    local_val_f1 = 0.0
-    theshold = 0.3
+    local_val_losses = [0.0] * args.max_depth
+
+    local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
+    local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
+
+    # Get local scores
+    local_val_score = {level: None for _, level in enumerate(args.active_levels)}
+    threshold = 0.2
 
     with torch.no_grad():
-        for level, (inputs, targets, _) in enumerate(args.val_loader):
+        for i, (inputs, targets, _) in enumerate(args.val_loader):
             if torch.cuda.is_available():
                 inputs, targets = inputs.to(args.device), [
                     target.to(args.device) for target in targets
                 ]
             outputs = args.model(inputs.float())
-            output = outputs[str(args.level)]
 
-            target = targets[args.level].float()
-            local_val_loss += args.criterions[args.level](output, target)
+            total_loss = 0.0
 
-            if level == 0:
-                output_val = output.to("cpu")
-                y_val = target.to("cpu")
+            for index in args.active_levels:
+                if not args.level_active[index]:
+                    continue  # Pula se não estiver ativo
+                output = outputs[index]
+                target = targets[index]
+                loss = args.criterions[index](output.double(), target)
+                local_val_losses[index] += loss.item()
+                total_loss += loss
+
+                # *** Para métricas e concatenação ***
+                # Se quiser outputs binários para avaliação:
+                binary_outputs = (output > threshold).float()
+
+                # Acumulação de outputs e targets para métricas
+                if i == 0:  # Primeira iteração: inicia tensor
+                    local_outputs[index] = binary_outputs
+                    local_inputs[index] = target
+                else:  # Nas seguintes, empilha ao longo do batch
+                    local_outputs[index] = torch.cat(
+                        (local_outputs[index], binary_outputs), dim=0
+                    )
+                    local_inputs[index] = torch.cat(
+                        (local_inputs[index], target), dim=0
+                    )
+
+    for idx in args.active_levels:
+        if args.level_active[idx]:
+            y_pred = local_outputs[idx].to("cpu").int().numpy()
+            y_true = local_inputs[idx].to("cpu").int().numpy()
+
+            score = precision_recall_fscore_support(
+                y_true, y_pred, average="micro", zero_division=0
+            )
+            # local_val_score[idx] = score
+            logging.info(
+                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
+                idx,
+                score[0],
+                score[1],
+                score[2],
+            )
+
+            local_val_score[idx] = score[2]
+
+    results_path = f"results/train/{args.method}-{args.dataset_name}"
+    create_dir(results_path)
+
+    local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
+    logging.info("Levels to evaluate: %s", args.active_levels)
+    for i in args.active_levels:
+        if args.level_active[i]:
+            if args.best_model[i] is None:
+                args.best_model[i] = args.model.levels[str(i)].state_dict()
+                logging.info("Level %d: initialized best model", i)
+            if round(local_val_losses[i], 4) < args.best_val_loss[i]:
+                # Atualizar o melhor modelo e as melhores métricas
+                args.best_val_loss[i] = round(local_val_losses[i], 4)
+                args.best_val_score[i] = round(local_val_score[i], 4)
+                args.best_model[i] = args.model.levels[str(i)].state_dict()
+                args.patience_counters[i] = 0
+                logging.info(
+                    "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
+                )
+                # Salvar em disco
+                logging.info("Saving best model for Level %d", i)
+                torch.save(
+                    args.model.levels[str(i)].state_dict(),
+                    os.path.join(results_path, f"best_model_baseline_level_{i}.pth"),
+                )
+                logging.info("best model updated and saved for Level %d", i)
+
             else:
-                output_val = torch.cat((output_val, output.to("cpu")), dim=0)
-                y_val = torch.cat((y_val, target.to("cpu")), dim=0)
+                # Incrementar o contador de paciência
+                args.patience_counters[i] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    i,
+                    args.patience_counters[i],
+                    args.early_stopping_patience,
+                )
+                if args.patience_counters[i] >= args.early_stopping_patience:
+                    args.level_active[i] = False
+                    # args.active_levels.remove(i)
+                    logging.info(
+                        "🚫 Early stopping triggered for level %d — freezing its parameters",
+                        i,
+                    )
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(i)].parameters():
+                        param.requires_grad = False
 
-    local_val_precision = average_precision_score(y_val, output_val, average="micro")
-    score = precision_recall_fscore_support(
-        y_val.numpy(),
-        output_val.data > theshold,
-        average="micro",
-    )
-    local_val_f1 = score[2]
-    logging.info(
-        "Validation Loss: %.4f, Validation Precision: %.4f, Validation F1: %.4f",
-        local_val_loss,
-        local_val_precision,
-        local_val_f1,
-    )
-
-    local_val_loss = local_val_loss / len(args.val_loader)
+    total_loss = total_loss / len(args.val_loader)
     # logging.info(f"Levels to evaluate: {args.active_levels}")
 
-    return local_val_loss, local_val_f1
+    return total_loss
