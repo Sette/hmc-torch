@@ -117,14 +117,17 @@ def optimize_hyperparameters(args):
         ]
         patience = args.patience if args.patience is not None else 3
         patience_counter = 0
+        args.early_stopping_patience = patience
+        args.patience_counters = [0] * args.hmc_dataset.max_depth
 
-        best_val_loss = float("inf")
-        best_val_f1 = 0.0
-        threshold = 0.3
+        args.best_total_val_loss = float("inf")
+        args.best_val_loss = [float("inf") for _ in range(args.max_depth)]
+        args.best_val_score = [0.0] * args.max_depth
+
+        threshold = 0.2
         # best_val_precision = 0.0
 
         logging.info("Levels to evaluate: %s", args.active_levels)
-        logging.info("Best val loss created %f", best_val_loss)
 
         for epoch in range(1, args.epochs + 1):
             args.model.train()
@@ -168,14 +171,12 @@ def optimize_hyperparameters(args):
             show_global_loss(global_train_loss, dataset=f"Train-{trial.number}")
 
             if epoch % args.epochs_to_evaluate == 0:
-                local_val_loss, local_val_f1 = val_optimizer(args)
-                if round(local_val_f1, 4) > best_val_f1:
-                    best_val_f1 = round(local_val_f1, 4)
-                    best_val_loss = local_val_loss.item()
+                total_loss = val_optimizer(args)
+                if round(total_loss.item(), 4) < args.best_total_val_loss:
+                    args.best_total_val_loss = total_loss.item()
                     patience_counter = 0
                 else:
-                    if round(local_val_loss.item(), 4) > best_val_loss:
-                        patience_counter += 1
+                    patience_counter += 1
 
                 if patience_counter >= patience:
                     logging.info(
@@ -186,15 +187,14 @@ def optimize_hyperparameters(args):
                     break
 
                 # Reporta o valor de validação para Optuna
-                trial.report(local_val_f1, step=epoch)
+                trial.report(total_loss.item(), step=epoch)
 
-                logging.info("Local loss %d: %f", trial.number, local_val_loss)
-                logging.info("Local F1 %d: %f", trial.number, local_val_f1)
+                logging.info("Local loss %d: %f", trial.number, total_loss.item())
 
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return best_val_f1
+        return total_loss.item()
 
     best_params_per_level = {}
 
@@ -228,7 +228,9 @@ def optimize_hyperparameters(args):
 
         best_params_per_level[level] = level_parameters
 
-    logging.info("✅ Best hyperparameters for level %s: %s", level, study.best_params)
+        logging.info(
+            "✅ Best hyperparameters for level %s: %s", level, study.best_params
+        )
 
     job_id = create_job_id_name(prefix="hpo")
 
@@ -327,25 +329,14 @@ def val_optimizer(args):
     logging.info("Levels to evaluate: %s", args.active_levels)
     for i in args.active_levels:
         if args.level_active[i]:
-            if args.best_model[i] is None:
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
-                logging.info("Level %d: initialized best model", i)
             if round(local_val_losses[i], 4) < args.best_val_loss[i]:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i], 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
                 args.patience_counters[i] = 0
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
                 )
-                # Salvar em disco
-                logging.info("Saving best model for Level %d", i)
-                torch.save(
-                    args.model.levels[str(i)].state_dict(),
-                    os.path.join(results_path, f"best_model_baseline_level_{i}.pth"),
-                )
-                logging.info("best model updated and saved for Level %d", i)
 
             else:
                 # Incrementar o contador de paciência
