@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -15,6 +15,7 @@ from hmc.model.global_classifier.constrained.model import (
 )
 from hmc.utils.dir import create_dir
 
+
 def train_global(dataset_name, args):
     print(".......................................")
     print("Experiment with {} dataset ".format(dataset_name))
@@ -22,7 +23,13 @@ def train_global(dataset_name, args):
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
 
-    hmc_dataset = initialize_dataset_experiments(dataset_name, device=args.device,dataset_path=args.dataset_path, dataset_type="arff", is_global=True)
+    hmc_dataset = initialize_dataset_experiments(
+        dataset_name,
+        device=args.device,
+        dataset_path=args.dataset_path,
+        dataset_type="arff",
+        is_global=True,
+    )
     train, valid, test = hmc_dataset.get_datasets()
     to_eval = torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
 
@@ -69,17 +76,9 @@ def train_global(dataset_name, args):
     R = R.unsqueeze(0).to(device)
 
     scaler = preprocessing.StandardScaler().fit(np.concatenate((train.X, valid.X)))
+
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((train.X, valid.X))
-    )
-    valid.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(valid.X)))
-        .clone()
-        .detach()
-        .to(device)
-    )
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((train.X, valid.X))
+        np.concatenate((train.X, valid.X, test.X))
     )
     valid.X = (
         torch.tensor(scaler.transform(imp_mean.transform(valid.X)))
@@ -203,9 +202,18 @@ def train_global(dataset_name, args):
             constr_test = torch.cat((constr_test, cpu_constrained_output), dim=0)
             y_test = torch.cat((y_test, y), dim=0)
 
-    score = average_precision_score(
-        y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
+    score = precision_recall_fscore_support(
+        y_test[:, to_eval],
+        constr_test.data[:, to_eval] > 0.5,
+        average="micro",
+        zero_division=0,
     )
+    print("Global evaluation score:")
+    print("Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2])
+
+    # score = average_precision_score(
+    #     y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
+    # )
     create_dir("results/results_constrained")
     f = open(
         "results/results_constrained/" + dataset_name + ".csv", "a", encoding="utf-8"
