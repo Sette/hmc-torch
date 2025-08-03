@@ -114,16 +114,16 @@ class arff_data_to_csv:
             d = []
             cats_lens = []
             all_terms = []
-            for num_line, l in enumerate(f):
-                if l.startswith("@ATTRIBUTE"):
-                    if l.startswith("@ATTRIBUTE class"):
-                        h = l.split("hierarchical")[1].strip()
+            for line in f:
+                if line.startswith("@ATTRIBUTE"):
+                    if line.startswith("@ATTRIBUTE class"):
+                        h = line.split("hierarchical")[1].strip()
                         for branch in h.split(","):
                             branch = branch.replace("/", ".")
                             all_terms.append(branch)
 
                     else:
-                        _, _, f_type = l.split()
+                        _, _, f_type = line.split()
 
                         if f_type == "numeric" or f_type == "NUMERIC":
                             d.append([])
@@ -135,7 +135,7 @@ class arff_data_to_csv:
                         else:
                             cats = f_type[1:-1].split(",")
                             cats_lens.append(len(cats))
-                            cat_dict = dict()
+                            cat_dict = {}
                             for i, key in enumerate(cats):
                                 cat_dict[key] = keras.utils.to_categorical(
                                     i, len(cats)
@@ -144,10 +144,10 @@ class arff_data_to_csv:
                             feature_types.append(
                                 lambda x, i: d[i].get(x, [0.0] * cats_lens[i])
                             )
-                elif l.startswith("@DATA"):
+                elif line.startswith("@DATA"):
                     read_data = True
                 elif read_data:
-                    d_line = l.split("%")[0].strip().split(",")
+                    d_line = line.split("%")[0].strip().split(",")
                     lab = d_line[len(feature_types)].replace("/", ".").strip()
 
                     X.append(
@@ -161,9 +161,6 @@ class arff_data_to_csv:
                         )
                     )
 
-                    # for t in lab.split('@'):
-                    #    y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, t.replace('/', '.'))]] = 1
-                    #    y_[nodes_idx[t.replace('/', '.')]] = 1
                     Y.append(lab)
             X = np.array(X)
             Y = np.stack(Y)

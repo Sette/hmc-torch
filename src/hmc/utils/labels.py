@@ -4,7 +4,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 
 def get_structure(genres_id, df_genres):
-    def get_from_df(genre_id, df_genres, output=[]):
+    def get_from_df(genre_id, df_genres, output):
         if genre_id != 0:
             parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
             output.append(genre_id)
@@ -22,7 +22,7 @@ def group_labels_by_level(df, max_depth):
     levels = [[] for _ in range(max_depth)]
 
     # Iterate over each row in the DataFrame
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         # Iterate over each level and append the labels to the corresponding list
         for level in range(max_depth):
             level_labels = []
@@ -64,8 +64,6 @@ def binarize_labels(dataset_df, args):
     with open(args.mlb_path, "wb") as file:
         pickle.dump(mlbs, file)
 
-    dataset_df["all_binarized"] = dataset_df.apply(
-        lambda row: [sublist for sublist in row[labels_name]], axis=1
-    )
+    dataset_df["all_binarized"] = dataset_df.apply(lambda row: row[labels_name], axis=1)
     tracks_df = dataset_df[["track_id", "y_true", "all_binarized"]]
     return tracks_df
