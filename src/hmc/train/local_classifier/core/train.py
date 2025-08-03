@@ -92,7 +92,7 @@ def train_step(args):
                     loss = args.criterions[index](output.double(), target)
                     local_train_losses[index] += loss.item()  # Acumula média por batch
                     total_loss += loss  # Soma da loss para backward
-                
+
             # Após terminar loop dos níveis, execute backward
             total_loss.backward()
             args.optimizer.step()

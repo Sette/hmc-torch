@@ -35,7 +35,7 @@ if [ "$PYTORCH_MODE" != "cuda" ] && [ "$PYTORCH_MODE" != "cpu" ]; then
 fi
 
 if [ "$RUN_ONLY" = false ]; then
-    
+
 
     if [ "$AUTO_YES" = true ]; then
         GIT_CLONE_CHOICE="y"
@@ -121,7 +121,7 @@ if [ "$RUN_ONLY" = false ]; then
             pip install pip --upgrade &&
             pip install --upgrade pip setuptools wheel &&
             pip install poetry \
-            
+
         "
     else
         echo "Skipping Poetry installation."
@@ -159,5 +159,6 @@ ssh "$REMOTE_HOST" "
     chmod +x $SCRIPT_TO_RUN && ./$SCRIPT_TO_RUN --device cuda \
         --dataset_path /kaggle/input/gene-ontology-original \
         --method local \
-        --epochs_to_evaluate 10 
+        --epochs_to_evaluate 10 \
+        --hpo true \
     "

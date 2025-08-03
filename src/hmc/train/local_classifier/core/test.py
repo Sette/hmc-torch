@@ -34,10 +34,13 @@ def test_step(args):
     """
 
     args.model.eval()
+
+    job_id = create_job_id_name(prefix="test")
+
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}"
+    results_path = f"results/train/{args.method}-{args.dataset_name}/{job_id}"
 
     for level in args.active_levels:
         args.model.levels[str(level)].load_state_dict(
@@ -47,9 +50,7 @@ def test_step(args):
         )
 
     threshold = 0.2
-
     Y_true_global = []
-    Y_pred = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
             inputs = inputs.to(args.device)
@@ -100,11 +101,9 @@ def test_step(args):
 
     logging.info("Local test score: %s", str(local_test_score))
 
-    job_id = create_job_id_name(prefix="test")
-
     save_dict_to_json(
         local_test_score,
-        f"{results_path}/{args.method}-{args.dataset_name}-{job_id}.json",
+        f"{results_path}/{job_id}.json",
     )
 
     # Save the trained model
