@@ -153,7 +153,7 @@ def get_parser():
         required=False,
         metavar="HIDDEN_DIMS",
         help="List of values for the number"
-        + " of hidden neurons (used when HPO is disabled).",
+        " of hidden neurons (used when HPO is disabled).",
     )
     parser.add_argument(
         "--num_layers_values",

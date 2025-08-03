@@ -7,11 +7,6 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-# Import necessary modules for mask training local classifiers
-from hmc.train.local_classifier.mask.hpo.hpo_local import (
-    optimize_hyperparameters_per_level as optimize_hyperparameters_per_level_mask,
-)
-
 from hmc.train.local_classifier.core.hpo.hpo_local import (
     optimize_hyperparameters,
 )
@@ -22,10 +17,6 @@ from hmc.train.local_classifier.core.test import (
 
 from hmc.train.local_classifier.core.train import (
     train_step as train_step_core,
-)
-
-from hmc.train.local_classifier.core.valid import (
-    valid_step as valid_step_core,
 )
 
 # Import necessary modules for constrained training local classifiers
@@ -67,29 +58,38 @@ def get_train_methods(x):
 
 def train_local(args):
     """
-    Trains a local hierarchical multi-label classifier using the specified arguments.
-    This function sets up the experiment environment, loads and preprocesses the dataset,
-    creates data loaders for training, validation, and testing, initializes loss functions,
-    and either performs hyperparameter optimization or trains the model with provided hyperparameters.
+    Trains a local hierarchical multi-label classifier using the specified \
+        arguments.
+    This function sets up the experiment environment, loads and preprocesses \
+        the dataset,
+    creates data loaders for training, validation, and testing, \
+        initializes loss functions,
+    and either performs hyperparameter optimization or trains the model with\
+        provided hyperparameters.
     Args:
-        args: An argparse.Namespace or similar object containing the following attributes:
+        args: An argparse.Namespace or similar object containing the \
+            following attributes:
             - dataset_name (str): Name of the dataset in the format "data_ontology".
             - device (str): Device to use ("cpu" or "cuda").
             - batch_size (int): Batch size for data loaders.
             - input_dims (dict): Dictionary mapping dataset names to input dimensions.
-            - hpo (str): Whether to perform hyperparameter optimization ("true" or "false").
+            - hpo (str): Whether to perform hyperparameter \
+                optimization ("true" or "false").
             - lr_values (list): List of learning rates per level.
             - dropout_values (list): List of dropout rates per level.
             - hidden_dims (list): List of hidden layer sizes per level.
             - num_layers_values (list): List of number of layers per level.
             - weight_decay_values (list): List of weight decay values per level.
-            - active_levels (list or None): List of active levels to train, or None for all.
+            - active_levels (list or None): List of active levels to train, \
+                or None for all.
             - Other attributes required by downstream functions.
     Side Effects:
-        - Updates the `args` object with data loaders, dataset information, loss functions, and model.
+        - Updates the `args` object with data loaders, dataset information, \
+            loss functions, and model.
         - Logs experiment information and progress.
     Raises:
-        AssertionError: If the lengths of hyperparameter lists do not match the number of levels.
+        AssertionError: If the lengths of hyperparameter lists \
+            do not match the number of levels.
     """
 
     logging.info(".......................................")
@@ -182,7 +182,7 @@ def train_local(args):
     args.to_eval = hmc_dataset.to_eval
     args.constrained = True
     if args.active_levels is None:
-        args.active_levels = [i for i in range(args.max_depth)]
+        args.active_levels = list(range(args.max_depth))
     else:
         args.active_levels = [int(x) for x in args.active_levels]
     logging.info("Active levels: %s", args.active_levels)
@@ -203,14 +203,17 @@ def train_local(args):
         num_layers_values = [int(x) for x in args.num_layers_values]
         weight_decay_values = [float(x) for x in args.weight_decay_values]
 
-        assert (
-            len(lr_values)
-            == len(dropout_values)
-            == len(hidden_dims)
-            == len(num_layers_values)
-            == len(weight_decay_values)
-            == args.max_depth
-        ), "All hyperparameter lists must have the same length."
+        # Ensure all hyperparameter lists have the same length as 'max_depth'
+        assert all(
+            len(lst) == args.max_depth
+            for lst in [
+                lr_values,
+                dropout_values,
+                hidden_dims,
+                num_layers_values,
+                weight_decay_values,
+            ]
+        ), "All hyperparameter lists must have the same length as 'max_depth'."
 
         params = {
             "levels_size": hmc_dataset.levels_size,
