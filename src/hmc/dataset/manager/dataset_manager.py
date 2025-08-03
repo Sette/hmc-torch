@@ -190,16 +190,6 @@ class HMCDatasetManager:
             )
             self.all_matrix_r[idx] = matrix_r
 
-    def compute_matrix_R_local_pca(self):
-        # Compute the list with local matrix of ancestors R, named matrix_r
-        # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is ancestor of class j
-        for idx, edges_matrix in self.edges_matrix_dict.items():
-            matrix_r = self.compute_matrix_R(edges_matrix)
-            logger.info(
-                "Computed matrix R for level %d with shape %s", idx, matrix_r.shape
-            )
-            self.all_matrix_r[idx] = matrix_r
-
     def transform_labels(self, dataset_labels):
         y_local_ = []
         y_ = []
@@ -284,7 +274,6 @@ class HMCDatasetManager:
         self.edges_matrix_dict = self.train.edges_matrix_dict
         self.R = self.compute_matrix_R(self.A)
         self.compute_matrix_R_local()
-        logger.info(self.all_matrix_r)
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx

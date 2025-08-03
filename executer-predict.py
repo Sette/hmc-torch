@@ -8,8 +8,8 @@ import torch
 
 from hmc.model import ClassificationModel
 
-base_path = "/kaggle/input/fma-large-by-effnet-discogs-rock-and-electronic/trains"
-model_path = "/kaggle/input/hmc-fma-large-rock-electronic/pytorch/default/1/20240826_232312/best_binary.pth"
+base_path = ""
+model_path = ""
 sample_id = "rock_electronic"
 
 train_path = os.path.join(base_path, sample_id)
