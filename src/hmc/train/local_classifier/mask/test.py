@@ -101,7 +101,6 @@ def test_step(args):
     save_dict_to_json(
         local_test_score,
         f"results/train/{args.method}-{args.dataset_name}-{job_id}.json",
-
     )
 
     # Save the trained model

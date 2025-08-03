@@ -77,7 +77,6 @@ def valid_step(args):
                 args.hmc_dataset.nodes_idx[n.replace("/", ".")]
                 for n in args.hmc_dataset.levels[lvl]
             ],
-
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
@@ -118,7 +117,6 @@ def valid_step(args):
                         loss = args.criterions[index](
                             torch.sigmoid(masked_output), target
                         )
-
 
                     if i == 0:
                         local_outputs[index] = output.to("cpu")

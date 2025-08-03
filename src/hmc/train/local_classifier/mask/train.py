@@ -90,7 +90,6 @@ def train_step(args):
                 args.hmc_dataset.nodes_idx[n.replace("/", ".")]
                 for n in args.hmc_dataset.levels[lvl]
             ],
-
             device=args.device,
         )
         for lvl in args.hmc_dataset.levels.keys()
