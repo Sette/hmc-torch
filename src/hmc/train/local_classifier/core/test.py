@@ -54,7 +54,7 @@ def test_step(args):
         )
 
     threshold = 0.2
-    Y_true_global = []
+    y_true_global = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
             inputs = inputs.to(args.device)
@@ -67,7 +67,7 @@ def test_step(args):
                 target = targets[index].to("cpu")
                 local_inputs[index].append(target)
                 local_outputs[index].append(output)
-            Y_true_global.append(global_targets)
+            y_true_global.append(global_targets)
         # Concat all outputs and targets by level
     local_inputs = {
         level: torch.cat(local_input, dim=0)
@@ -118,17 +118,17 @@ def test_step(args):
     # args.model.save(f"results/train/{args.dataset_name}-{job_id}.pt")
 
     # Concat global targets
-    Y_true_global_original = torch.cat(Y_true_global, dim=0).numpy()
+    y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
 
-    Y_pred_global_binary = local_to_global_predictions(
+    y_pred_global_binary = local_to_global_predictions(
         all_y_pred_binary,
         args.hmc_dataset.train.local_nodes_idx,
         args.hmc_dataset.train.nodes_idx,
     )
 
     score = precision_recall_fscore_support(
-        Y_true_global_original[:, args.hmc_dataset.train.to_eval],
-        Y_pred_global_binary[:, args.hmc_dataset.train.to_eval],
+        y_true_global_original[:, args.hmc_dataset.train.to_eval],
+        y_pred_global_binary[:, args.hmc_dataset.train.to_eval],
         average="micro",
         zero_division=0,
     )

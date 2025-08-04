@@ -206,6 +206,6 @@ def train_global_baseline(dataset_name, args):
     )
     # create_dir("results")
     create_dir("results/results_baseline")
-    f = open("results/results_baseline/" + dataset_name + ".csv", "a")
-    f.write(str(args.seed) + "," + str(score) + "\n")
-    f.close()
+    with open("results/results_baseline/" + dataset_name + ".csv", "a") as f:
+        f.write(str(args.seed) + "," + str(score) + "\n")
+        f.close()
