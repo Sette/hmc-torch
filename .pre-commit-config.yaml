@@ -8,24 +8,28 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=6000']
+        exclude: ^\.venv/
       - id: check-merge-conflict
+        exclude: ^\.venv/
       - id: check-toml
+        exclude: ^\.venv/
       - id: check-yaml
-        args: [
-          --allow-multiple-documents
-        ]
+        args: [--allow-multiple-documents]
+        exclude: ^\.venv/
       - id: debug-statements
+        exclude: ^\.venv/
       - id: detect-private-key
+        exclude: ^\.venv/
       - id: end-of-file-fixer
+        exclude: ^\.venv/
       - id: name-tests-test
-        exclude: ^(tests/config.py|tests/build.py)
+        exclude: ^(tests/config\.py|tests/build\.py|\.venv/)
       - id: trailing-whitespace
+        exclude: ^\.venv/
   - repo: local
     hooks:
       - id: check-poetry
-        exclude: |
-          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-          ^src/hmc/train/train_global\.py$
+        exclude: ^(\.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Poetry check
         description: Validates the structure of the pyproject.toml file
         language: python
@@ -35,36 +39,29 @@ repos:
         always_run: true
         additional_dependencies: [poetry]
       - id: autopep8
-        exclude: |
-          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-          ^src/hmc/train/train_global\.py$
+        exclude: ^(\.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Autopep8
         language: python
         entry: autopep8 --in-place --recursive .
         types_or: [python, pyi]
       - id: pylama
-        exclude: |
-          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-          ^src/hmc/train/train_global\.py$
+        exclude: ^(\.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Pylama Lint
         language: python
         entry: poetry run pylama src
         types_or: [python, pyi]
       - id: pylint
-        exclude: |
-          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-          ^src/hmc/train/train_global\.py$
+        exclude: ^(\.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Pylint Lint
         language: python
         entry: pylint $(git ls-files '*.py')
         types_or: [python, pyi]
-
   - repo: https://github.com/psf/black
     rev: 24.3.0
     hooks:
       - id: black
         args: [--line-length=88]
-
+        exclude: ^\.venv/
   - repo: https://github.com/pycqa/flake8
     rev: 6.1.0
     hooks:
@@ -73,6 +70,4 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-comprehensions
-        exclude: |
-           ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-           ^src/hmc/train/train_global\.py$
+        exclude: ^(\.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
