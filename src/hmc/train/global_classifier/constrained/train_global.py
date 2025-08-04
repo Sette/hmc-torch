@@ -71,7 +71,8 @@ def train_global(dataset_name, args):
 
     # R = hmc_dataset.compute_matrix_R().to(device)
     # Compute matrix of ancestors R
-    # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is descendant of class j
+    # Given n classes, R is an (n x n) matrix where R_ij = 1 \
+    # if class i is descendant of class j
     R = np.zeros(hmc_dataset.A.shape)
     np.fill_diagonal(R, 1)
     g = nx.DiGraph(
@@ -158,9 +159,9 @@ def train_global(dataset_name, args):
     # patience, max_patience = 20, 20
     # max_score = 0.0
 
-    for epoch in range(args.epochs):
+    for _ in range(args.epochs):
         model.train()
-        for i, (x, labels) in tqdm(enumerate(train_loader)):
+        for _, (x, labels) in tqdm(enumerate(train_loader)):
             x = x.to(device)
             labels = labels.to(device)
 
@@ -280,5 +281,5 @@ def train_global(dataset_name, args):
     print("Average precision score: %.4f" % score)
 
     f = open(results_path + "/" + "average-precision" + ".csv", "a", encoding="utf-8")
-    f.write(str(args.seed) + "," + str(epoch) + "," + str(score) + "\n")
+    f.write(str(args.seed) + "," + str(score) + "\n")
     f.close()

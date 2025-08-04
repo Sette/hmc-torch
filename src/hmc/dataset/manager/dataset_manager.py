@@ -89,7 +89,8 @@ class HMCDatasetManager:
         # Construct graph path
         self.g = nx.DiGraph()
         # train_csv_name = Path(self.train_file).name
-        # self.graph_path = os.path.join(output_path, train_csv_name.replace('-.csv', '.graphml'))
+        # self.graph_path = os.path.join(output_path, \
+        # train_csv_name.replace('-.csv', '.graphml'))
 
         if dataset_type == "arff":
             self.is_go, self.train_file, self.valid_file, self.test_file = dataset

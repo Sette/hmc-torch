@@ -34,15 +34,31 @@ repos:
         files: pyproject.toml
         always_run: true
         additional_dependencies: [poetry]
-      - id: black
+      - id: autopep8
         exclude: |
           ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
           ^src/hmc/train/train_global\.py$
-        name: Black Lint
-        types: [python]
+        name: Autopep8
         language: python
-        entry: black .
+        entry: autopep8 --in-place --recursive .
         types_or: [python, pyi]
+      - id: pylama
+        exclude: |
+          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
+          ^src/hmc/train/train_global\.py$
+        name: Pylama Lint
+        language: python
+        entry: poetry run pylama src
+        types_or: [python, pyi]
+      - id: pylint
+        exclude: |
+          ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
+          ^src/hmc/train/train_global\.py$
+        name: Pylint Lint
+        language: python
+        entry: pylint $(git ls-files '*.py')
+        types_or: [python, pyi]
+
   - repo: https://github.com/psf/black
     rev: 24.3.0
     hooks:
@@ -53,42 +69,10 @@ repos:
     rev: 6.1.0
     hooks:
       - id: flake8
-        args: [--max-line-length=88, --ignore=E203,W503]
+        args: [--max-line-length=88, --ignore=E203]
         additional_dependencies:
           - flake8-bugbear
           - flake8-comprehensions
         exclude: |
            ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
            ^src/hmc/train/train_global\.py$
-      # - id: flake8
-      #   exclude: |
-      #     ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-      #     ^src/hmc/train/train_global\.py$
-      #   name: Flake8 Lint
-      #   language: python
-      #   entry: flake8 **/*.py
-      #   types_or: [python, pyi]
-      # - id: autopep8
-      #   exclude: |
-      #     ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-      #     ^src/hmc/train/train_global\.py$
-      #   name: Autopep8
-      #   language: python
-      #   entry: autopep8 --in-place --recursive .
-      #   types_or: [python, pyi]
-      # # - id: pylama
-      #   exclude: |
-      #     ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-      #     ^src/hmc/train/train_global\.py$
-      #   name: Pylama Lint
-      #   language: python
-      #   entry: poetry run pylama src
-      #   types_or: [python, pyi]
-      # - id: pylint
-      #   exclude: |
-      #     ^src/hmc/dataset/datasets/gofun/dataset_arff\.py$|
-      #     ^src/hmc/train/train_global\.py$
-      #   name: Pylint Lint
-      #   language: python
-      #   entry: pylint $(git ls-files '*.py')
-      #   types_or: [python, pyi]

@@ -2,7 +2,6 @@ import logging
 import os
 import torch
 from sklearn.metrics import (
-    average_precision_score,
     precision_recall_fscore_support,
 )
 
@@ -10,27 +9,32 @@ from hmc.train.utils import (
     create_job_id_name,
     save_dict_to_json,
 )
-from hmc.utils.dir import create_dir
 
 from hmc.train.utils import local_to_global_predictions
 
 
 def test_step(args):
     """
-    Evaluates the model on the test dataset for each active level and saves the results.
+    Evaluates the model on the test dataset for each active level and \
+        saves the results.
     Args:
         args: An object containing the following attributes:
             - model: The trained model to evaluate.
-            - test_loader: DataLoader providing test data batches (inputs, targets, global_targets).
+            - test_loader: DataLoader providing test data batches \
+                (inputs, targets, global_targets).
             - device: The device (CPU or CUDA) to run computations on.
-            - active_levels: Iterable of indices indicating which levels to evaluate.
+            - active_levels: Iterable of indices indicating which \
+                levels to evaluate.
             - dataset_name: Name of the dataset (used for saving results).
-            - hmc_dataset: Dataset object containing hierarchical information (optional, for global evaluation).
+            - hmc_dataset: Dataset object containing hierarchical information \
+                (optional, for global evaluation).
     Returns:
-        None. The function saves the evaluation results as a JSON file in the 'results/train' directory.
+        None. The function saves the evaluation results as a JSON file in \
+            'results/train' directory.
     Side Effects:
         - Logs evaluation progress and results.
-        - Saves local test scores (precision, recall, f-score, support) for each active level to a JSON file.
+        - Saves local test scores (precision, recall, f-score, support) for \
+            each active level to a JSON file.
     """
 
     args.model.eval()

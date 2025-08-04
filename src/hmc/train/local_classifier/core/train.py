@@ -11,19 +11,25 @@ from hmc.train.utils import (
 
 def train_step(args):
     """
-    Executes the training loop for a hierarchical multi-class (HMC) local classifier model.
+    Executes the training loop for a hierarchical multi-class (HMC) local \
+        classifier model.
     This function performs the following steps:
     - Moves the model and loss criterions to the specified device.
-    - Initializes early stopping parameters and tracking variables for each level of the hierarchy.
-    - Sets up optimizers for each model level with individual learning rates and weight decays.
+    - Initializes early stopping parameters and tracking variables for \
+        each level of the hierarchy.
+    - Sets up optimizers for each model level with individual learning rates \
+        and weight decays.
     - Iterates over the specified number of epochs, performing:
-        - Training over batches: forward pass, loss computation for active levels, and gradient accumulation.
+        - Training over batches: forward pass, loss computation for active \
+            levels, and gradient accumulation.
         - Backward pass and optimizer step for each level.
         - Logging of training losses.
-        - Periodic evaluation on the validation set, including loss and precision reporting.
+        - Periodic evaluation on the validation set, including loss\
+            and precision reporting.
         - Early stopping if all levels have triggered it.
     Args:
-        args: An object containing all necessary training parameters and objects, including:
+        args: An object containing all necessary training parameters and \
+            objects, including:
             - model: The hierarchical model with per-level submodules.
             - criterions: List of loss functions for each level.
             - device: Device to run computations on.
@@ -67,7 +73,6 @@ def train_step(args):
     for epoch in range(1, args.epochs + 1):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-        # args.active_levels = [i for i, active in enumerate(args.level_active) if active]
         logging.info(
             "Level active: %s",
             [level for level, level_bool in enumerate(args.level_active) if level_bool],

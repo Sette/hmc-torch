@@ -19,16 +19,20 @@ def valid_step(args):
             - active_levels: List of indices for currently active levels.
             - best_val_loss: List of best validation losses per level.
             - best_model: List to store the best model state_dict per level.
-            - patience_counters: List of patience counters for early stopping per level.
-            - early_stopping_patience: Number of epochs to wait before early stopping.
+            - patience_counters: List of patience counters for early \
+                stopping per level.
+            - early_stopping_patience: Number of epochs to wait before \
+                early stopping.
             - level_active: List indicating if a level is still active.
     Returns:
         tuple:
             - local_val_losses (list of float): Average validation loss per level.
             - local_val_precision (list of float): Average precision score per level.
     Side Effects:
-        - Updates `args.best_val_loss`, `args.best_model`, and `args.patience_counters` for improved levels.
-        - Freezes parameters of levels that triggered early stopping by setting `requires_grad` to False.
+        - Updates `args.best_val_loss`, `args.best_model`, and \
+            `args.patience_counters` for improved levels.
+        - Freezes parameters of levels that triggered early stopping by \
+            setting `requires_grad` to False.
         - Logs progress and early stopping events.
     """
 
@@ -137,7 +141,8 @@ def valid_step(args):
                     args.level_active[i] = False
                     # args.active_levels.remove(i)
                     logging.info(
-                        "🚫 Early stopping triggered for level %d — freezing its parameters",
+                        "🚫 Early stopping triggered for level %d\
+                            — freezing its parameters",
                         i,
                     )
                     # ❄️ Congelar os parâmetros desse nível

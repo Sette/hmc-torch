@@ -54,7 +54,8 @@ def train_global_baseline(dataset_name, args):
 
     # R = hmc_dataset.compute_matrix_R().to(device)
     # Compute matrix of ancestors R
-    # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is descendant of class j
+    # Given n classes, R is an (n x n) matrix where R_ij = 1 \
+    # if class i is descendant of class j
     R = np.zeros(hmc_dataset.A.shape)
     np.fill_diagonal(R, 1)
     g = nx.DiGraph(
@@ -141,10 +142,10 @@ def train_global_baseline(dataset_name, args):
     # patience, max_patience = 20, 20
     # max_score = 0.0
 
-    for epoch in range(num_epochs):
+    for _ in range(num_epochs):
         model.train()
 
-        for i, (x, labels) in tqdm(enumerate(train_loader)):
+        for _, (x, labels) in tqdm(enumerate(train_loader)):
             x = x.to(device)
             labels = labels.to(device)
 
@@ -156,7 +157,8 @@ def train_global_baseline(dataset_name, args):
             # constr_output = get_constr_out(output, R)
             # train_output = labels * output.double()
             # train_output = get_constr_out(train_output, R)
-            # train_output = (1 - labels) * constr_output.double() + labels * train_output
+            # train_output = (1 - labels) * constr_output.double()\
+            # + labels * train_output
 
             loss = criterion(output[:, to_eval].double(), labels[:, to_eval])
 
@@ -205,5 +207,5 @@ def train_global_baseline(dataset_name, args):
     # create_dir("results")
     create_dir("results/results_baseline")
     f = open("results/results_baseline/" + dataset_name + ".csv", "a")
-    f.write(str(args.seed) + "," + str(epoch) + "," + str(score) + "\n")
+    f.write(str(args.seed) + "," + str(score) + "\n")
     f.close()
