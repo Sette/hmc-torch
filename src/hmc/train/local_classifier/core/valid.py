@@ -57,15 +57,12 @@ def valid_step(args):
             ]
             outputs = args.model(inputs.float())
 
-            total_loss = 0.0
-
             for index in args.active_levels:
                 if args.level_active[index]:
                     output = outputs[index]
                     target = targets[index]
                     loss = args.criterions[index](output.double(), target)
                     local_val_losses[index] += loss.item()
-                    total_loss += loss
 
                     # *** Para métricas e concatenação ***
                     # Se quiser outputs binários para avaliação:

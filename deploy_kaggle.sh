@@ -158,6 +158,7 @@ ssh "$REMOTE_HOST" "
     source .venv/bin/activate &&
     chmod +x $SCRIPT_TO_RUN && ./$SCRIPT_TO_RUN --device cuda \
         --dataset_path /kaggle/input/gene-ontology-original \
+        --output_path  /kaggle/working/results \
         --method local \
         --epochs_to_evaluate 10 \
         --hpo true \

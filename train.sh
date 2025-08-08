@@ -50,7 +50,7 @@ usage() {
     echo "  --non_lin <function>      Activation function (default: $NON_LIN)"
     echo "  --device <type>           Device (cuda/cpu) (default: $DEVICE)"
     echo "  --epochs <num>            Number of epochs (default: $EPOCHS)"
-    echo "  --output_path <path>      Output path for models (default: $OUTPUT_PATH)"
+    echo "  --output_path <path>      Output path for results (default: $OUTPUT_PATH)"
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"

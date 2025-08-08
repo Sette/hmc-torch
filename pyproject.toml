@@ -23,6 +23,7 @@ tensorflow = "^2.19.0"
 # Fontes do PyTorch (ajustadas no deploy.sh)
 litmodels = "^0.1.7"
 optuna = "^4.3.0"
+logging = "^0.4.9.6"
 [[tool.poetry.source]]
 name = "pytorch-gpu"
 url = "https://download.pytorch.org/whl/cu118"
