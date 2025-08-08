@@ -38,6 +38,7 @@ def valid_step(args):
 
     args.model.eval()
     local_val_losses = [0.0] * args.max_depth
+    args.results_path = f"results/train/{args.method}-{args.dataset_name}/{args.job_id}"
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
@@ -101,8 +102,7 @@ def valid_step(args):
 
             local_val_score[idx] = score[2]
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}"
-    create_dir(results_path)
+    create_dir(args.results_path)
 
     local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
     logging.info("Levels to evaluate: %s", args.active_levels)
@@ -124,7 +124,7 @@ def valid_step(args):
                 logging.info("Saving best model for Level %d", i)
                 torch.save(
                     args.model.levels[str(i)].state_dict(),
-                    os.path.join(results_path, f"best_model_baseline_level_{i}.pth"),
+                    os.path.join(args.results_path, f"best_model_level_{i}.pth"),
                 )
                 logging.info("best model updated and saved for Level %d", i)
 

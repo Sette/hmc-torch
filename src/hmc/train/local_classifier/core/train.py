@@ -8,6 +8,10 @@ from hmc.train.utils import (
     show_local_losses,
 )
 
+from hmc.train.utils import (
+    create_job_id_name,
+)
+
 
 def train_step(args):
     """
@@ -57,6 +61,7 @@ def train_step(args):
     args.best_val_loss = [float("inf")] * args.max_depth
     args.best_val_score = [0.0] * args.max_depth
     args.best_model = [None] * args.max_depth
+    args.job_id = create_job_id_name(prefix="test")
     logging.info("Best val loss created %s", args.best_val_loss)
 
     args.optimizer = torch.optim.Adam(

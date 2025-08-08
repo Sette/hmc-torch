@@ -6,7 +6,6 @@ from sklearn.metrics import (
 )
 
 from hmc.train.utils import (
-    create_job_id_name,
     save_dict_to_json,
 )
 
@@ -39,18 +38,12 @@ def test_step(args):
 
     args.model.eval()
 
-    job_id = create_job_id_name(prefix="test")
-
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}/{job_id}"
-
     for level in args.active_levels:
         args.model.levels[str(level)].load_state_dict(
-            torch.load(
-                os.path.join(results_path, f"best_model_baseline_level_{level}.pth")
-            )
+            torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"))
         )
 
     threshold = 0.2
@@ -107,7 +100,7 @@ def test_step(args):
 
     save_dict_to_json(
         local_test_score,
-        f"{results_path}/{job_id}.json",
+        f"{args.results_path}/{args.job_id}.json",
     )
 
     # Save the trained model
