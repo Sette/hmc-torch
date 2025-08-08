@@ -232,10 +232,8 @@ def optimize_hyperparameters(args):
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
         level_parameters = {
             "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
-            "lr": study.best_params[f"lr_level_{level}"],
             "dropout": study.best_params[f"dropout_level_{level}"],
             "num_layers": study.best_params[f"num_layers_level_{level}"],
-            "weight_decay": study.best_params[f"weight_decay_level_{level}"],
         }
 
         best_params_per_level[level] = level_parameters
@@ -243,6 +241,11 @@ def optimize_hyperparameters(args):
         logging.info(
             "✅ Best hyperparameters for level %s: %s", level, study.best_params
         )
+
+    best_params_per_level["global"] = {
+        "weight_decay": study.best_params["weight_decay"],
+        "lr": study.best_params["lr"],
+    }
 
     job_id = create_job_id_name(prefix="hpo")
 
