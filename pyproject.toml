@@ -7,18 +7,17 @@ packages = [{ include = "hmc", from = "src" }]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9.8"
-tqdm = "4.66.4"
-numpy = "1.25.0"
-torch = "1.13.1"
-torchvision = "0.14.1"
-torchaudio = "0.13.1"
-pandas = "1.5.0"
-dataset = "1.6.2"
-scikit-learn = "1.2.2"
-lightning = {extras = ["extra"], version = "1.9.5"}
-keras = "2.11.0"
-tensorflow = "2.11.0"
+python = "^3.9"
+tqdm = ">=4.66.4"
+numpy = ">=1.25.0"
+torch = ">=1.13.1"
+torchvision = ">=0.14.1"
+torchaudio = ">=0.13.1"
+pandas = ">=1.5.0"
+dataset = ">=1.6.2"
+scikit-learn = ">=1.2.2"
+lightning = {extras = ["extra"], version = ">=2.0.9"}
+tensorflow = ">=2.11.0"
 
 # Fontes do PyTorch (ajustadas no deploy.sh)
 litmodels = "^0.1.7"
