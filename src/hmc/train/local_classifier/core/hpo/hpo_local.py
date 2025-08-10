@@ -198,6 +198,11 @@ def optimize_hyperparameters(args):
                     )
                     break
 
+                if not any(args.level_active):
+                    logging.info("All levels have triggered early stopping.")
+                    # Reporta o valor de validação para Optuna
+                    break
+
                 # Reporta o valor de validação para Optuna
                 trial.report(total_loss.item(), step=epoch)
 
