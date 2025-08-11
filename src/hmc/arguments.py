@@ -134,7 +134,8 @@ def get_parser():
         type=float,
         nargs="+",
         required=False,
-        help="List of values for the learning rate (used when HPO is disabled).",
+        help="List of values for the learning \
+            rate (used when HPO is disabled).",
     )
     parser.add_argument(
         "--dropout_values",
@@ -142,7 +143,8 @@ def get_parser():
         nargs="+",
         required=False,
         metavar="DROPOUT",
-        help="List of values for dropout (used when HPO is disabled).",
+        help="List of values for dropout \
+            (used when HPO is disabled).",
     )
     parser.add_argument(
         "--hidden_dims",
@@ -150,7 +152,8 @@ def get_parser():
         nargs="+",
         required=False,
         metavar="HIDDEN_DIMS",
-        help="List of values for the number of hidden neurons (used when HPO is disabled).",
+        help="List of values for the number"
+        " of hidden neurons (used when HPO is disabled).",
     )
     parser.add_argument(
         "--num_layers_values",
@@ -158,7 +161,8 @@ def get_parser():
         nargs="+",
         required=False,
         metavar="NUM_LAYERS",
-        help="List of values for the number of layers (used when HPO is disabled).",
+        help="List of values for the number of \
+            layers (used when HPO is disabled).",
     )
     parser.add_argument(
         "--weight_decay_values",
@@ -166,7 +170,8 @@ def get_parser():
         nargs="+",
         required=False,
         metavar="WEIGHT_DECAY",
-        help="List of values for weight decay (used when HPO is disabled).",
+        help="List of values for weight decay \
+            (used when HPO is disabled).",
     )
 
     parser.add_argument(
@@ -175,7 +180,8 @@ def get_parser():
         default=3,
         metavar="PATIENCE",
         required=False,
-        help="Number of epochs with no improvement after which training will be stopped.",
+        help="Number of epochs with no improvement \
+            after which training will be stopped.",
     )
 
     parser.add_argument(
@@ -184,7 +190,8 @@ def get_parser():
         default=10,
         metavar="EPOCHS_TO_EVALUATE",
         required=False,
-        help="Number of epochs to evaluate the model during training.",
+        help="Number of epochs to evaluate the \
+            model during training.",
     )
 
     parser.add_argument(
@@ -193,7 +200,8 @@ def get_parser():
         default=20,
         metavar="EPOCHS_TO_TEST",
         required=False,
-        help="Number of epochs to test the model during training.",
+        help="Number of epochs to test the \
+            model during training.",
     )
 
     return parser

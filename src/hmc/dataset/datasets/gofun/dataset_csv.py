@@ -10,7 +10,8 @@ import pandas as pd
 
 def load_and_concat_csv_files(directory, sep="|"):
     """
-    Loads all CSV files from a given directory and concatenates them into a single DataFrame.
+    Loads all CSV files from a given directory and concatenates them \
+        into a single DataFrame.
     :param directory: Path to the directory containing CSV files.
     :return: A single concatenated DataFrame.
     """

@@ -15,6 +15,7 @@ BATCH_SIZE=4
 NON_LIN="relu"
 DEVICE="cpu"
 EPOCHS=2000
+EPOCHS_TO_EVALUATE=20
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
@@ -50,10 +51,11 @@ usage() {
     echo "  --non_lin <function>      Activation function (default: $NON_LIN)"
     echo "  --device <type>           Device (cuda/cpu) (default: $DEVICE)"
     echo "  --epochs <num>            Number of epochs (default: $EPOCHS)"
-    echo "  --output_path <path>      Output path for models (default: $OUTPUT_PATH)"
+    echo "  --output_path <path>      Output path for results (default: $OUTPUT_PATH)"
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"
+    echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
     echo "  --help                    Display this message and exit"
     exit 0
 }
@@ -78,13 +80,14 @@ while [ "$#" -gt 0 ]; do
         --method) METHOD="$2"; shift ;;
         --hpo) HPO="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
+        --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --help) usage ;;
         *) echo "Invalid option: $1"; usage ;;
     esac
     shift
 done
 
- cmd="poetry run python -m hmc.train.main \
+ cmd="python -m hmc.train.main \
                 --dataset_path $DATASET_PATH \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
@@ -94,6 +97,7 @@ done
                 --seed $SEED \
                 --output_path $OUTPUT_PATH \
                 --method $METHOD \
+                --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
                 --hpo $HPO"
 
 if [ "$ACTIVE_LEVELS" ]; then

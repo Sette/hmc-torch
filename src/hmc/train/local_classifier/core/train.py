@@ -2,38 +2,38 @@ import logging
 
 import torch
 
-from hmc.train.local_classifier.constrained.valid import valid_step
+from hmc.train.local_classifier.core.valid import valid_step
 from hmc.train.utils import (
     show_global_loss,
     show_local_losses,
-    show_local_score,
 )
 
-from hmc.model.local_classifier.constrained.utils import get_constr_out
-
-# Set a logger config
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
+from hmc.train.utils import (
+    create_job_id_name,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def train_step(args):
     """
-    Executes the training loop for a hierarchical multi-class (HMC) local classifier model.
+    Executes the training loop for a hierarchical multi-class (HMC) local \
+        classifier model.
     This function performs the following steps:
     - Moves the model and loss criterions to the specified device.
-    - Initializes early stopping parameters and tracking variables for each level of the hierarchy.
-    - Sets up optimizers for each model level with individual learning rates and weight decays.
+    - Initializes early stopping parameters and tracking variables for \
+        each level of the hierarchy.
+    - Sets up optimizers for each model level with individual learning rates \
+        and weight decays.
     - Iterates over the specified number of epochs, performing:
-        - Training over batches: forward pass, loss computation for active levels, and gradient accumulation.
+        - Training over batches: forward pass, loss computation for active \
+            levels, and gradient accumulation.
         - Backward pass and optimizer step for each level.
         - Logging of training losses.
-        - Periodic evaluation on the validation set, including loss and precision reporting.
+        - Periodic evaluation on the validation set, including loss\
+            and precision reporting.
         - Early stopping if all levels have triggered it.
     Args:
-        args: An object containing all necessary training parameters and objects, including:
+        args: An object containing all necessary training parameters and \
+            objects, including:
             - model: The hierarchical model with per-level submodules.
             - criterions: List of loss functions for each level.
             - device: Device to run computations on.
@@ -61,29 +61,23 @@ def train_step(args):
     args.best_val_loss = [float("inf")] * args.max_depth
     args.best_val_score = [0.0] * args.max_depth
     args.best_model = [None] * args.max_depth
+    args.job_id = create_job_id_name(prefix="test")
     logging.info("Best val loss created %s", args.best_val_loss)
 
-    # optimizers = [
-    #     torch.optim.Adam(
-    #         model.parameters(),
-    #         lr=args.lr_values[int(idx)],
-    #         weight_decay=args.weight_decay_values[int(idx)],
-    #     )
-    #     for idx, model in args.model.levels.items()
-    # ]
-    # args.optimizers = optimizers
-
-    args.optimizers = torch.optim.Adam(
+    args.optimizer = torch.optim.Adam(
         args.model.parameters(),
         lr=args.lr_values[0],
         weight_decay=args.weight_decay_values[0],
     )
+    args.model.train()
+
+    R_global = args.hmc_dataset.R.to(args.device)
+    R_global = R_global.squeeze(0)
+    print(R_global.shape)
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-        # args.active_levels = [i for i, active in enumerate(args.level_active) if active]
-        # logging.info("Active levels: %s", args.active_levels)
         logging.info(
             "Level active: %s",
             [level for level, level_bool in enumerate(args.level_active) if level_bool],
@@ -97,35 +91,21 @@ def train_step(args):
             outputs = args.model(inputs.float())
 
             # Zerar os gradientes antes de cada batch
-            args.optimizers.zero_grad()
-            # for optimizer in args.optimizers:
-            #     optimizer.zero_grad()
+            args.optimizer.zero_grad()
+
+            total_loss = 0.0
+
             for index in args.active_levels:
                 if args.level_active[index]:
-                    output = outputs[index].double()
+                    output = outputs[index]  # Preferencialmente float32
                     target = targets[index]
+                    loss = args.criterions[index](output.double(), target)
+                    local_train_losses[index] += loss.item()  # Acumula média por batch
+                    total_loss += loss  # Soma da loss para backward
 
-                    # MCLoss
-                    if index == 0:
-                        loss = args.criterions[index](output, target)
-                    else:
-                        R = args.hmc_dataset.all_matrix_r[index].to(args.device)
-                        constr_output = get_constr_out(output, R)
-                        train_output = target * output.double()
-                        train_output = get_constr_out(train_output, R)
-                        train_output = (
-                            1 - target
-                        ) * constr_output.double() + target * train_output
-                        loss = args.criterions[index](train_output, target)
-                    local_train_losses[index] += loss
-
-        # Backward pass (cálculo dos gradientes)
-        for i, total_loss in enumerate(local_train_losses):
-            if i in args.active_levels and args.level_active[i]:
-                total_loss.backward()
-        args.optimizers.step()
-        # for optimizer in args.optimizers:
-        #    optimizer.step()
+            # Após terminar loop dos níveis, execute backward
+            total_loss.backward()
+            args.optimizer.step()
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses
@@ -147,6 +127,3 @@ def train_step(args):
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
                 break
-
-        # if epoch % args.epochs_to_test == 0:
-        #     test_step(args)

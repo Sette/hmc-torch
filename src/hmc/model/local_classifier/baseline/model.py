@@ -118,6 +118,7 @@ class HMCLocalModel(nn.Module):
     def forward(self, x):
         outputs = {}
         for index, level in self.levels.items():
+            index = int(index)
             local_output = level(x)
             outputs[index] = local_output
         return outputs

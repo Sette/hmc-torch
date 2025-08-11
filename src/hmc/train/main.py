@@ -7,11 +7,8 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.train.global_classifier.baseline.train_global import train_global_baseline
 from hmc.train.global_classifier.constrained.train_global import train_global
-from hmc.train.global_classifier.constrained.train_globalLM import train_globalLM
-
-from hmc.train import train_local
+from hmc.train.train import train_local
 
 from hmc.utils.dir import create_job_id
 
@@ -203,30 +200,16 @@ def main():
 
     for dataset_name in datasets:
         args.dataset_name = dataset_name
-        if args.method == "global":
-            train_global(dataset_name, args)
 
-        if args.method == "local":
-            from hmc.train.local_classifier.baseline.main import train_local
-
-            train_local(args)
-
-        if args.method == "local_constrained":
-            from hmc.train.local_classifier.constrained.main import train_local
-
-            train_local(args)
-
-        if args.method == "local_mask":
-            from hmc.train.local_classifier.mask.main import train_local
-
-            train_local(args)
-        if args.method == "globalLM":
-            train_globalLM(dataset_name, args)
-
-        if args.method == "global_baseline":
-            train_global_baseline(dataset_name, args)
-        else:
-            train_local(args)
+        match args.method:
+            case "local" | "local_constrained" | "local_mask":
+                logging.info("Local method selected")
+                train_local(args)
+            case "global" | "global_baseline":
+                logging.info("Global method selected")
+                train_global(dataset_name, args)
+            case _:  # Default case (like 'default' in other languages
+                print("Invalid Day")
 
 
 if __name__ == "__main__":

@@ -21,15 +21,20 @@ logger = logging.getLogger(__name__)
 
 class HMCDatasetManager:
     """
-    Manages hierarchical multi-label datasets, including loading features (X), labels (Y),
+    Manages hierarchical multi-label datasets, \
+    including loading features (X), labels (Y),
     and optionally applying input scaling and hierarchical structure.
 
     Parameters:
-    - dataset (tuple): Tuple containing paths to (train_csv, valid_csv, test_csv, labels_json, _).
+    - dataset (tuple): Tuple containing paths to \
+        (train_csv, valid_csv, test_csv, labels_json, _).
     - output_path (str, optional): Path to store processed outputs. Default is 'data'.
-    - device (str, optional): Computation device ('cpu' or 'cuda'). Default is 'cpu'.
-    - is_local (bool, optional): Whether to use local_classifier hierarchy. Default is False.
-    - is_global (bool, optional): Whether to use global hierarchy. Default is False.
+    - device (str, optional): Computation device ('cpu' or 'cuda'). \
+        Default is 'cpu'.
+    - is_local (bool, optional): Whether to use local_classifier \
+        hierarchy. Default is False.
+    - is_global (bool, optional): Whether to use global hierarchy. \
+        Default is False.
     - input_scaler (bool, optional): Whether to apply input scaling
     (imputation + standardization). Default is True.
 
@@ -37,7 +42,8 @@ class HMCDatasetManager:
 
     def __init__(self, dataset, dataset_type="arff", device="cpu", is_global=False):
         # Extract dataset paths
-        self.test, self.train, self.valid, self.to_eval, self.max_depth = (
+        self.test, self.train, self.valid, self.to_eval, self.max_depth, self.R = (
+            None,
             None,
             None,
             None,
@@ -83,7 +89,8 @@ class HMCDatasetManager:
         # Construct graph path
         self.g = nx.DiGraph()
         # train_csv_name = Path(self.train_file).name
-        # self.graph_path = os.path.join(output_path, train_csv_name.replace('-.csv', '.graphml'))
+        # self.graph_path = os.path.join(output_path, \
+        # train_csv_name.replace('-.csv', '.graphml'))
 
         if dataset_type == "arff":
             self.is_go, self.train_file, self.valid_file, self.test_file = dataset
@@ -105,9 +112,6 @@ class HMCDatasetManager:
             self.to_eval = [t not in self.to_skip for t in self.nodes]
         elif dataset_type == "arff":
             self.load_arff_data()
-
-        # Ensure category labels exist before evaluation filtering
-        # self.to_eval = [t not in self.to_skip for t in self.nodes]
 
     def load_structure_from_json(self, labels_json):
         # Load labels JSON
@@ -134,9 +138,6 @@ class HMCDatasetManager:
         self.nodes_idx = dict(zip(self.nodes, range(len(self.nodes))))
         self.g_t = self.g.reverse()
 
-        # Save networkx graph
-        # nx.write_graphml(self.g, self.graph_path)
-
         self.A = nx.to_numpy_array(self.g, nodelist=self.nodes)
 
     def get_hierarchy_levels(self):
@@ -145,13 +146,6 @@ class HMCDatasetManager:
         """
         self.levels_size = defaultdict(int)
         self.levels = defaultdict(list)
-        # level_by_node = nx.shortest_path_length(self.g_t, "root")
-        #
-        # for node in self.g.nodes():
-        #     depth = level_by_node.get(node)
-        #     if depth not in self.levels:
-        #         self.levels[depth] = []
-        #     self.levels[depth].append(node)
         for label in self.nodes:
             level = label.count(".")
             self.levels[level].append(label)
@@ -165,7 +159,8 @@ class HMCDatasetManager:
 
     def compute_matrix_R(self, edges_matrix):
         # Compute matrix of ancestors R, named matrix_r
-        # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is ancestor of class j
+        # Given n classes, R is an (n x n) matrix where R_ij = 1 i\
+        # f class i is ancestor of class j
         matrix_r = np.zeros(edges_matrix.shape)
         np.fill_diagonal(matrix_r, 1)
         g = nx.DiGraph(edges_matrix)
@@ -181,7 +176,8 @@ class HMCDatasetManager:
 
     def compute_matrix_R_local(self):
         # Compute the list with local matrix of ancestors R, named matrix_r
-        # Given n classes, R is an (n x n) matrix where R_ij = 1 if class i is ancestor of class j
+        # Given n classes, R is an (n x n) matrix where R_ij = 1 \
+        # if class i is ancestor of class j
         for idx, edges_matrix in self.edges_matrix_dict.items():
             matrix_r = self.compute_matrix_R(edges_matrix)
             logger.info(
@@ -271,8 +267,8 @@ class HMCDatasetManager:
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
         self.A = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
+        self.R = self.compute_matrix_R(self.A)
         self.compute_matrix_R_local()
-        logger.info(self.all_matrix_r)
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
@@ -298,9 +294,12 @@ def initialize_dataset_experiments(
     Parameters:
     - name (str): Name of the dataset to load.
     - output_path (str): Path to store output files.
-    - device (str, optional): Device to be used ('cpu' or 'cuda'). Default is 'cpu'.
-    - is_local (bool, optional): Whether to use local_classifier hierarchy. Default is False.
-    - is_global (bool, optional): Whether to use global hierarchy. Default is False.
+    - device (str, optional): Device to be used ('cpu' or 'cuda'). \
+        Default is 'cpu'.
+    - is_local (bool, optional): Whether to use local_classifier hierarchy. \
+        Default is False.
+    - is_global (bool, optional): Whether to use global hierarchy. \
+        Default is False.
 
     Returns:
     - HMCDatasetManager: Initialized dataset manager.

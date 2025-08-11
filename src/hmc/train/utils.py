@@ -51,7 +51,8 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
                     activated_nodes_by_example[idx_example].append(node_name)
                 else:
                     logging.info(
-                        f"[WARN] Índice local {local_idx} não encontrado no nível {level}"
+                        f"[WARN] Índice local {local_idx} \
+                            não encontrado no nível {level}"
                     )
 
     # logging.info(f"Node names ativados por exemplo: {activated_nodes_by_example[0]}")
@@ -61,7 +62,6 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
         if "/" in node:
             node = node.replace("/", ".")
         global_indices.append(nodes_idx.get(node))
-    logging.info(global_indices)
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
@@ -73,6 +73,45 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
                 logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")
 
     return global_preds
+
+
+def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
+    """
+    Parâmetros:
+        global_preds: np.array [n_samples, n_global_labels] \
+            - rótulos/predições globais binárias
+        local_nodes_idx: dict[level_name] = dict[node_name_local \
+            -> idx_local]
+        nodes_idx: dict[node_name_global -> idx_global]
+    Retorna:
+        local_labels: lista np.array [n_samples, n_local_labels_por_nivel]
+    """
+    # Inverter nodes_idx: global_idx -> node_name
+    idx_to_node = {v: k for k, v in nodes_idx.items()}
+    sorted_levels = sorted(local_nodes_idx.keys())
+
+    n_samples = global_preds.shape[0]
+
+    local_labels = []
+    for level in sorted_levels:
+        n_classes_local = len(local_nodes_idx[level])
+        lvl_preds = np.zeros((n_samples, n_classes_local))
+        # Inverter local_nodes_idx[level]: node_name_local->idx_local
+        node_to_local_idx = local_nodes_idx[level]  # node_name_local → idx_local
+
+        for sample_idx in range(n_samples):
+            # Quais globais estão ativados neste sample
+            active_globals = np.where(global_preds[sample_idx] == 1)[0]
+            for global_idx in active_globals:
+                node_name = idx_to_node[global_idx]
+                # Ajustar para nomes locais, se necessário
+                node_name_local = node_name.replace(".", "/")
+                # Verifica se é nó deste nível
+                if node_name_local in node_to_local_idx:
+                    local_idx = node_to_local_idx[node_name_local]
+                    lvl_preds[sample_idx, local_idx] = 1
+        local_labels.append(lvl_preds)
+    return local_labels
 
 
 def show_metrics(losses, scores, dataset="Train"):
@@ -92,26 +131,24 @@ def show_local_losses(local_losses, dataset="Train"):
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
         if local_loss is not None and local_loss != 0.0:
-            formatted_string += "%s Loss %.4f for level %d // " % (
-                dataset,
-                local_loss.item(),
+            formatted_string += "level %d: %.4f // " % (
                 level,
+                local_loss,
             )
     logging.info(formatted_string)
 
 
 def show_global_loss(global_loss, dataset="Train"):
-    logging.info("Global average loss %s Loss: %s", dataset, global_loss.item())
+    logging.info("Global average loss %s Loss: %s", dataset, global_loss)
 
 
 def show_local_score(local_scores, dataset="Train"):
     formatted_string = ""
     for level, local_score in local_scores.items():
         if local_score is not None and local_score != 0.0:
-            formatted_string += "%s Score %s for level %s // " % (
-                dataset,
-                local_score,
+            formatted_string += "level %s score %s // " % (
                 level,
+                local_score,
             )
 
     logging.info(formatted_string)

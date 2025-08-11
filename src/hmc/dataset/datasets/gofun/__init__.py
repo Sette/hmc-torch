@@ -4,7 +4,7 @@ import os
 to_skip = ["root", "GO0003674", "GO0005575", "GO0008150"]
 
 
-def get_dataset_paths(dataset_path = './data', dataset_type="arff"):
+def get_dataset_paths(dataset_path="./data", dataset_type="arff"):
     # dataset_path = os.environ("DATASET_PATH")
     if dataset_type == "arff":
         datasets = {
@@ -13,9 +13,7 @@ def get_dataset_paths(dataset_path = './data', dataset_type="arff"):
                 os.path.join(
                     dataset_path, "HMC_data_arff/others/Enron_corr_trainvalid.arff"
                 ),
-                os.path.join(
-                    dataset_path, "HMC_data_arff/others/Enron_corr_test.arff"
-                ),
+                os.path.join(dataset_path, "HMC_data_arff/others/Enron_corr_test.arff"),
             ),
             "diatoms_others": (
                 False,
@@ -24,16 +22,12 @@ def get_dataset_paths(dataset_path = './data', dataset_type="arff"):
             ),
             "imclef07a_others": (
                 False,
-                os.path.join(
-                    dataset_path, "HMC_data_arff/others/ImCLEF07A_Train.arff"
-                ),
+                os.path.join(dataset_path, "HMC_data_arff/others/ImCLEF07A_Train.arff"),
                 os.path.join(dataset_path, "HMC_data_arff/others/ImCLEF07A_Test.arff"),
             ),
             "imclef07d_others": (
                 False,
-                os.path.join(
-                    dataset_path, "HMC_data_arff/others/ImCLEF07D_Train.arff"
-                ),
+                os.path.join(dataset_path, "HMC_data_arff/others/ImCLEF07D_Train.arff"),
                 os.path.join(dataset_path, "HMC_data_arff/others/ImCLEF07D_Test.arff"),
             ),
             "cellcycle_FUN": (
