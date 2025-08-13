@@ -56,12 +56,10 @@ def optimize_hyperparameters(args):
                     "hidden_dim": ...,
                     "lr": ...,
                     "dropout": ...,
-                },
-                global: 
                     "num_layers": ...,
                     "weight_decay": ...
+                },
                 ...
-            }
     Side Effects:
         - Saves the best hyperparameters per level to a JSON file in 'results/hpo/'.
         - Logs progress and results to the logging system and stdout.
