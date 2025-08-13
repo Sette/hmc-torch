@@ -67,7 +67,7 @@ def optimize_hyperparameters(args):
         optuna.TrialPruned: If a trial is pruned by Optuna's early stopping mechanism.
     """
 
-    def objective(trial):
+    def objective(trial, level):
         """
         Objective function for Optuna hyperparameter optimization of a hierarchical\
             multi-class local classifier.
@@ -92,20 +92,12 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = [
-            trial.suggest_int("hidden_dim_level_%d" % level, 64, 512, log=True)
-            for level in range(args.hmc_dataset.max_depth)
-        ]
-        dropout = [
-            trial.suggest_float("dropout_level_%d" % level, 0.3, 0.8, log=True)
-            for level in range(args.hmc_dataset.max_depth)
-        ]
-        num_layers = [
-            trial.suggest_int("num_layers_level_%d" % level, 1, 3, log=True)
-            for level in range(args.hmc_dataset.max_depth)
-        ]
+        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, 64, 512, log=True)
+        dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
+        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
         lr = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+        args.active_levels = [level]
 
         params = {
             "levels_size": args.levels_size,
@@ -226,14 +218,13 @@ def optimize_hyperparameters(args):
         args.active_levels = [int(x) for x in args.active_levels]
         logging.info("Active levels: %s", args.active_levels)
 
-    study = optuna.create_study()
-
-    study.optimize(
-        lambda trial: objective(trial),
-        n_trials=args.n_trials,
-    )
-
     for level in args.active_levels:
+        study = optuna.create_study()
+        study.optimize(
+            lambda trial: objective(trial, level),
+            n_trials=args.n_trials,
+        )
+
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
         level_parameters = {
             "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
