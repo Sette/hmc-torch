@@ -101,7 +101,7 @@ def train_local(args):
         logging.info("Using constrained local model")
 
     args.early_metric = "loss"
-    args.model_regularization = "mask"
+    args.model_regularization = "soft"
 
     # Load train, val and test set
 

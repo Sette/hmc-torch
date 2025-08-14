@@ -13,6 +13,60 @@ from hmc.train.utils import (
 )
 
 
+def calculate_local_loss(outputs, targets, args, level):
+
+    output = outputs[level]  # Preferencialmente float32
+    target = targets[level]
+
+    if args.model_regularization == "mask" and level != 0:
+        child_indices = args.class_indices_per_level[level]  # [n_classes_nivel_atual]
+        # MCLoss
+        # Índices globais dos pais para cada amostra
+        parent_target = targets[level - 1]
+        parent_indices = args.class_indices_per_level[level - 1]
+        parent_index_each_sample = parent_target.argmax(dim=1)
+        parent_global_idxs = parent_indices[parent_index_each_sample]
+        # Constrói a máscara usando R_global (shape: [1, n, n])
+        mask = torch.stack(
+            [
+                args.R[0, child_indices, parent_global_idxs[b]]
+                for b in range(output.shape[0])
+            ],
+            dim=0,
+        )  # [batch, n_classes_nivel_atual]
+        masked_output = output + (1 - mask) * (-1e9)
+        loss = args.criterions[level](torch.sigmoid(masked_output), target)
+    elif args.model_regularization == "soft" and level != 0:
+        loss = args.criterions[level](output.double(), target)
+        lambda_hier = 0.1
+        global_dict = args.hmc_dataset.nodes_idx
+        # classes_local_to_global: mapeia idx local para global correto
+        local_dict = args.hmc_dataset.local_nodes_idx[level]
+        classes_local_to_global = [
+            int(global_dict[node.replace("/", ".")])
+            for node, i in sorted(local_dict.items(), key=lambda x: x[1])
+        ]
+        # Constrói vetor de probabilidades globais "espalhado"
+        probs_expanded = torch.zeros(
+            (output.size(0), args.R.size(0)), device=output.device
+        )
+        probs_expanded[:, classes_local_to_global] = output
+        # Penalidade global
+        probs_i = probs_expanded.unsqueeze(2)  # (batch, n_total, 1)
+        probs_j = probs_expanded.unsqueeze(1)  # (batch, 1, n_total)
+        diff = probs_j - probs_i
+        # Máscara hierárquica global (sem diagonal)
+        R_mask = args.R - torch.eye(args.R.size(0), device=output.device)
+        penalty = torch.clamp(diff * R_mask, min=0).sum() / (
+            output.size(0) * R_mask.sum()
+        )
+        loss = loss + lambda_hier * penalty
+    else:
+        loss = args.criterions[level](output.double(), target)
+
+    return loss
+
+
 def train_step(args):
     """
     Executes the training loop for a hierarchical multi-class (HMC) local \
@@ -71,9 +125,22 @@ def train_step(args):
     )
     args.model.train()
 
-    R_global = args.hmc_dataset.R.to(args.device)
-    R_global = R_global.squeeze(0)
-    print(R_global.shape)
+    if args.model_regularization == "mask" or args.model_regularization == "soft":
+        args.R = args.hmc_dataset.R.to(args.device)
+        args.R = args.R.squeeze(0)
+        print(args.R.shape)
+        args.class_indices_per_level = {
+            lvl: torch.tensor(
+                [
+                    args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                    for n in args.hmc_dataset.levels[lvl]
+                ],
+                device=args.device,
+            )
+            for lvl in args.hmc_dataset.levels.keys()
+        }
+
+    n_warmup_epochs = 1  # defina quantas épocas quer pré-treinar o nível 0
 
     for epoch in range(1, args.epochs + 1):
         args.model.train()
@@ -95,17 +162,30 @@ def train_step(args):
 
             total_loss = 0.0
 
-            for index in args.active_levels:
-                if args.level_active[index]:
-                    output = outputs[index]  # Preferencialmente float32
-                    target = targets[index]
-                    loss = args.criterions[index](output.double(), target)
-                    local_train_losses[index] += loss.item()  # Acumula média por batch
-                    total_loss += loss  # Soma da loss para backward
+            # Se ainda estamos no warm-up, só treine o nível 0
+            if epoch <= n_warmup_epochs:
+                index = 0
+                output = outputs[index].double()
+                target = targets[index].double()
+                loss = args.criterions[index](output, target)
+                local_train_losses[index] += loss
+            else:
+                for level in args.active_levels:
+                    if args.level_active[level]:
+                        loss = calculate_local_loss(
+                            outputs,
+                            targets,
+                            args,
+                            level,
+                        )
+                        local_train_losses[
+                            level
+                        ] += loss.item()  # Acumula média por batch
+                        total_loss += loss  # Soma da loss para backward
 
-            # Após terminar loop dos níveis, execute backward
-            total_loss.backward()
-            args.optimizer.step()
+                # Após terminar loop dos níveis, execute backward
+                total_loss.backward()
+                args.optimizer.step()
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses
