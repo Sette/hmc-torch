@@ -6,6 +6,21 @@ from sklearn.metrics import precision_recall_fscore_support
 from hmc.utils.dir import create_dir
 
 
+def check_metrics(metric, best_metric, metric_type="loss"):
+    if metric_type == "loss":
+        if metric < best_metric:
+            return True
+        else:
+            return False
+    elif metric_type == "f1":
+        if metric > best_metric:
+            return True
+        else:
+            return False
+    else:
+        return False
+
+
 def valid_step(args):
     """
     Performs a validation step for a hierarchical multi-level classifier model.
@@ -103,39 +118,47 @@ def valid_step(args):
 
     local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    for i in args.active_levels:
-        if args.level_active[i]:
-            if args.best_model[i] is None:
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
+    for level in args.active_levels:
+        metric, best_metric = 0, 0
+        if args.level_active[level]:
+            if args.best_model[level] is None:
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
                 logging.info("Level %d: initialized best model", i)
-            if round(local_val_losses[i], 4) < args.best_val_loss[i]:
+            if args.early_metric == "loss":
+                metric = round(local_val_losses[level], 4)
+                best_metric = args.best_val_loss[level]
+            elif args.early_metric == "f1":
+                metric = round(local_val_score[level], 4)
+                best_metric = args.best_val_score[level]
+
+            if check_metrics(metric, best_metric, metric_type=args.early_metric):
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i], 4)
-                args.best_val_score[i] = round(local_val_score[i], 4)
-                args.best_model[i] = args.model.levels[str(i)].state_dict()
-                args.patience_counters[i] = 0
+                args.best_val_loss[level] = round(local_val_losses[level], 4)
+                args.best_val_score[level] = round(local_val_score[level], 4)
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                args.patience_counters[level] = 0
                 logging.info(
-                    "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
+                    "Level %d: improved (F1 score=%.4f)", level, local_val_score[level]
                 )
                 # Salvar em disco
-                logging.info("Saving best model for Level %d", i)
+                logging.info("Saving best model for Level %d", level)
                 torch.save(
-                    args.model.levels[str(i)].state_dict(),
-                    os.path.join(args.results_path, f"best_model_level_{i}.pth"),
+                    args.model.levels[str(level)].state_dict(),
+                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
                 )
-                logging.info("best model updated and saved for Level %d", i)
+                logging.info("best model updated and saved for Level %d", level)
 
             else:
                 # Incrementar o contador de paciência
-                args.patience_counters[i] += 1
+                args.patience_counters[level] += 1
                 logging.info(
                     "Level %d: no improvement (patience %d/%d)",
                     i,
-                    args.patience_counters[i],
+                    args.patience_counters[level],
                     args.early_stopping_patience,
                 )
-                if args.patience_counters[i] >= args.early_stopping_patience:
-                    args.level_active[i] = False
+                if args.patience_counters[level] >= args.early_stopping_patience:
+                    args.level_active[level] = False
                     # args.active_levels.remove(i)
                     logging.info(
                         "🚫 Early stopping triggered for level %d\
@@ -143,5 +166,5 @@ def valid_step(args):
                         i,
                     )
                     # ❄️ Congelar os parâmetros desse nível
-                    for param in args.model.levels[str(i)].parameters():
+                    for param in args.model.levels[str(level)].parameters():
                         param.requires_grad = False
