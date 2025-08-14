@@ -144,7 +144,7 @@ def optimize_hyperparameters(args):
         args.early_stopping_patience = patience
         args.patience_counters = [0] * args.hmc_dataset.max_depth
 
-        args.best_total_val_loss = float("inf")
+        args.best_val_loss = float("inf")
         args.best_val_loss = [float("inf") for _ in range(args.max_depth)]
         args.best_val_score = [0.0] * args.max_depth
 
@@ -188,14 +188,23 @@ def optimize_hyperparameters(args):
             )
 
             logging.info("Trial %d - Epoch %d/%d", trial.number, epoch, args.epochs)
-            show_local_losses(local_train_losses, dataset=f"Train-{trial.number}")
-            show_global_loss(global_train_loss, dataset=f"Train-{trial.number}")
+            show_local_losses(local_train_losses, dataset=f"Train n {trial.number}")
+            show_global_loss(global_train_loss, dataset=f"Train n {trial.number}")
 
             if epoch % args.epochs_to_evaluate == 0:
-                total_loss = val_optimizer(args)
-                if round(total_loss.item(), 4) < args.best_total_val_loss:
-                    args.best_total_val_loss = total_loss.item()
+                metric, best_metric = 0, 0
+                val_loss, val_f1 = val_optimizer(args, level)
+                if args.early_metric == "loss":
+                    metric = round(val_loss.item(), 4)
+                    best_metric = args.best_val_loss[level]
+                elif args.early_metric == "f1":
+                    metric = val_f1
+                    best_metric = args.best_val_score[level]
+
+                if check_metrics(metric, best_metric, metric_type=args.early_metric):
                     patience_counter = 0
+                    args.best_val_score[level] = val_f1
+                    args.best_val_loss[level] = val_loss
                 else:
                     patience_counter += 1
 
@@ -213,9 +222,14 @@ def optimize_hyperparameters(args):
                     break
 
                 # Reporta o valor de validação para Optuna
-                trial.report(total_loss.item(), step=epoch)
+                trial.report(metric, step=epoch)
 
-                logging.info("Local loss %d: %f", trial.number, total_loss.item())
+                logging.info(
+                    "Trial %d Local validation loss: %f F1: %f",
+                    trial.number,
+                    args.best_val_loss[level],
+                    args.best_val_score[level],
+                )
 
                 # Early stopping (pruning)
                 if trial.should_prune():
@@ -269,7 +283,7 @@ def optimize_hyperparameters(args):
     return best_params_per_level
 
 
-def val_optimizer(args):
+def val_optimizer(args, level):
     """
     Evaluates the model on the validation set and computes the average \
         loss and average precision score.
@@ -398,4 +412,4 @@ def val_optimizer(args):
     total_loss = total_loss / len(args.val_loader)
     # logging.info(f"Levels to evaluate: {args.active_levels}")
 
-    return total_loss
+    return local_val_losses[level], local_val_score[level]
