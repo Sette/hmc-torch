@@ -100,6 +100,8 @@ def train_local(args):
     if args.method == "local_constrained":
         logging.info("Using constrained local model")
 
+    args.early_metric = "f1"
+
     # Load train, val and test set
 
     if not torch.cuda.is_available():

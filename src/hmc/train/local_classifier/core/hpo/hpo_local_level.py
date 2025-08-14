@@ -15,6 +15,21 @@ from hmc.train.utils import (
 from hmc.utils.dir import create_dir
 
 
+def check_metrics(metric, best_metric, metric_type="loss"):
+    if metric_type == "loss":
+        if metric < best_metric:
+            return True
+        else:
+            return False
+    elif metric_type == "f1":
+        if metric > best_metric:
+            return True
+        else:
+            return False
+    else:
+        return False
+
+
 def optimize_hyperparameters(args):
     """
     Optimize hyperparameters for each active level of a hierarchical \
@@ -95,7 +110,9 @@ def optimize_hyperparameters(args):
         hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, 64, 512, log=True)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
         num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
-        weight_decay = trial.suggest_float("weight_decay_level_%s" % level, 1e-6, 1e-2, log=True)
+        weight_decay = trial.suggest_float(
+            "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
+        )
         lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-3, log=True)
         args.active_levels = [level]
 
@@ -240,9 +257,7 @@ def optimize_hyperparameters(args):
             "✅ Best hyperparameters for level %s: %s", level, study.best_params
         )
 
-    best_params_per_level["global"] = {
-        
-    }
+    best_params_per_level["global"] = {}
 
     job_id = create_job_id_name(prefix="hpo")
 
@@ -342,8 +357,15 @@ def val_optimizer(args):
     local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
     logging.info("Levels to evaluate: %s", args.active_levels)
     for i in args.active_levels:
+        metric, best_metric = 0, 0
         if args.level_active[i]:
-            if round(local_val_losses[i], 4) < args.best_val_loss[i]:
+            if args.early_metric == "loss":
+                metric = round(local_val_losses[i], 4)
+                best_metric = args.best_val_loss[i]
+            elif args.early_metric == "f1":
+                metric = round(local_val_score[i], 4)
+                best_metric = args.best_val_score[i]
+            if check_metrics(metric, best_metric, metric_type=args.early_metric):
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_loss[i] = round(local_val_losses[i], 4)
                 args.best_val_score[i] = round(local_val_score[i], 4)
