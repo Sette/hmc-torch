@@ -12,59 +12,7 @@ from hmc.train.utils import (
     create_job_id_name,
 )
 
-
-def calculate_local_loss(outputs, targets, args, level):
-
-    output = outputs[level]  # Preferencialmente float32
-    target = targets[level]
-
-    if args.model_regularization == "mask" and level != 0:
-        child_indices = args.class_indices_per_level[level]  # [n_classes_nivel_atual]
-        # MCLoss
-        # Índices globais dos pais para cada amostra
-        parent_target = targets[level - 1]
-        parent_indices = args.class_indices_per_level[level - 1]
-        parent_index_each_sample = parent_target.argmax(dim=1)
-        parent_global_idxs = parent_indices[parent_index_each_sample]
-        # Constrói a máscara usando R_global (shape: [1, n, n])
-        mask = torch.stack(
-            [
-                args.R[0, child_indices, parent_global_idxs[b]]
-                for b in range(output.shape[0])
-            ],
-            dim=0,
-        )  # [batch, n_classes_nivel_atual]
-        masked_output = output + (1 - mask) * (-1e9)
-        loss = args.criterions[level](torch.sigmoid(masked_output), target)
-    elif args.model_regularization == "soft" and level != 0:
-        loss = args.criterions[level](output.double(), target)
-        lambda_hier = 0.1
-        global_dict = args.hmc_dataset.nodes_idx
-        # classes_local_to_global: mapeia idx local para global correto
-        local_dict = args.hmc_dataset.local_nodes_idx[level]
-        classes_local_to_global = [
-            int(global_dict[node.replace("/", ".")])
-            for node, i in sorted(local_dict.items(), key=lambda x: x[1])
-        ]
-        # Constrói vetor de probabilidades globais "espalhado"
-        probs_expanded = torch.zeros(
-            (output.size(0), args.R.size(0)), device=output.device
-        )
-        probs_expanded[:, classes_local_to_global] = output
-        # Penalidade global
-        probs_i = probs_expanded.unsqueeze(2)  # (batch, n_total, 1)
-        probs_j = probs_expanded.unsqueeze(1)  # (batch, 1, n_total)
-        diff = probs_j - probs_i
-        # Máscara hierárquica global (sem diagonal)
-        R_mask = args.R - torch.eye(args.R.size(0), device=output.device)
-        penalty = torch.clamp(diff * R_mask, min=0).sum() / (
-            output.size(0) * R_mask.sum()
-        )
-        loss = loss + lambda_hier * penalty
-    else:
-        loss = args.criterions[level](output.double(), target)
-
-    return loss
+from hmc.train.losses import calculate_local_loss
 
 
 def train_step(args):
@@ -106,6 +54,8 @@ def train_step(args):
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
     args.early_stopping_patience = args.patience
+    if args.early_metric == "f1-score":
+        args.early_stopping_patience = 20
     args.patience_counters = [0] * args.hmc_dataset.max_depth
     # args.level_active = [True] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
@@ -140,9 +90,10 @@ def train_step(args):
             for lvl in args.hmc_dataset.levels.keys()
         }
 
-    n_warmup_epochs = 1  # defina quantas épocas quer pré-treinar o nível 0
+    args.n_warmup_epochs = 1  # defina quantas épocas quer pré-treinar o nível 0
 
     for epoch in range(1, args.epochs + 1):
+        args.epoch = epoch
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         logging.info(
@@ -163,7 +114,7 @@ def train_step(args):
             total_loss = 0.0
 
             # Se ainda estamos no warm-up, só treine o nível 0
-            if epoch <= n_warmup_epochs:
+            if epoch <= args.n_warmup_epochs:
                 index = 0
                 output = outputs[index].double()
                 target = targets[index].double()
@@ -178,12 +129,9 @@ def train_step(args):
                             args,
                             level,
                         )
-                        local_train_losses[
-                            level
-                        ] += loss.item()  # Acumula média por batch
-                        total_loss += loss  # Soma da loss para backward
+                        local_train_losses[level] += loss.item()
+                        total_loss += loss
 
-                # Após terminar loop dos níveis, execute backward
                 total_loss.backward()
                 args.optimizer.step()
 
@@ -201,9 +149,6 @@ def train_step(args):
 
         if epoch % args.epochs_to_evaluate == 0:
             valid_step(args)
-            # show_local_losses(local_val_losses, dataset="Val")
-            # show_local_score(local_val_score, dataset="Val")
-
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
                 break

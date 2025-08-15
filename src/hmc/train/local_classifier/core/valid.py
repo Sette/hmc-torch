@@ -4,6 +4,7 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.utils.dir import create_dir
+from hmc.train.losses import calculate_local_loss
 
 
 def check_metrics(metric, best_metric, metric_type="loss"):
@@ -29,7 +30,6 @@ def check_early_stopping_simple(args):
     """
 
     for level in args.active_levels:
-        metric, best_metric, loss, best_loss = 0, 0, 0, 0
         if args.level_active[level]:
             if args.best_model[level] is None:
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
@@ -52,11 +52,15 @@ def check_early_stopping_simple(args):
 
             if is_better:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[level] = loss
-                args.best_val_score[level] = metric
+                args.best_val_loss[level] = round(args.local_val_losses[level], 4)
+                args.best_val_score[level] = round(args.local_val_score[level], 4)
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 args.patience_counters[level] = 0
-                logging.info("Level %d: improved (F1 score=%.4f)", level, metric)
+                logging.info(
+                    "Level %d: improved (F1 score=%.4f)",
+                    level,
+                    round(args.local_val_score[level], 4),
+                )
                 # Salvar em disco
                 logging.info("Saving best model for Level %d", level)
                 torch.save(
@@ -193,16 +197,17 @@ def valid_step(args):
     args.local_val_losses = [0.0] * args.max_depth
     args.results_path = f"results/train/{args.method}-{args.dataset_name}/{args.job_id}"
 
-    local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
-    local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
+    local_inputs = {
+        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
+    }
+    local_outputs = {
+        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
+    }
 
     # Get local scores
     args.local_val_score = [0.0] * args.max_depth
 
     threshold = 0.2
-
-    R_global = args.hmc_dataset.R.to(args.device)
-    R_global = R_global.squeeze(0)
 
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
@@ -211,30 +216,45 @@ def valid_step(args):
             ]
             outputs = args.model(inputs.float())
 
-            for index in args.active_levels:
-                if args.level_active[index]:
-                    output = outputs[index]
-                    target = targets[index]
-                    loss = args.criterions[index](output.double(), target)
-                    args.local_val_losses[index] += loss.item()
-
-                    # *** Para métricas e concatenação ***
-                    # Se quiser outputs binários para avaliação:
-                    binary_outputs = (output > threshold).float()
-
-                    # Acumulação de outputs e targets para métricas
-                    if i == 0:  # Primeira iteração: inicia tensor
-                        local_outputs[index] = binary_outputs
-                        local_inputs[index] = target
-                    else:  # Nas seguintes, empilha ao longo do batch
-                        local_outputs[index] = torch.cat(
-                            (local_outputs[index], binary_outputs), dim=0
+            # Se ainda estamos no warm-up, só treine o nível 0
+            if args.epoch <= args.n_warmup_epochs:
+                index = 0
+                output = outputs[index].double()
+                target = targets[index].double()
+                loss = args.criterions[index](output, target)
+                args.local_val_losses[index] += loss
+            else:
+                for level in args.active_levels:
+                    if args.level_active[level]:
+                        loss = calculate_local_loss(
+                            outputs,
+                            targets,
+                            args,
+                            level,
                         )
-                        local_inputs[index] = torch.cat(
-                            (local_inputs[index], target), dim=0
-                        )
+                        args.local_val_losses[level] += loss.item()
 
-    for idx in args.active_levels:
+                        # *** Para métricas e concatenação ***
+                        # Se quiser outputs binários para avaliação:
+                        binary_outputs = (outputs[level] > threshold).float()
+
+                        # Acumulação de outputs e targets para métricas
+                        if i == 0:  # Primeira iteração: inicia tensor
+                            local_outputs[level] = binary_outputs
+                            local_inputs[level] = targets[level]
+                        else:  # Nas seguintes, empilha ao longo do batch
+                            local_outputs[level] = torch.cat(
+                                (local_outputs[level], binary_outputs), dim=0
+                            )
+                            local_inputs[level] = torch.cat(
+                                (local_inputs[level], targets[level]), dim=0
+                            )
+
+    if args.epoch <= args.n_warmup_epochs:
+        active_levels = [0]
+    else:
+        active_levels = args.active_levels
+    for idx in active_levels:
         if args.level_active[idx]:
             y_pred = local_outputs[idx].to("cpu").int().numpy()
             y_true = local_inputs[idx].to("cpu").int().numpy()
@@ -259,4 +279,4 @@ def valid_step(args):
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping(args)
+    check_early_stopping_simple(args)
