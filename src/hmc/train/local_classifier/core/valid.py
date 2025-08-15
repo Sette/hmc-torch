@@ -12,13 +12,151 @@ def check_metrics(metric, best_metric, metric_type="loss"):
             return True
         else:
             return False
-    elif metric_type == "f1":
+    elif metric_type == "f1-score":
         if metric > best_metric:
             return True
         else:
             return False
     else:
         return False
+
+
+def check_early_stopping_simple(args):
+    """
+    Checks if early stopping criteria are met for each active level.
+    Args:
+        args: An object containing all necessary arguments and attributes.
+    """
+
+    for level in args.active_levels:
+        metric, best_metric, loss, best_loss = 0, 0, 0, 0
+        if args.level_active[level]:
+            if args.best_model[level] is None:
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                logging.info("Level %d: initialized best model", level)
+            best_value, local_value = 0, 0
+
+            if args.early_metric == "loss":
+                local_value = round(args.local_val_losses[level], 4)
+                best_value = args.best_val_loss[level]
+            elif args.early_metric == "f1-score":
+                local_value = round(args.local_val_score[level], 4)
+                best_value = args.best_val_score[level]
+
+            is_better = check_metrics(
+                local_value, best_value, metric_type=args.early_metric
+            )
+            logging.info(
+                "Is better %s level %d f1 %s", args.early_metric, level, is_better
+            )
+
+            if is_better:
+                # Atualizar o melhor modelo e as melhores métricas
+                args.best_val_loss[level] = loss
+                args.best_val_score[level] = metric
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                args.patience_counters[level] = 0
+                logging.info("Level %d: improved (F1 score=%.4f)", level, metric)
+                # Salvar em disco
+                logging.info("Saving best model for Level %d", level)
+                torch.save(
+                    args.model.levels[str(level)].state_dict(),
+                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                )
+                logging.info("best model updated and saved for Level %d", level)
+
+            else:
+                # Incrementar o contador de paciência
+                args.patience_counters[level] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    level,
+                    args.patience_counters[level],
+                    args.early_stopping_patience,
+                )
+                if args.patience_counters[level] >= args.early_stopping_patience:
+                    args.level_active[level] = False
+                    # args.active_levels.remove(i)
+                    logging.info(
+                        "🚫 Early stopping triggered for level %d\
+                            — freezing its parameters",
+                        level,
+                    )
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(level)].parameters():
+                        param.requires_grad = False
+
+
+def check_early_stopping(args):
+    """
+    Checks if early stopping criteria are met for each active level.
+    Args:
+        args: An object containing all necessary arguments and attributes.
+    """
+
+    for level in args.active_levels:
+        metric, best_metric, loss, best_loss = 0, 0, 0, 0
+        if args.level_active[level]:
+            if args.best_model[level] is None:
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                logging.info("Level %d: initialized best model", level)
+            loss = round(args.local_val_losses[level], 4)
+            best_loss = args.best_val_loss[level]
+            metric = round(args.local_val_score[level], 4)
+            best_metric = args.best_val_score[level]
+
+            is_better_metric = check_metrics(
+                metric, best_metric, metric_type="f1-score"
+            )
+            is_better_loss = check_metrics(loss, best_loss, metric_type="loss")
+            logging.info("Is better level %d f1 %s", level, is_better_metric)
+            logging.info("Is better level %d loss %s", level, is_better_loss)
+            is_better, is_better_oposite = False, False, False
+            if args.early_metric == "loss":
+                is_better = is_better_loss
+                is_better_oposite = is_better_metric
+            elif args.early_metric == "f1-score":
+                is_better = is_better_metric
+                is_better_oposite = is_better_loss
+            elif args.early_metric == "both":
+                is_better = is_better_loss and is_better_metric
+
+            if is_better:
+                # Atualizar o melhor modelo e as melhores métricas
+                args.best_val_loss[level] = loss
+                args.best_val_score[level] = metric
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                args.patience_counters[level] = 0
+                logging.info("Level %d: improved (F1 score=%.4f)", level, metric)
+                # Salvar em disco
+                logging.info("Saving best model for Level %d", level)
+                torch.save(
+                    args.model.levels[str(level)].state_dict(),
+                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                )
+                logging.info("best model updated and saved for Level %d", level)
+
+            else:
+                if not is_better_oposite:
+                    # Incrementar o contador de paciência
+                    args.patience_counters[level] += 1
+                    logging.info(
+                        "Level %d: no improvement (patience %d/%d)",
+                        level,
+                        args.patience_counters[level],
+                        args.early_stopping_patience,
+                    )
+                    if args.patience_counters[level] >= args.early_stopping_patience:
+                        args.level_active[level] = False
+                        # args.active_levels.remove(i)
+                        logging.info(
+                            "🚫 Early stopping triggered for level %d\
+                                — freezing its parameters",
+                            level,
+                        )
+                        # ❄️ Congelar os parâmetros desse nível
+                        for param in args.model.levels[str(level)].parameters():
+                            param.requires_grad = False
 
 
 def valid_step(args):
@@ -52,14 +190,15 @@ def valid_step(args):
     """
 
     args.model.eval()
-    local_val_losses = [0.0] * args.max_depth
+    args.local_val_losses = [0.0] * args.max_depth
     args.results_path = f"results/train/{args.method}-{args.dataset_name}/{args.job_id}"
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
-    local_val_score = {level: None for _, level in enumerate(args.active_levels)}
+    args.local_val_score = [0.0] * args.max_depth
+
     threshold = 0.2
 
     R_global = args.hmc_dataset.R.to(args.device)
@@ -77,7 +216,7 @@ def valid_step(args):
                     output = outputs[index]
                     target = targets[index]
                     loss = args.criterions[index](output.double(), target)
-                    local_val_losses[index] += loss.item()
+                    args.local_val_losses[index] += loss.item()
 
                     # *** Para métricas e concatenação ***
                     # Se quiser outputs binários para avaliação:
@@ -112,59 +251,12 @@ def valid_step(args):
                 score[2],
             )
 
-            local_val_score[idx] = score[2]
+            args.local_val_score[idx] = score[2]
 
     create_dir(args.results_path)
 
-    local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
+    args.local_val_losses = [
+        loss / len(args.val_loader) for loss in args.local_val_losses
+    ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    for level in args.active_levels:
-        metric, best_metric = 0, 0
-        if args.level_active[level]:
-            if args.best_model[level] is None:
-                args.best_model[level] = args.model.levels[str(level)].state_dict()
-                logging.info("Level %d: initialized best model", i)
-            if args.early_metric == "loss":
-                metric = round(local_val_losses[level], 4)
-                best_metric = args.best_val_loss[level]
-            elif args.early_metric == "f1":
-                metric = round(local_val_score[level], 4)
-                best_metric = args.best_val_score[level]
-
-            if check_metrics(metric, best_metric, metric_type=args.early_metric):
-                # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[level] = round(local_val_losses[level], 4)
-                args.best_val_score[level] = round(local_val_score[level], 4)
-                args.best_model[level] = args.model.levels[str(level)].state_dict()
-                args.patience_counters[level] = 0
-                logging.info(
-                    "Level %d: improved (F1 score=%.4f)", level, local_val_score[level]
-                )
-                # Salvar em disco
-                logging.info("Saving best model for Level %d", level)
-                torch.save(
-                    args.model.levels[str(level)].state_dict(),
-                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
-                )
-                logging.info("best model updated and saved for Level %d", level)
-
-            else:
-                # Incrementar o contador de paciência
-                args.patience_counters[level] += 1
-                logging.info(
-                    "Level %d: no improvement (patience %d/%d)",
-                    i,
-                    args.patience_counters[level],
-                    args.early_stopping_patience,
-                )
-                if args.patience_counters[level] >= args.early_stopping_patience:
-                    args.level_active[level] = False
-                    # args.active_levels.remove(i)
-                    logging.info(
-                        "🚫 Early stopping triggered for level %d\
-                            — freezing its parameters",
-                        i,
-                    )
-                    # ❄️ Congelar os parâmetros desse nível
-                    for param in args.model.levels[str(level)].parameters():
-                        param.requires_grad = False
+    check_early_stopping(args)
