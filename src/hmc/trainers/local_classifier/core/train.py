@@ -2,17 +2,17 @@ import logging
 
 import torch
 
-from hmc.train.local_classifier.core.valid import valid_step
-from hmc.train.utils import (
+from hmc.trainers.local_classifier.core.valid import valid_step
+from hmc.trainers.utils import (
     show_global_loss,
     show_local_losses,
 )
 
-from hmc.train.utils import (
+from hmc.trainers.utils import (
     create_job_id_name,
 )
 
-from hmc.train.losses import calculate_local_loss
+from hmc.trainers.losses import calculate_local_loss
 
 
 def train_step(args):
@@ -54,8 +54,8 @@ def train_step(args):
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
     args.early_stopping_patience = args.patience
-    if args.early_metric == "f1-score":
-        args.early_stopping_patience = 20
+    # if args.early_metric == "f1-score":
+    #     args.early_stopping_patience = 20
     args.patience_counters = [0] * args.hmc_dataset.max_depth
     # args.level_active = [True] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
@@ -89,8 +89,8 @@ def train_step(args):
             )
             for lvl in args.hmc_dataset.levels.keys()
         }
-
-    args.n_warmup_epochs = 1  # defina quantas épocas quer pré-treinar o nível 0
+    # defina quantas épocas quer pré-treinar o nível 0
+    args.n_warmup_epochs = 1
 
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch

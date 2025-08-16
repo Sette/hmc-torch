@@ -4,7 +4,7 @@ import sys
 from datetime import UTC
 from datetime import datetime as dt
 
-from hmc.model import train
+from hmc.models import train
 from hmc.utils.dir import create_dir, create_job_id
 
 # %%

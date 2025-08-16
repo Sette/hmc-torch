@@ -7,8 +7,8 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.train.global_classifier.constrained.train_global import train_global
-from hmc.train.train import train_local
+from hmc.trainers.global_classifier.constrained.train_global import train_global
+from hmc.trainers.train import train_local
 
 from hmc.utils.dir import create_job_id
 

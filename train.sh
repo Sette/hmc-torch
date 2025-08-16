@@ -94,7 +94,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
- cmd="python -m hmc.train.main \
+ cmd="python -m hmc.trainers.main \
                 --dataset_path $DATASET_PATH \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \

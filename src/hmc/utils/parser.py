@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from hmc.dataset.datasets.gofun import HMCDatasetArff, HMCDatasetCsv
+from hmc.datasets.datasets.gofun import HMCDatasetArff, HMCDatasetCsv
 from hmc.utils import create_dir
 
 # Criar um logger

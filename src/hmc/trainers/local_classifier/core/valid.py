@@ -4,7 +4,7 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.utils.dir import create_dir
-from hmc.train.losses import calculate_local_loss
+from hmc.trainers.losses import calculate_local_loss
 
 
 def check_metrics(metric, best_metric, metric_type="loss"):
@@ -22,14 +22,14 @@ def check_metrics(metric, best_metric, metric_type="loss"):
         return False
 
 
-def check_early_stopping_simple(args):
+def check_early_stopping(args, active_levels):
     """
     Checks if early stopping criteria are met for each active level.
     Args:
         args: An object containing all necessary arguments and attributes.
     """
 
-    for level in args.active_levels:
+    for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
@@ -91,14 +91,14 @@ def check_early_stopping_simple(args):
                         param.requires_grad = False
 
 
-def check_early_stopping(args):
+def check_early_stopping_regularized(args, active_levels):
     """
     Checks if early stopping criteria are met for each active level.
     Args:
         args: An object containing all necessary arguments and attributes.
     """
 
-    for level in args.active_levels:
+    for level in active_levels:
         metric, best_metric, loss, best_loss = 0, 0, 0, 0
         if args.level_active[level]:
             if args.best_model[level] is None:
@@ -115,7 +115,7 @@ def check_early_stopping(args):
             is_better_loss = check_metrics(loss, best_loss, metric_type="loss")
             logging.info("Is better level %d f1 %s", level, is_better_metric)
             logging.info("Is better level %d loss %s", level, is_better_loss)
-            is_better, is_better_oposite = False, False, False
+            is_better, is_better_oposite = False, False
             if args.early_metric == "loss":
                 is_better = is_better_loss
                 is_better_oposite = is_better_metric
@@ -194,8 +194,16 @@ def valid_step(args):
     """
 
     args.model.eval()
-    args.local_val_losses = [0.0] * args.max_depth
-    args.results_path = f"results/train/{args.method}-{args.dataset_name}/{args.job_id}"
+
+    args.results_path = f"results/train/{args.method}-{args.dataset_name}-{args.early_metric}-{args.early_stopping_patience}/{args.job_id}"
+
+    args.result_path = "results/train/%s-%s-%s-%s/%s" % (
+        args.method,
+        args.dataset_name,
+        args.early_metric,
+        args.early_stopping_patience,
+        args.job_id,
+    )
 
     local_inputs = {
         level: torch.tensor([]) for _, level in enumerate(args.active_levels)
@@ -204,10 +212,11 @@ def valid_step(args):
         level: torch.tensor([]) for _, level in enumerate(args.active_levels)
     }
 
+    threshold = 0.2
+
     # Get local scores
     args.local_val_score = [0.0] * args.max_depth
-
-    threshold = 0.2
+    args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
@@ -222,8 +231,9 @@ def valid_step(args):
                 output = outputs[index].double()
                 target = targets[index].double()
                 loss = args.criterions[index](output, target)
-                args.local_val_losses[index] += loss
+                args.local_val_losses[index] += loss.item()
             else:
+
                 for level in args.active_levels:
                     if args.level_active[level]:
                         loss = calculate_local_loss(
@@ -279,4 +289,4 @@ def valid_step(args):
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping_simple(args)
+    check_early_stopping_regularized(args, active_levels)
