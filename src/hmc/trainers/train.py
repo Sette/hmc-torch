@@ -11,11 +11,11 @@ from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
     optimize_hyperparameters,
 )
 
-from hmc.trainers.local_classifier.core.test import (
+from hmc.trainers.local_classifier.core.test_local import (
     test_step as test_step_core,
 )
 
-from hmc.trainers.local_classifier.core.train import (
+from hmc.trainers.local_classifier.core.train_local import (
     train_step as train_step_core,
 )
 
@@ -101,7 +101,7 @@ def train_local(args):
         logging.info("Using constrained local model")
 
     args.early_metric = "f1-score"
-    args.model_regularization = "soft"
+    args.model_regularization = None
 
     # Load train, val and test set
 

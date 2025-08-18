@@ -8,22 +8,22 @@ def calculate_local_loss(outputs, targets, args, level):
 
     if args.model_regularization == "mask" and level != 0:
         child_indices = args.class_indices_per_level[level]  # [n_classes_nivel_atual]
-        # MCLoss
+
         # Índices globais dos pais para cada amostra
         parent_target = targets[level - 1]
         parent_indices = args.class_indices_per_level[level - 1]
         parent_index_each_sample = parent_target.argmax(dim=1)
         parent_global_idxs = parent_indices[parent_index_each_sample]
-        # Constrói a máscara usando R_global (shape: [1, n, n])
-        mask = torch.stack(
-            [
-                args.R[0, child_indices, parent_global_idxs[b]]
-                for b in range(output.shape[0])
-            ],
-            dim=0,
-        )  # [batch, n_classes_nivel_atual]
-        masked_output = output + (1 - mask) * (-1e9)
-        loss = args.criterions[level](torch.sigmoid(masked_output), target)
+        # # Constrói a máscara usando R_global (shape: [1, n, n])
+        # mask = torch.stack(
+        #     [
+        #         args.R[0, child_indices, parent_global_idxs[b]]
+        #         for b in range(output.shape[0])
+        #     ],
+        #     dim=0,
+        # )  # [batch, n_classes_nivel_atual]
+        # masked_output = output + (1 - mask) * (-1e9)
+        # loss = args.criterions[level](torch.sigmoid(masked_output), target)
     elif args.model_regularization == "soft" and level != 0:
         loss = args.criterions[level](output.double(), target)
         lambda_hier = 0.1

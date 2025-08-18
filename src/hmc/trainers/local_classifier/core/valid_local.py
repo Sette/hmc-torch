@@ -289,4 +289,4 @@ def valid_step(args):
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping_regularized(args, active_levels)
+    check_early_stopping(args, active_levels)
