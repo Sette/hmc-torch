@@ -68,11 +68,15 @@ def train_step(args):
     args.job_id = create_job_id_name(prefix="test")
     logging.info("Best val loss created %s", args.best_val_loss)
 
-    args.optimizer = torch.optim.Adam(
-        args.model.parameters(),
-        lr=args.lr_values[0],
-        weight_decay=args.weight_decay_values[0],
-    )
+    args.optimizers = [
+        torch.optim.Adam(
+            args.model.levels[str(level)].parameters(),
+            lr=args.lr_values[level],
+            weight_decay=args.weight_decay_values[level],
+        )
+        for level in range(args.hmc_dataset.max_depth)
+    ]
+
     args.model.train()
 
     if args.model_regularization == "mask" or args.model_regularization == "soft":
@@ -90,7 +94,7 @@ def train_step(args):
             for lvl in args.hmc_dataset.levels.keys()
         }
     # defina quantas épocas quer pré-treinar o nível 0
-    args.n_warmup_epochs = 1
+    args.n_warmup_epochs = 0
 
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
@@ -109,16 +113,17 @@ def train_step(args):
             outputs = args.model(inputs.float())
 
             # Zerar os gradientes antes de cada batch
-            args.optimizer.zero_grad()
+            for optimizer in args.optimizers:
+                optimizer.zero_grad()
 
             total_loss = 0.0
             # Se ainda estamos no warm-up, só treine o nível 0
             if epoch <= args.n_warmup_epochs:
-                index = 0
-                output = outputs[index].double()
-                target = targets[index].double()
-                loss = args.criterions[index](output, target)
-                local_train_losses[index] += loss
+                level = 0
+                output = outputs[level].double()
+                target = targets[level].double()
+                loss = args.criterions[level](output, target)
+                local_train_losses[level] += loss
             else:
                 for level in args.active_levels:
                     if args.level_active[level]:
@@ -132,16 +137,21 @@ def train_step(args):
                         total_loss += loss
 
                 total_loss.backward()
-                args.optimizer.step()
+                for optimizer in args.optimizers:
+                    optimizer.step()
 
-        local_train_losses = [
-            loss / len(args.train_loader) for loss in local_train_losses
-        ]
-        non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-        global_train_loss = (
-            sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
-        )
+        if epoch <= args.n_warmup_epochs:
+            level = 0
+            global_train_loss = local_train_losses[level] / len(args.train_loader)
 
+        else:
+            local_train_losses = [
+                loss / len(args.train_loader) for loss in local_train_losses
+            ]
+            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
+            global_train_loss = (
+                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
+            )
         logging.info("Epoch %d/%d", epoch, args.epochs)
         show_local_losses(local_train_losses, dataset="Train")
         show_global_loss(global_train_loss, dataset="Train")

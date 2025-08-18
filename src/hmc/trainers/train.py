@@ -100,7 +100,7 @@ def train_local(args):
     if args.method == "local_constrained":
         logging.info("Using constrained local model")
 
-    args.early_metric = "f1-score"
+    args.early_metric = "loss"
     args.model_regularization = None
 
     # Load train, val and test set
