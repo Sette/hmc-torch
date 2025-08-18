@@ -2,18 +2,30 @@ import logging
 
 import torch
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
 from hmc.trainers.local_classifier.core.valid import valid_step
 from hmc.trainers.utils import (
+========
+from hmc.train.local_classifier.core.valid import valid_step
+from hmc.train.utils import (
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
     show_global_loss,
     show_local_losses,
 )
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
 from hmc.trainers.utils import (
     create_job_id_name,
 )
 
 from hmc.trainers.losses import calculate_local_loss
 
+========
+from hmc.train.utils import (
+    create_job_id_name,
+)
+
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
 def train_step(args):
     """
@@ -75,6 +87,7 @@ def train_step(args):
     )
     args.model.train()
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
     if args.model_regularization == "mask" or args.model_regularization == "soft":
         args.R = args.hmc_dataset.R.to(args.device)
         args.R = args.R.squeeze(0)
@@ -91,6 +104,11 @@ def train_step(args):
         }
     # defina quantas épocas quer pré-treinar o nível 0
     args.n_warmup_epochs = 1
+========
+    R_global = args.hmc_dataset.R.to(args.device)
+    R_global = R_global.squeeze(0)
+    print(R_global.shape)
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
@@ -113,6 +131,7 @@ def train_step(args):
 
             total_loss = 0.0
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
             # Se ainda estamos no warm-up, só treine o nível 0
             if epoch <= args.n_warmup_epochs:
                 index = 0
@@ -134,6 +153,19 @@ def train_step(args):
 
                 total_loss.backward()
                 args.optimizer.step()
+========
+            for index in args.active_levels:
+                if args.level_active[index]:
+                    output = outputs[index]  # Preferencialmente float32
+                    target = targets[index]
+                    loss = args.criterions[index](output.double(), target)
+                    local_train_losses[index] += loss.item()  # Acumula média por batch
+                    total_loss += loss  # Soma da loss para backward
+
+            # Após terminar loop dos níveis, execute backward
+            total_loss.backward()
+            args.optimizer.step()
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses

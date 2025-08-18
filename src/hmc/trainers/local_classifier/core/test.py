@@ -5,11 +5,19 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/test.py
 from hmc.trainers.utils import (
     save_dict_to_json,
 )
 
 from hmc.trainers.utils import local_to_global_predictions
+========
+from hmc.train.utils import (
+    save_dict_to_json,
+)
+
+from hmc.train.utils import local_to_global_predictions
+>>>>>>>> main:src/hmc/train/local_classifier/core/test.py
 
 
 def test_step(args):
