@@ -7,26 +7,26 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.train.local_classifier.core.hpo.hpo_local import (
+from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
     optimize_hyperparameters,
 )
 
-from hmc.train.local_classifier.core.test import (
+from hmc.trainers.local_classifier.core.test import (
     test_step as test_step_core,
 )
 
-from hmc.train.local_classifier.core.train import (
+from hmc.trainers.local_classifier.core.train import (
     train_step as train_step_core,
 )
 
 # Import necessary modules for constrained training local classifiers
-from hmc.model.local_classifier.constrained.model import ConstrainedHMCLocalModel
+from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
 
 
 # Import necessary modules for training baseline local classifiers
-from hmc.model.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.baseline.model import HMCLocalModel
 
-from hmc.dataset.manager.dataset_manager import initialize_dataset_experiments
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
 
 def get_train_methods(x):
@@ -99,6 +99,9 @@ def train_local(args):
 
     if args.method == "local_constrained":
         logging.info("Using constrained local model")
+
+    args.early_metric = "f1-score"
+    args.model_regularization = "soft"
 
     # Load train, val and test set
 

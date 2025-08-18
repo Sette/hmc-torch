@@ -6,7 +6,7 @@ from datetime import datetime as dt
 
 import torch
 
-from hmc.model import ClassificationModel
+from hmc.models import ClassificationModel
 
 base_path = ""
 model_path = ""

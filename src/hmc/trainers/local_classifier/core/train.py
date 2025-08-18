@@ -2,16 +2,30 @@ import logging
 
 import torch
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
+from hmc.trainers.local_classifier.core.valid import valid_step
+from hmc.trainers.utils import (
+========
 from hmc.train.local_classifier.core.valid import valid_step
 from hmc.train.utils import (
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
     show_global_loss,
     show_local_losses,
 )
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
+from hmc.trainers.utils import (
+    create_job_id_name,
+)
+
+from hmc.trainers.losses import calculate_local_loss
+
+========
 from hmc.train.utils import (
     create_job_id_name,
 )
 
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
 def train_step(args):
     """
@@ -52,6 +66,8 @@ def train_step(args):
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
     args.early_stopping_patience = args.patience
+    # if args.early_metric == "f1-score":
+    #     args.early_stopping_patience = 20
     args.patience_counters = [0] * args.hmc_dataset.max_depth
     # args.level_active = [True] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
@@ -71,11 +87,31 @@ def train_step(args):
     )
     args.model.train()
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
+    if args.model_regularization == "mask" or args.model_regularization == "soft":
+        args.R = args.hmc_dataset.R.to(args.device)
+        args.R = args.R.squeeze(0)
+        print(args.R.shape)
+        args.class_indices_per_level = {
+            lvl: torch.tensor(
+                [
+                    args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                    for n in args.hmc_dataset.levels[lvl]
+                ],
+                device=args.device,
+            )
+            for lvl in args.hmc_dataset.levels.keys()
+        }
+    # defina quantas épocas quer pré-treinar o nível 0
+    args.n_warmup_epochs = 1
+========
     R_global = args.hmc_dataset.R.to(args.device)
     R_global = R_global.squeeze(0)
     print(R_global.shape)
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
     for epoch in range(1, args.epochs + 1):
+        args.epoch = epoch
         args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         logging.info(
@@ -95,6 +131,29 @@ def train_step(args):
 
             total_loss = 0.0
 
+<<<<<<<< HEAD:src/hmc/trainers/local_classifier/core/train.py
+            # Se ainda estamos no warm-up, só treine o nível 0
+            if epoch <= args.n_warmup_epochs:
+                index = 0
+                output = outputs[index].double()
+                target = targets[index].double()
+                loss = args.criterions[index](output, target)
+                local_train_losses[index] += loss
+            else:
+                for level in args.active_levels:
+                    if args.level_active[level]:
+                        loss = calculate_local_loss(
+                            outputs,
+                            targets,
+                            args,
+                            level,
+                        )
+                        local_train_losses[level] += loss.item()
+                        total_loss += loss
+
+                total_loss.backward()
+                args.optimizer.step()
+========
             for index in args.active_levels:
                 if args.level_active[index]:
                     output = outputs[index]  # Preferencialmente float32
@@ -106,6 +165,7 @@ def train_step(args):
             # Após terminar loop dos níveis, execute backward
             total_loss.backward()
             args.optimizer.step()
+>>>>>>>> main:src/hmc/train/local_classifier/core/train.py
 
         local_train_losses = [
             loss / len(args.train_loader) for loss in local_train_losses
@@ -121,9 +181,6 @@ def train_step(args):
 
         if epoch % args.epochs_to_evaluate == 0:
             valid_step(args)
-            # show_local_losses(local_val_losses, dataset="Val")
-            # show_local_score(local_val_score, dataset="Val")
-
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
                 break
