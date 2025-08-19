@@ -260,13 +260,14 @@ def check_early_stopping(args, active_levels):
                         param.requires_grad = False
 
 
-def check_early_stopping_regularized(args, active_levels):
+def check_early_stopping_regularized(args, active_levels=[], save_model=True):
     """
     Checks if early stopping criteria are met for each active level.
     Args:
         args: An object containing all necessary arguments and attributes.
     """
-
+    if active_levels == []:
+        active_levels = args.active_levels
     for level in active_levels:
         metric, best_metric, loss, best_loss = 0, 0, 0, 0
         if args.level_active[level]:
@@ -294,11 +295,12 @@ def check_early_stopping_regularized(args, active_levels):
                 logging.info("Level %d: improved (F1 score=%.4f)", level, metric)
                 # Salvar em disco
                 logging.info("Saving best model for Level %d", level)
-                torch.save(
-                    args.model.levels[str(level)].state_dict(),
-                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
-                )
-                logging.info("best model updated and saved for Level %d", level)
+                if save_model:
+                    torch.save(
+                        args.model.levels[str(level)].state_dict(),
+                        os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                    )
+                    logging.info("best model updated and saved for Level %d", level)
 
             else:
                 # Incrementar o contador de paciência

@@ -41,9 +41,10 @@ def valid_step(args):
 
     args.model.eval()
 
-    args.results_path = f"results/train/{args.method}-{args.dataset_name}-{args.early_metric}/{args.job_id}"
+    args.results_path = f"{args.output_path}/train/{args.method}-{args.dataset_name}-{args.early_metric}/{args.job_id}"
 
-    args.result_path = "results/train/%s-%s-%s-%s/%s" % (
+    args.result_path = "%s/train/%s-%s-%s-%s/%s" % (
+        args.output_path,
         args.method,
         args.dataset_name,
         args.early_metric,

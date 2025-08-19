@@ -24,7 +24,7 @@ def get_parser():
         "--output_path",
         type=str,
         required=True,
-        help="Path to save the models.",
+        help="Path to save models.",
     )
 
     # Training parameters

@@ -11,6 +11,7 @@ from hmc.trainers.utils import (
     save_dict_to_json,
     show_global_loss,
     show_local_losses,
+    check_early_stopping_regularized,
 )
 from hmc.utils.dir import create_dir
 
@@ -28,6 +29,27 @@ def check_metrics(metric, best_metric, metric_type="loss"):
             return False
     else:
         return False
+
+
+def combined_metric(val_loss, val_f1, alpha=0.5):
+    """
+    Combina a loss e o F1 score balanceando os dois.
+    A loss é invertida se necessário.
+
+    Args:
+        val_loss (float): loss de validação
+        val_f1 (float): F1-score de validação
+        alpha (float): peso da loss (entre 0 e 1)
+
+    Returns:
+        float: métrica combinada (quanto MAIOR melhor)
+    """
+    # Normaliza loss para [0,1] - ajuste conforme seus ranges
+    norm_loss = 1.0 / (1.0 + val_loss)
+    # norm_loss cresce quando loss tende a zero
+
+    # Combinação linear ponderada
+    return alpha * norm_loss + (1 - alpha) * val_f1
 
 
 def optimize_hyperparameters(args):
@@ -194,31 +216,10 @@ def optimize_hyperparameters(args):
             if epoch % args.epochs_to_evaluate == 0:
                 metric, best_metric = 0, 0
                 val_loss, val_f1 = val_optimizer(args, level)
-                if args.early_metric == "loss":
-                    metric = round(val_loss.item(), 4)
-                    best_metric = args.best_val_loss[level]
-                elif args.early_metric == "f1":
-                    metric = val_f1
-                    best_metric = args.best_val_score[level]
 
-                if check_metrics(metric, best_metric, metric_type=args.early_metric):
-                    patience_counter = 0
-                    args.best_val_score[level] = val_f1
-                    args.best_val_loss[level] = val_loss
-                else:
-                    patience_counter += 1
-
-                if patience_counter >= patience:
-                    logging.info(
-                        "Early stopping triggered for trial %d at epoch %d.",
-                        trial.number,
-                        epoch,
-                    )
-                    break
-
+                metric = combined_metric(val_loss, val_f1)
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
-                    # Reporta o valor de validação para Optuna
                     break
 
                 # Reporta o valor de validação para Optuna
@@ -238,7 +239,7 @@ def optimize_hyperparameters(args):
 
     best_params_per_level = {}
 
-    create_dir("results/hpo")
+    create_dir(f"{args.output_path}/hpo")
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
@@ -271,13 +272,11 @@ def optimize_hyperparameters(args):
             "✅ Best hyperparameters for level %s: %s", level, study.best_params
         )
 
-    best_params_per_level["global"] = {}
-
     job_id = create_job_id_name(prefix="hpo")
 
     save_dict_to_json(
         best_params_per_level,
-        f"results/hpo/best_params_{args.dataset_name}-{job_id}.json",
+        f"{args.output_path}/hpo/best_params_{args.dataset_name}-{job_id}.json",
     )
 
     return best_params_per_level
@@ -302,13 +301,20 @@ def val_optimizer(args, level):
     """
 
     args.model.eval()
-    local_val_losses = [0.0] * args.max_depth
+    args.local_val_losses = [0.0] * args.max_depth
+    args.patience_counters = [0] * args.hmc_dataset.max_depth
+
+    args.best_val_loss = [float("inf")] * args.max_depth
+    args.best_val_score = [0.0] * args.max_depth
+    args.best_model = [None] * args.max_depth
+    args.job_id = create_job_id_name(prefix="test")
+    logging.info("Best val loss created %s", args.best_val_loss)
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
-    local_val_score = {level: None for _, level in enumerate(args.active_levels)}
+    args.local_val_score = {level: None for _, level in enumerate(args.active_levels)}
     threshold = 0.2
 
     with torch.no_grad():
@@ -327,7 +333,7 @@ def val_optimizer(args, level):
                 output = outputs[index]
                 target = targets[index]
                 loss = args.criterions[index](output.double(), target)
-                local_val_losses[index] += loss.item()
+                args.local_val_losses[index] += loss.item()
                 total_loss += loss
 
                 # *** Para métricas e concatenação ***
@@ -363,53 +369,16 @@ def val_optimizer(args, level):
                 score[2],
             )
 
-            local_val_score[idx] = score[2]
+            args.local_val_score[idx] = score[2]
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}"
-    create_dir(results_path)
-
-    local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
+    args.local_val_losses = [
+        loss / len(args.val_loader) for loss in args.local_val_losses
+    ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    for i in args.active_levels:
-        metric, best_metric = 0, 0
-        if args.level_active[i]:
-            if args.early_metric == "loss":
-                metric = round(local_val_losses[i], 4)
-                best_metric = args.best_val_loss[i]
-            elif args.early_metric == "f1":
-                metric = round(local_val_score[i], 4)
-                best_metric = args.best_val_score[i]
-            if check_metrics(metric, best_metric, metric_type=args.early_metric):
-                # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i], 4)
-                args.best_val_score[i] = round(local_val_score[i], 4)
-                args.patience_counters[i] = 0
-                logging.info(
-                    "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
-                )
 
-            else:
-                # Incrementar o contador de paciência
-                args.patience_counters[i] += 1
-                logging.info(
-                    "Level %d: no improvement (patience %d/%d)",
-                    i,
-                    args.patience_counters[i],
-                    args.early_stopping_patience,
-                )
-                if args.patience_counters[i] >= args.early_stopping_patience:
-                    args.level_active[i] = False
-                    # args.active_levels.remove(i)
-                    logging.info(
-                        "🚫 Early stopping triggered for level %d —\
-                            freezing its parameters",
-                        i,
-                    )
-                    # ❄️ Congelar os parâmetros desse nível
-                    for param in args.model.levels[str(i)].parameters():
-                        param.requires_grad = False
+    check_early_stopping_regularized(args, save_model=False)
 
     total_loss = total_loss / len(args.val_loader)
     # logging.info(f"Levels to evaluate: {args.active_levels}")
 
-    return local_val_losses[level], local_val_score[level]
+    return args.local_val_losses[level], args.local_val_score[level]
