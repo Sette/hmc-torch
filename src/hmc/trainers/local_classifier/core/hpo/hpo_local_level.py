@@ -239,7 +239,11 @@ def optimize_hyperparameters(args):
 
     best_params_per_level = {}
 
-    create_dir(f"{args.output_path}/hpo")
+    job_id = create_job_id_name(prefix="hpo")
+
+    output_path = f"{args.output_path}/hpo/{job_id}"
+
+    create_dir(output_path)
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
@@ -268,15 +272,18 @@ def optimize_hyperparameters(args):
 
         best_params_per_level[level] = level_parameters
 
+        save_dict_to_json(
+            level_parameters,
+            f"{output_path}/best_params_{args.dataset_name}-{level}.json",
+        )
+
         logging.info(
             "✅ Best hyperparameters for level %s: %s", level, study.best_params
         )
 
-    job_id = create_job_id_name(prefix="hpo")
-
     save_dict_to_json(
         best_params_per_level,
-        f"{args.output_path}/hpo/best_params_{args.dataset_name}-{job_id}.json",
+        f"{output_path}/best_params_{args.dataset_name}.json",
     )
 
     return best_params_per_level
