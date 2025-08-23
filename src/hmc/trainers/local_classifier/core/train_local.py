@@ -3,12 +3,12 @@ import logging
 import torch
 
 from hmc.trainers.local_classifier.core.valid_local import valid_step
-from hmc.trainers.utils import (
+from hmc.utils.labels import (
     show_global_loss,
     show_local_losses,
 )
 
-from hmc.trainers.utils import (
+from hmc.utils.job import (
     create_job_id_name,
 )
 
@@ -54,10 +54,11 @@ def train_step(args):
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
     args.early_stopping_patience = args.patience
+    args.early_stopping_patience_f1 = args.patience_f1
     # if args.early_metric == "f1-score":
     #     args.early_stopping_patience = 20
     args.patience_counters = [0] * args.hmc_dataset.max_depth
-    # args.level_active = [True] * args.hmc_dataset.max_depth
+    args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
     logging.info("Active levels: %s", args.active_levels)
     logging.info("Level active: %s", args.level_active)

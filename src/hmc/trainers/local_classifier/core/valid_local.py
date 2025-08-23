@@ -6,7 +6,12 @@ from sklearn.metrics import precision_recall_fscore_support
 from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
-from hmc.trainers.utils import check_early_stopping_regularized, check_early_stopping
+from hmc.utils.early_stopping import (
+    check_early_stopping_regularized, 
+    check_early_stopping,
+    check_early_stopping_normalized,
+)
+
 
 
 def valid_step(args):
@@ -137,4 +142,4 @@ def valid_step(args):
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping_regularized(args, active_levels)
+    check_early_stopping_normalized(args, active_levels)

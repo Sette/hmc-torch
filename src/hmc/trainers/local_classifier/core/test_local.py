@@ -5,11 +5,11 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
-from hmc.trainers.utils import (
+from hmc.utils.output import (
     save_dict_to_json,
 )
 
-from hmc.trainers.utils import local_to_global_predictions
+from hmc.utils.labels import local_to_global_predictions
 
 
 def test_step(args):
@@ -96,6 +96,12 @@ def test_step(args):
         local_test_score[idx]["recall"] = score[1]  # Recall
         local_test_score[idx]["f1score"] = score[2]  # F1-score
 
+    local_test_score["metadados"] = {
+        "dataset": args.dataset_name,
+        "job_id": args.job_id,
+        "method": args.method,
+        "early_metric": args.epochs_to_evaluate,
+    }
     logging.info("Local test score: %s", str(local_test_score))
 
     save_dict_to_json(

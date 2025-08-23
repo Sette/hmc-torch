@@ -6,13 +6,18 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.trainers.utils import (
-    create_job_id_name,
-    save_dict_to_json,
+from hmc.utils.job import create_job_id_name
+
+
+from hmc.utils.labels import  (
     show_global_loss,
     show_local_losses,
-    check_early_stopping_regularized,
 )
+
+from hmc.utils.early_stopping import check_early_stopping_regularized
+
+from hmc.utils.output import save_dict_to_json
+
 from hmc.utils.dir import create_dir
 
 
