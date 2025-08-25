@@ -37,14 +37,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--epochs",
-        type=int,
-        default=15,
-        required=False,
-        help="Number of epochs for training.",
-    )
-
-    parser.add_argument(
         "--dataset_type",
         type=str,
         choices=["csv", "torch", "arff"],
@@ -75,10 +67,10 @@ def get_parser():
         help='Device to use (e.g., "cpu" or "cuda").',
     )
     parser.add_argument(
-        "--num_epochs",
+        "--epochs",
         type=int,
         default=2000,
-        metavar="NUM_EPOCHS",
+        metavar="EPOCHS",
         required=False,
         help="Total number of training epochs.",
     )
