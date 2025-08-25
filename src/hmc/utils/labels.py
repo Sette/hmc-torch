@@ -1,5 +1,7 @@
 import pickle
 
+import numpy as np
+
 from sklearn.preprocessing import MultiLabelBinarizer
 
 import logging
