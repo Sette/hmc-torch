@@ -47,14 +47,13 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             if is_better_loss:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_score[level] = round(args.local_val_score[level], 4)
+                args.best_loss[level] = round(args.local_val_losses[level], 4)
                 args.patience_counters[level] = 0
                 logging.info(
                     "Level %d: improved (Loss=%.4f)",
                     level,
                     round(args.local_val_losses[level], 4),
                 )
-               
 
             else:
                 # Incrementar o contador de paciência
@@ -79,45 +78,45 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     for param in args.model.levels[str(level)].parameters():
                         param.requires_grad = False
 
-        if is_better_metric:
-            # Atualizar o melhor modelo e as melhores métricas
-            args.best_val_score[level] = round(args.local_val_score[level], 4)
-            args.best_model[level] = args.model.levels[str(level)].state_dict()
-            args.patience_counters_f1[level] = 0
-            logging.info(
-                "Level %d: improved (F1 score=%.4f)",
-                level,
-                round(args.local_val_score[level], 4),
-            )
-            if save_model:
-                # Salvar em disco
-                logging.info("Saving best model for Level %d", level)
-                torch.save(
-                    args.model.levels[str(level)].state_dict(),
-                    os.path.join(args.results_path, f"best_model_level_{level}.pth"),
-                )
-                logging.info("best model updated and saved for Level %d", level)
-
-        else:
-            # Incrementar o contador de paciência
-            args.patience_counters_f1[level] += 1
-            logging.info(
-                "Level %d: no improvement (patience %d/%d)",
-                level,
-                args.patience_counters_f1[level],
-                args.early_stopping_patience_f1,
-            )
-            if args.patience_counters_f1[level] >= args.early_stopping_patience_f1:
-                args.level_active[level] = False
-                # args.active_levels.remove(i)
+            if is_better_metric:
+                # Atualizar o melhor modelo e as melhores métricas
+                args.best_val_score[level] = round(args.local_val_score[level], 4)
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
+                args.patience_counters_f1[level] = 0
                 logging.info(
-                    "🚫 Early stopping triggered for level %d by loss\
-                        — freezing its parameters",
+                    "Level %d: improved (F1 score=%.4f)",
                     level,
+                    round(args.local_val_score[level], 4),
                 )
-                # ❄️ Congelar os parâmetros desse nível
-                for param in args.model.levels[str(level)].parameters():
-                    param.requires_grad = False
+                if save_model:
+                    # Salvar em disco
+                    logging.info("Saving best model for Level %d", level)
+                    torch.save(
+                        args.model.levels[str(level)].state_dict(),
+                        os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                    )
+                    logging.info("best model updated and saved for Level %d", level)
+
+            else:
+                # Incrementar o contador de paciência
+                args.patience_counters_f1[level] += 1
+                logging.info(
+                    "Level %d: no improvement (patience %d/%d)",
+                    level,
+                    args.patience_counters_f1[level],
+                    args.early_stopping_patience_f1,
+                )
+                if args.patience_counters_f1[level] >= args.early_stopping_patience_f1:
+                    args.level_active[level] = False
+                    # args.active_levels.remove(i)
+                    logging.info(
+                        "🚫 Early stopping triggered for level %d by loss\
+                            — freezing its parameters",
+                        level,
+                    )
+                    # ❄️ Congelar os parâmetros desse nível
+                    for param in args.model.levels[str(level)].parameters():
+                        param.requires_grad = False
 
 
 def check_early_stopping(args, active_levels, save_model=True):
