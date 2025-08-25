@@ -96,30 +96,6 @@ def test_step(args):
         local_test_score[idx]["recall"] = score[1]  # Recall
         local_test_score[idx]["f1score"] = score[2]  # F1-score
 
-    local_test_score["metadados"] = {
-        "dataset": args.dataset_name,
-        "job_id": args.job_id,
-        "method": args.method,
-        "epochs_to_evaluate": args.epochs_to_evaluate,
-        "threshold": threshold,
-        "batch_size": args.batch_size,
-        "max_depth": args.max_depth,
-        "epochs": args.epochs,
-        "active_levels": args.active_levels,
-        "lr_values": args.lr_values,
-        "weight_decay_values": args.weight_decay_values,
-        "dropout_values": args.dropout_values,
-        "hidden_dims": args.hidden_dims,
-        "num_layers_values": args.num_layers_values,
-        "seed": args.seed,
-    }
-    logging.info("Local test score: %s", str(local_test_score))
-
-    save_dict_to_json(
-        local_test_score,
-        f"{args.results_path}/{args.job_id}.json",
-    )
-
     # Save the trained model
     # torch.save(
     #     args.model.state_dict(),
@@ -145,4 +121,34 @@ def test_step(args):
     logging.info("Global evaluation score:")
     logging.info(
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
+    )
+
+    local_test_score["global"] = {
+        "precision": score[0],
+        "recall": score[1],
+        "f1score": score[2],
+    }
+
+    local_test_score["metadata"] = {
+        "dataset": args.dataset_name,
+        "job_id": args.job_id,
+        "method": args.method,
+        "epochs_to_evaluate": args.epochs_to_evaluate,
+        "threshold": threshold,
+        "batch_size": args.batch_size,
+        "max_depth": args.max_depth,
+        "epochs": args.epochs,
+        "active_levels": args.active_levels,
+        "lr_values": args.lr_values,
+        "weight_decay_values": args.weight_decay_values,
+        "dropout_values": args.dropout_values,
+        "hidden_dims": args.hidden_dims,
+        "num_layers_values": args.num_layers_values,
+        "seed": args.seed,
+    }
+    logging.info("Local test score: %s", str(local_test_score))
+
+    save_dict_to_json(
+        local_test_score,
+        f"{args.results_path}/{args.job_id}.json",
     )
