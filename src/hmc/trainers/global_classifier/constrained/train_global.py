@@ -17,7 +17,7 @@ from hmc.utils.dir import create_dir
 
 from hmc.utils.job import create_job_id_name
 from hmc.utils.output import save_dict_to_json
-  
+
 from hmc.utils.labels import global_to_local_predictions
 
 
@@ -45,6 +45,7 @@ def train_global(dataset_name, args):
 
     experiment = True
     epochs_by_args = False
+    threshold = 0.5
 
     if experiment:
         args.hidden_dim = args.hidden_dims[ontology][data]
@@ -193,7 +194,7 @@ def train_global(dataset_name, args):
         y = y.to(device)
 
         constrained_output = model(x.float())
-        predicted = constrained_output.data > 0.5
+        predicted = constrained_output.data > threshold
         # Total number of labels
         # total = y.size(0) * y.size(1)
         # Total correct predictions
@@ -215,7 +216,7 @@ def train_global(dataset_name, args):
             y_test = torch.cat((y_test, y), dim=0)
 
     Y_pred_local_binary = global_to_local_predictions(
-        constr_test.data > 0.2,
+        constr_test.data > threshold,
         hmc_dataset.train.local_nodes_idx,
         hmc_dataset.train.nodes_idx,
     )
@@ -251,7 +252,7 @@ def train_global(dataset_name, args):
 
     score = precision_recall_fscore_support(
         y_test[:, to_eval],
-        constr_test.data[:, to_eval] > 0.5,
+        constr_test.data[:, to_eval] > threshold,
         average="micro",
         zero_division=0,
     )

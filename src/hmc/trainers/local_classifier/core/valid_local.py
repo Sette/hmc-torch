@@ -7,7 +7,6 @@ from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
 from hmc.utils.early_stopping import (
-    check_early_stopping_regularized,
     check_early_stopping,
     check_early_stopping_normalized,
 )
@@ -49,11 +48,10 @@ def valid_step(args):
         f"{args.output_path}/train/{args.method}/{args.dataset_name}/{args.job_id}"
     )
 
-    args.result_path = "%s/train/%s-%s-%s-%s/%s" % (
+    args.result_path = "%s/train/%s-%s-%s/%s" % (
         args.output_path,
         args.method,
         args.dataset_name,
-        args.early_metric,
         args.early_stopping_patience,
         args.job_id,
     )

@@ -208,8 +208,14 @@ def main():
             case "global" | "global_baseline":
                 logging.info("Global method selected")
                 train_global(dataset_name, args)
+            case "test_local":
+                from hmc.trainers.local_classifier.core.test_local import test_step
+
+                logging.info("Test local method selected")
+
+                test_step(args)
             case _:  # Default case (like 'default' in other languages
-                print("Invalid Day")
+                print("Invalid option")
 
 
 if __name__ == "__main__":
