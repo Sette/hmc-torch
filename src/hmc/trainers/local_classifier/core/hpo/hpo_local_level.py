@@ -14,7 +14,7 @@ from hmc.utils.labels import  (
     show_local_losses,
 )
 
-from hmc.utils.early_stopping import check_early_stopping_regularized
+from hmc.utils.early_stopping import check_early_stopping_normalized
 
 from hmc.utils.output import save_dict_to_json
 
@@ -233,6 +233,12 @@ def optimize_hyperparameters(args):
                 logging.info(
                     "Trial %d Local validation loss: %f F1: %f",
                     trial.number,
+                    val_loss,
+                    val_f1,
+                )
+                
+                logging.info(
+                    "Local best validation loss: %f F1: %f",
                     args.best_val_loss[level],
                     args.best_val_score[level],
                 )
@@ -240,9 +246,20 @@ def optimize_hyperparameters(args):
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return total_loss.item()
+        return metric
 
     best_params_per_level = {}
+
+    args.local_val_losses = [0.0] * args.max_depth
+    args.patience_counters = [0] * args.hmc_dataset.max_depth
+
+    
+    args.best_val_loss = [float("inf")] * args.max_depth
+    args.best_val_score = [0.0] * args.max_depth
+    args.best_model = [None] * args.max_depth
+    args.job_id = create_job_id_name(prefix="test")
+    
+    args.local_val_score = {level: None for _, level in enumerate(args.active_levels)}
 
     job_id = create_job_id_name(prefix="hpo")
 
@@ -313,20 +330,12 @@ def val_optimizer(args, level):
     """
 
     args.model.eval()
-    args.local_val_losses = [0.0] * args.max_depth
-    args.patience_counters = [0] * args.hmc_dataset.max_depth
-
-    args.best_val_loss = [float("inf")] * args.max_depth
-    args.best_val_score = [0.0] * args.max_depth
-    args.best_model = [None] * args.max_depth
-    args.job_id = create_job_id_name(prefix="test")
-    logging.info("Best val loss created %s", args.best_val_loss)
+    
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
-    args.local_val_score = {level: None for _, level in enumerate(args.active_levels)}
     threshold = 0.2
 
     with torch.no_grad():
@@ -388,7 +397,7 @@ def val_optimizer(args, level):
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
 
-    check_early_stopping_regularized(args, save_model=False)
+    check_early_stopping_normalized(args, save_model=False)
 
     total_loss = total_loss / len(args.val_loader)
     # logging.info(f"Levels to evaluate: {args.active_levels}")
