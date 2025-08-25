@@ -21,6 +21,7 @@ def check_metrics(metric, best_metric, metric_type="loss"):
     else:
         return False
 
+
 def check_early_stopping_normalized(args, active_levels=[], save_model=True):
     """
     Checks if early stopping criteria are met for each active level.
@@ -47,7 +48,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             if is_better_loss:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_loss[level] = round(args.local_val_losses[level], 4)
+                args.best_val_loss[level] = round(args.local_val_losses[level], 4)
                 args.patience_counters[level] = 0
                 logging.info(
                     "Level %d: improved (Loss=%.4f)",
@@ -64,8 +65,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     args.patience_counters[level],
                     args.early_stopping_patience,
                 )
-                
-                
+
                 if args.patience_counters[level] >= args.early_stopping_patience:
                     args.level_active[level] = False
                     # args.active_levels.remove(i)
@@ -93,7 +93,9 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
                         args.model.levels[str(level)].state_dict(),
-                        os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                        os.path.join(
+                            args.results_path, f"best_model_level_{level}.pth"
+                        ),
                     )
                     logging.info("best model updated and saved for Level %d", level)
 
@@ -163,7 +165,9 @@ def check_early_stopping(args, active_levels, save_model=True):
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
                         args.model.levels[str(level)].state_dict(),
-                        os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                        os.path.join(
+                            args.results_path, f"best_model_level_{level}.pth"
+                        ),
                     )
                     logging.info("best model updated and saved for Level %d", level)
 
@@ -227,7 +231,9 @@ def check_early_stopping_regularized(args, active_levels=[], save_model=True):
                 if save_model:
                     torch.save(
                         args.model.levels[str(level)].state_dict(),
-                        os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                        os.path.join(
+                            args.results_path, f"best_model_level_{level}.pth"
+                        ),
                     )
                     logging.info("best model updated and saved for Level %d", level)
 
