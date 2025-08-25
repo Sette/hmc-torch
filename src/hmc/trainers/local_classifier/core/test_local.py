@@ -100,7 +100,18 @@ def test_step(args):
         "dataset": args.dataset_name,
         "job_id": args.job_id,
         "method": args.method,
-        "early_metric": args.epochs_to_evaluate,
+        "epochs_to_evaluate": args.epochs_to_evaluate,
+        "threshold": threshold,
+        "batch_size": args.batch_size,
+        "max_depth": args.max_depth,
+        "epochs": args.epochs,
+        "active_levels": args.active_levels,
+        "lr_values": args.lr_values,
+        "weight_decay_values": args.weight_decay_values,
+        "dropout_values": args.dropout_values,
+        "hidden_dims": args.hidden_dims,
+        "num_layers_values": args.num_layers_values,
+        "seed": args.seed,
     }
     logging.info("Local test score: %s", str(local_test_score))
 
