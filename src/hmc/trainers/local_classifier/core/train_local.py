@@ -10,6 +10,8 @@ from hmc.utils.labels import (
 
 from hmc.utils.job import (
     create_job_id_name,
+    start_timer,
+    end_timer,
 )
 
 from hmc.trainers.losses import calculate_local_loss
@@ -96,7 +98,7 @@ def train_step(args):
         }
     # defina quantas épocas quer pré-treinar o nível 0
     args.n_warmup_epochs = 0
-
+    start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
         args.model.train()
@@ -161,4 +163,6 @@ def train_step(args):
             valid_step(args)
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
+                args.total_time = end_timer(start)
                 break
+    args.total_time = end_timer(start)

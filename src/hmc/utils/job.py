@@ -1,5 +1,5 @@
 from datetime import datetime
-
+import time
 
 def create_job_id_name(prefix="job"):
     """
@@ -14,3 +14,14 @@ def create_job_id_name(prefix="job"):
     now = datetime.now()
     job_id = f"{prefix}_{now.strftime('%Y%m%d_%H%M%S')}"
     return job_id
+
+
+
+def start_timer():
+    return time.perf_counter()
+
+def end_timer(start):
+    end = time.perf_counter()
+    elapsed = end - start
+    print(f"Tempo de treino: {elapsed:.2f} segundos")
+    return elapsed
