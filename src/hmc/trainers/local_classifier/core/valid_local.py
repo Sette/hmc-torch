@@ -7,7 +7,6 @@ from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
 from hmc.utils.early_stopping import (
-    check_early_stopping,
     check_early_stopping_normalized,
 )
 

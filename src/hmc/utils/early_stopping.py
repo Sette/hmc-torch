@@ -39,19 +39,17 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
             metric = round(args.local_val_score[level], 4)
             best_metric = args.best_val_score[level]
 
-            if args.epoch % args.epochs_to_evaluate_f1 == 0:
+            is_better_metric = check_metrics(
+                metric,
+                best_metric,
+                metric_type="f1-score",
+            )
 
-                is_better_metric = check_metrics(
-                    metric,
-                    best_metric,
-                    metric_type="f1-score",
-                )
-
-                logging.info(
-                    "Is better level %d f1 %s",
-                    level,
-                    is_better_metric,
-                )
+            logging.info(
+                "Is better level %d f1 %s",
+                level,
+                is_better_metric,
+            )
 
             is_better_loss = check_metrics(
                 loss,
@@ -97,7 +95,6 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     for param in args.model.levels[str(level)].parameters():
                         param.requires_grad = False
 
-        if args.epoch % args.epochs_to_evaluate_f1 == 0:
             if is_better_metric:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_score[level] = round(args.local_val_score[level], 4)

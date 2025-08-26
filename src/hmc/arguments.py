@@ -179,18 +179,8 @@ def get_parser():
     parser.add_argument(
         "--epochs_to_evaluate",
         type=int,
-        default=1,
+        default=5,
         metavar="EPOCHS_TO_EVALUATE",
-        required=False,
-        help="Number of epochs to evaluate the \
-            model during training.",
-    )
-
-    parser.add_argument(
-        "--epochs_to_evaluate_f1",
-        type=int,
-        default=10,
-        metavar="EPOCHS_TO_EVALUATE_F1",
         required=False,
         help="Number of epochs to evaluate the \
             model during training.",
@@ -199,7 +189,7 @@ def get_parser():
     parser.add_argument(
         "--patience_f1",
         type=int,
-        default=3,
+        default=20,
         metavar="PATIENCE_F1",
         required=False,
         help="Number of epochs with no improvement \
