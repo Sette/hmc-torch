@@ -117,7 +117,7 @@ class HMCDatasetManager:
         # Load labels JSON
         self.labels = __load_json__(labels_json)
         for cat in self.labels["labels"]:
-            terms = cat.split("/")
+            terms = cat.split(".")
             if self.is_go:
                 self.g.add_edge(terms[1], terms[0])
             else:
@@ -232,15 +232,17 @@ class HMCDatasetManager:
         self.valid = HMCDatasetCsv(self.valid_file, is_go=self.is_go)
         self.test = HMCDatasetCsv(self.test_file, is_go=self.is_go)
 
-        dataset_labels = self.train.df.categories.values
+        self.get_hierarchy_levels()
+
+        dataset_labels = self.train.df.labels.values
         logger.info("Transforming train labels")
         self.train.set_y(self.transform_labels(dataset_labels))
 
-        dataset_labels = self.valid.df.categories.values
+        dataset_labels = self.valid.df.labels.values
         logger.info("Transforming valid labels")
         self.valid.set_y(self.transform_labels(dataset_labels))
 
-        dataset_labels = self.test.df.categories.values
+        dataset_labels = self.test.df.labels.values
         logger.info("Transforming test labels")
         self.test.set_y(self.transform_labels(dataset_labels))
 

@@ -72,9 +72,9 @@ class HMCDatasetCsv:
         print(self.df.columns)
         if "features" not in self.df.columns:
             raise ValueError("The CSV file does not contain a 'features' column.")
-        if "categories" not in self.df.columns:
-            raise ValueError("The CSV file does not contain a 'categories' column.")
-        self.Y = self.df["categories"].tolist()
+        if "labels" not in self.df.columns:
+            raise ValueError("The CSV file does not contain a 'labels' column.")
+        self.Y = self.df["labels"].tolist()
         self.transform_features()
 
         # X = np.array([json.loads(x) for x in df['features']])

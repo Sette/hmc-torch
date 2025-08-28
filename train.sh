@@ -4,9 +4,12 @@ export CUDA_VISIBLE_DEVICES=0
 export CUDA_LAUNCH_BLOCKING=1
 
 # Lista de datasets
-datasets=('cellcycle_GO' 'derisi_GO' 'eisen_GO' 'expr_GO' 'gasch1_GO'
-          'gasch2_GO' 'seq_GO' 'spo_GO' 'cellcycle_FUN' 'derisi_FUN'
-          'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
+# datasets=('cellcycle_GO' 'derisi_GO' 'eisen_GO' 'expr_GO' 'gasch1_GO'
+#           'gasch2_GO' 'seq_GO' 'spo_GO' 'cellcycle_FUN' 'derisi_FUN'
+#           'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
+
+DATASETS="cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
+
 
 # Definição de valores padrão para os parâmetros
 DATASET="seq_FUN"
@@ -15,20 +18,29 @@ BATCH_SIZE=4
 NON_LIN="relu"
 DEVICE="cpu"
 EPOCHS=2000
-EPOCHS_TO_EVALUATE=20
+EPOCHS_TO_EVALUATE=10
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
-DATASET_TYPE="arff"
+DATASET_TYPE="csv"
 HPO="false"
+REMOTE="false"
 
 
+# HIDDEN_DIMS="127 84 70 222 83 84"
+# LR_VALUES="1.4640464735777067e-05 0.00010837097192333429 0.00019540574419398742 0.0003753240911181399 0.0005686655590971576 1.2869218027962399e-05"
+# DROPOUT_VALUES="0.5213189930776595 0.34321812846268623 0.6491134016969438 0.6682887953141635 0.3898928671880422 0.7047579081435292"
+# NUM_LAYERS_VALUES="1 1 2 2 2 2"
+# WEIGHT_DECAY_VALUES="1.5381868474682456e-05 4.0454234170148376e-05 3.4940476995010944e-06 3.5616632491932315e-05 1.1718710512206057e-05 7.627331701828602e-06"
 
-HIDDEN_DIMS="127 84 70 222 83 84"
-LR_VALUES="1.4640464735777067e-05 0.00010837097192333429 0.00019540574419398742 0.0003753240911181399 0.0005686655590971576 1.2869218027962399e-05"
-DROPOUT_VALUES="0.5213189930776595 0.34321812846268623 0.6491134016969438 0.6682887953141635 0.3898928671880422 0.7047579081435292"
-NUM_LAYERS_VALUES="1 1 2 2 2 2"
-WEIGHT_DECAY_VALUES="1.5381868474682456e-05 4.0454234170148376e-05 3.4940476995010944e-06 3.5616632491932315e-05 1.1718710512206057e-05 7.627331701828602e-06"
+##  using loss in hpo
+
+HIDDEN_DIMS="142 350 376 72 136 153"
+LR_VALUES="0.0008535163586361489 0.00020838943720646224 0.00011632934642816514 0.0003333768880179626 0.00019155119242967724 9.829667617536004e-06"
+DROPOUT_VALUES="0.6165530577112526 0.431511720735488 0.7549295391636867 0.43637069205386275 0.5647101400146175 0.34947751279503464"
+NUM_LAYERS_VALUES="1 1 1 2 1 2"
+WEIGHT_DECAY_VALUES="0.002967491473222236 0.00023288161624906444 0.00010262227175129532 0.000283159428536993 0.00013560726386788324 9.762636975906581e-06"
+
 
 
 export PYTHONPATH=src
@@ -117,32 +129,30 @@ if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_con
             --num_layers_values ${NUM_LAYERS_VALUES[@]} \
             --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
 fi
+
+
+
 if [ "$DATASET" = "all" ]; then
-    MAX_JOBS=6
-    current_jobs=0
-
-    for dataset in "${datasets[@]}"; do
+    for dataset in $DATASETS; do
+        echo "Starting experiment for dataset: $dataset"
+        TRAIN_PID=$!
         cmd="$cmd --datasets $dataset"
-
         echo "Running: $cmd"
         $cmd &
-
-        current_jobs=$((current_jobs + 1))
-
-        if (( current_jobs >= MAX_JOBS )); then
-            wait -n
-            current_jobs=$((current_jobs - 1))
-        fi
+        trap "kill $TRAIN_PID" SIGINT SIGTERM
+        wait
     done
+
+    
 else
     cmd="$cmd --datasets $DATASET"
-
+    TRAIN_PID=$!
     echo "Running: $cmd"
     $cmd &
+    trap "kill $TRAIN_PID" SIGINT SIGTERM
+    wait
 fi
 
-TRAIN_PID=$!
-trap "kill $TRAIN_PID" SIGINT SIGTERM
-wait
+
 
 echo "All experiments completed!"

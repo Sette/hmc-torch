@@ -111,11 +111,12 @@ def train_local(args):
         args.device = torch.device(args.device)
 
     args.data, args.ontology = args.dataset_name.split("_")
+
     hmc_dataset = initialize_dataset_experiments(
         args.dataset_name,
         device=args.device,
         dataset_path=args.dataset_path,
-        dataset_type="arff",
+        dataset_type=args.dataset_type,
         is_global=False,
     )
     data_train, data_valid, data_test = hmc_dataset.get_datasets()

@@ -65,6 +65,8 @@ def parse_arff(arff_file, is_go=False):
         nodes_idx = {}
         nodes = []
         for _, l in enumerate(f):
+            if l.strip() == "":
+                pass
             if l.startswith("@ATTRIBUTE"):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()

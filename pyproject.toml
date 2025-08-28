@@ -18,10 +18,6 @@ dataset = ">=1.6.2"
 scikit-learn = ">=1.2.2"
 lightning = {extras = ["extra"], version = ">=2.0.9"}
 tensorflow = ">=2.12.0"
-
-
-
-# Fontes do PyTorch (ajustadas no deploy.sh)
 litmodels = "^0.1.7"
 optuna = "^4.3.0"
 logging = "^0.4.9.6"
@@ -40,3 +36,4 @@ pylama = "^8.4.1"
 isort = "^6.0.1"
 pre-commit = "^4.2.0"
 pylint = "^3.3.7"
+jupyterlab = "^4.4.6"
