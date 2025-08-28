@@ -25,7 +25,9 @@ SEED=0
 DATASET_TYPE="csv"
 HPO="false"
 REMOTE="false"
-
+N_TRIALS=1
+REMOTE_HOST="Kaggle"
+REMOTE_PATH=""
 
 # HIDDEN_DIMS="127 84 70 222 83 84"
 # LR_VALUES="1.4640464735777067e-05 0.00010837097192333429 0.00019540574419398742 0.0003753240911181399 0.0005686655590971576 1.2869218027962399e-05"
@@ -68,6 +70,7 @@ usage() {
     echo "  --device <type>           Device (cuda/cpu) (default: $DEVICE)"
     echo "  --epochs <num>            Number of epochs (default: $EPOCHS)"
     echo "  --output_path <path>      Output path for results (default: $OUTPUT_PATH)"
+    echo "  --n_trials <num>          Numer of HPO trials (default: $N_TRIALS)"
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"
@@ -93,6 +96,7 @@ while [ "$#" -gt 0 ]; do
         --device) DEVICE="$2"; shift ;;
         --epochs) EPOCHS="$2"; shift ;;
         --output_path) OUTPUT_PATH="$2"; shift ;;
+        --n_trials) N_TRIALS="$2"; shift ;;
         --method) METHOD="$2"; shift ;;
         --hpo) HPO="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
@@ -114,7 +118,10 @@ done
                 --output_path $OUTPUT_PATH \
                 --method $METHOD \
                 --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
-                --hpo $HPO"
+                --hpo $HPO \
+                --n_trials $N_TRIALS" \
+
+
 
 if [ "$ACTIVE_LEVELS" ]; then
     cmd+=" --active_levels $ACTIVE_LEVELS"
@@ -141,6 +148,13 @@ if [ "$DATASET" = "all" ]; then
         $cmd &
         trap "kill $TRAIN_PID" SIGINT SIGTERM
         wait
+
+        if [ "$REMOTE" = "yes" ]; then
+            cmd="scp -r $REMOTE_HOST:$REMOTE_PATH results/results_kaggle" 
+            echo "Running: $cmd"
+            $cmd &
+        fi
+
     done
 
     

@@ -27,6 +27,13 @@ def get_parser():
         help="Path to save models.",
     )
 
+    parser.add_argument(
+        "--n_trials",
+        type=int,
+        required=False,
+        help="n_trials for hpo.",
+    )
+
     # Training parameters
     parser.add_argument(
         "--batch_size",

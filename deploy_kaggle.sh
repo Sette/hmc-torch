@@ -161,4 +161,6 @@ ssh "$REMOTE_HOST" "
         --output_path  /kaggle/working/results \
         --method local \
         --epochs_to_evaluate 5 \
+        --hpo true \
+        --remote true
     "
