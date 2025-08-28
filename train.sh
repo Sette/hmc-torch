@@ -25,9 +25,7 @@ SEED=0
 DATASET_TYPE="arff"
 HPO="false"
 REMOTE="false"
-N_TRIALS=1
-REMOTE_HOST="Kaggle"
-REMOTE_PATH="/kaggle/working/results"
+N_TRIALS=30
 
 # HIDDEN_DIMS="127 84 70 222 83 84"
 # LR_VALUES="1.4640464735777067e-05 0.00010837097192333429 0.00019540574419398742 0.0003753240911181399 0.0005686655590971576 1.2869218027962399e-05"
@@ -150,12 +148,6 @@ if [ "$DATASET" = "all" ]; then
         $cmd &
         trap "kill $TRAIN_PID" SIGINT SIGTERM
         wait
-
-        if [ "$REMOTE" = "yes" ]; then
-            cmd="scp -r $REMOTE_HOST:$REMOTE_PATH results/results_kaggle" 
-            echo "Running: $cmd"
-            $cmd &
-        fi
 
     done
 
