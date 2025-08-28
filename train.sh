@@ -73,6 +73,7 @@ usage() {
     echo "  --n_trials <num>          Numer of HPO trials (default: $N_TRIALS)"
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
+    echo "  --remote <yes/no>         Execute on remote server (default: $REMOTE)"
     echo "  --active_levels <num>     Number of active levels"
     echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
     echo "  --help                    Display this message and exit"
@@ -99,6 +100,7 @@ while [ "$#" -gt 0 ]; do
         --n_trials) N_TRIALS="$2"; shift ;;
         --method) METHOD="$2"; shift ;;
         --hpo) HPO="$2"; shift ;;
+        --remote) REMOTE="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --help) usage ;;
