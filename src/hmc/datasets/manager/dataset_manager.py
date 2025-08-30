@@ -269,19 +269,33 @@ class HMCDatasetManager:
             y_ = np.zeros(len(self.nodes))
 
             sorted_keys = sorted(self.levels_size.keys())
+            max_depth = len(self.levels_size)
             y_local_ = [np.zeros(self.levels_size.get(key)) for key in sorted_keys]
             for node in labels.split("@"):
 
                 y_[[self.nodes_idx.get(a) for a in nx.ancestors(self.g_t, node)]] = 1
                 y_[self.nodes_idx[node]] = 1
 
-                depth = nx.shortest_path_length(self.g_t, "root").get(node)
-                y_local_[depth][self.local_nodes_idx[depth].get(node)] = 1
-                for ancestor in nx.ancestors(self.g_t, node):
-                    if ancestor != "root":
-                        depth = nx.shortest_path_length(self.g_t, "root").get(ancestor)
-                        y_local_[depth][self.local_nodes_idx[depth].get(ancestor)] = 1
+                if self.is_go:
+                    depth = nx.shortest_path_length(self.g_t, "root").get(node)
+                    y_local_[depth][self.local_nodes_idx[depth].get(node)] = 1
+                    for ancestor in nx.ancestors(self.g_t, node):
+                        if ancestor != "root":
+                            depth = nx.shortest_path_length(self.g_t, "root").get(ancestor)
+                            y_local_[depth][self.local_nodes_idx[depth].get(ancestor)] = 1
 
+                else:
+                    depth = len(node.split('.')) + 1
+                    for index in range(depth, 0, -1):
+                        local_terms = node.split(".")[:index]
+                        local_label = "/".join(local_terms)
+                        local_depth = local_label.count("/")
+
+                        y_local_[local_depth][
+                            self.local_nodes_idx.get(local_depth).get(local_label)
+                        ] = 1
+                    
+                
             Y.append(y_)
             Y_local.append([np.stack(y) for y in y_local_])
 
