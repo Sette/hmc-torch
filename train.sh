@@ -4,15 +4,14 @@ export CUDA_VISIBLE_DEVICES=0
 export CUDA_LAUNCH_BLOCKING=1
 
 # Lista de datasets
-# datasets=('cellcycle_GO' 'derisi_GO' 'eisen_GO' 'expr_GO' 'gasch1_GO'
-#           'gasch2_GO' 'seq_GO' 'spo_GO' 'cellcycle_FUN' 'derisi_FUN'
-#           'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
+datasets=('cellcycle_GO' 'derisi_GO' 'eisen_GO' 'expr_GO' 'gasch1_GO'
+          'gasch2_GO' 'seq_GO' 'spo_GO' 'cellcycle_FUN' 'derisi_FUN'
+          'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
 
-DATASETS="cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN spo_FUN"
 
 
 # Definição de valores padrão para os parâmetros
-DATASET="seq_FUN"
+DATASET="cellcycle_GO"
 DATASET_PATH="./data"
 BATCH_SIZE=4
 NON_LIN="relu"

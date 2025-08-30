@@ -47,8 +47,9 @@ class HMCDatasetCsv:
         self.csv_path = csv_path
         self.parse_csv()
 
-    def set_y(self, y):
-        self.Y = np.stack(y)
+    def set_y(self, y, y_local):
+        self.Y = y
+        self.Y_local = y_local
 
     def transform_features(self):
         # print(self.df.features[0])

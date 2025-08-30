@@ -51,7 +51,7 @@ if [ "$RUN_ONLY" = false ]; then
         echo "Executando git clone no servidor..."
         ssh "$REMOTE_HOST" "
             export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-            git clone -b develop --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
+            git clone -b feature/new-early-stopping --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
             cd $REMOTE_PATH &&
             git config core.sshCommand 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' \
         "
@@ -121,7 +121,6 @@ if [ "$RUN_ONLY" = false ]; then
             pip install pip --upgrade &&
             pip install --upgrade pip setuptools wheel &&
             pip install poetry \
-
         "
     else
         echo "Skipping Poetry installation."
@@ -162,5 +161,8 @@ ssh "$REMOTE_HOST" "
         --method local \
         --epochs_to_evaluate 5 \
         --hpo true \
-        --remote true
+        --remote true \
+        --dataset_type arff \
+        --n_trials 30 \
+        --dataset all \
     "

@@ -338,7 +338,6 @@ def parse_arff_to_csv(arff_file, output_path, is_GO=False):
         # Y = np.stack(Y)
         categories = {"labels": all_terms}
         if "train" in arff_file or "Train" in arff_file:
-
             create_dir(output_path)
             labels_file = os.path.join(output_path, "labels.json")
             with open(labels_file, "w+") as f:
