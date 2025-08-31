@@ -9,7 +9,7 @@ export CUDA_LAUNCH_BLOCKING=1
 #           'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
 
 
-DATASETS="derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO"
+DATASETS="expr_GO gasch1_GO gasch2_GO seq_GO spo_GO"
 
 
 
