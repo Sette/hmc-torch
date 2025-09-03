@@ -42,7 +42,7 @@ class HMCDatasetManager:
 
     def __init__(self, dataset, dataset_type="arff", device="cpu", is_global=False):
         # Extract dataset paths
-        self.test, self.train, self.valid, self.to_eval, self.max_depth, self.R = (
+        self.test, self.train, self.valid, self.to_eval, self.max_depth, self.r = (
             None,
             None,
             None,
@@ -72,7 +72,7 @@ class HMCDatasetManager:
             self.roots,
             self.nodes,
             self.g_t,
-            self.A,
+            self.a,
         ) = (
             [],
             [],
@@ -95,7 +95,7 @@ class HMCDatasetManager:
         if dataset_type == "arff":
             self.is_go, self.train_file, self.valid_file, self.test_file = dataset
         else:
-            self.train_file, self.valid_file, self.test_file, self.labels_file = dataset
+            self.train_file, self.test_file, self.valid_file, self.labels_file = dataset
             # Infer dataset type
             self.is_go = any(keyword in self.train_file for keyword in ["GO", "go"])
             self.is_fma = any(keyword in self.train_file for keyword in ["fma", "FMA"])
@@ -157,7 +157,7 @@ class HMCDatasetManager:
         self.nodes_idx = dict(zip(self.nodes, range(len(self.nodes))))
         self.g_t = self.g.reverse()
 
-        self.A = nx.to_numpy_array(self.g, nodelist=self.nodes)
+        self.a = nx.to_numpy_array(self.g, nodelist=self.nodes)
 
     def get_hierarchy_levels(self):
         """
@@ -281,11 +281,15 @@ class HMCDatasetManager:
                     y_local_[depth][self.local_nodes_idx[depth].get(node)] = 1
                     for ancestor in nx.ancestors(self.g_t, node):
                         if ancestor != "root":
-                            depth = nx.shortest_path_length(self.g_t, "root").get(ancestor)
-                            y_local_[depth][self.local_nodes_idx[depth].get(ancestor)] = 1
+                            depth = nx.shortest_path_length(self.g_t, "root").get(
+                                ancestor
+                            )
+                            y_local_[depth][
+                                self.local_nodes_idx[depth].get(ancestor)
+                            ] = 1
 
                 else:
-                    depth = len(node.split('.')) + 1
+                    depth = len(node.split(".")) + 1
                     for index in range(depth, 0, -1):
                         local_terms = node.split(".")[:index]
                         local_label = "/".join(local_terms)
@@ -294,10 +298,9 @@ class HMCDatasetManager:
                         y_local_[local_depth][
                             self.local_nodes_idx.get(local_depth).get(local_label)
                         ] = 1
-                    
-                
+
             Y.append(y_)
-            Y_local.append([np.stack(y) for y in y_local_])
+            Y_local.append(np.stack(y_local_))
 
         Y = np.stack(Y)
         return Y, Y_local
@@ -378,10 +381,10 @@ class HMCDatasetManager:
         self.train = HMCDatasetArff(self.train_file, is_go=self.is_go)
         self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go)
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
-        self.A = self.train.A
+        self.a = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
-        self.R = self._matrix_r(self.A)
-        self._matrix_r_local()
+        # self.r = self._matrix_r(self.a)
+        # self._matrix_r_local()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx

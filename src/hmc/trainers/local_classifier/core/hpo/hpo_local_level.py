@@ -195,10 +195,9 @@ def optimize_hyperparameters(args):
             args.model.train()
             local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
             for inputs, targets, _ in args.train_loader:
+                if torch.cuda.is_available():
+                    inputs = inputs.to(args.device)
 
-                inputs, targets = inputs.to(args.device), [
-                    target.to(args.device) for target in targets
-                ]
                 outputs = args.model(inputs.float())
 
                 # Zerar os gradientes antes de cada batch
@@ -206,8 +205,8 @@ def optimize_hyperparameters(args):
 
                 total_loss = 0.0
 
-                output = outputs[level]  # Preferencialmente float32
-                target = targets[level]
+                output = outputs[level].to(args.device)
+                target = targets[level].to(args.device)
                 loss = args.criterions[level](output.double(), target)
                 local_train_losses[level] += loss  # Acumula média por batch
                 total_loss += loss  # Soma da loss para backward
@@ -327,17 +326,15 @@ def val_optimizer(args, level):
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             if torch.cuda.is_available():
-                inputs, targets = inputs.to(args.device), [
-                    target.to(args.device) for target in targets
-                ]
+                inputs = inputs.to(args.device)
             outputs = args.model(inputs.float())
 
             total_loss = 0.0
 
             if not args.level_active[level]:
                 continue  # Pula se não estiver ativo
-            output = outputs[level]
-            target = targets[level]
+            output = outputs[level].to(args.device)
+            target = targets[level].to(args.device)
             loss = args.criterions[level](output.double(), target)
             args.local_val_losses[level] += loss.item()
             total_loss += loss
