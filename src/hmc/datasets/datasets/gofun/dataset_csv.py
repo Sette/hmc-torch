@@ -3,6 +3,7 @@
 # @File    : dataset_csv.py
 import ast
 import os
+import json
 
 import numpy as np
 import pandas as pd
@@ -47,19 +48,15 @@ class HMCDatasetCsv:
         self.csv_path = csv_path
         self.parse_csv()
 
-    def set_y(self, y, y_local):
-        self.Y = y
-        self.Y_local = y_local
-
     def transform_features(self):
         # print(self.df.features[0])
         # print(type(self.df.features[0]))
         self.df.features = self.df.features.apply(safe_parse)
         self.X = self.df.features.values.tolist()
-        r_, c_ = np.where(np.isnan(self.X))
-        m = np.nanmean(self.X, axis=0)
-        for i, j in zip(r_, c_):
-            self.X[i, j] = m[j]
+        # r_, c_ = np.where(np.isnan(self.X))
+        # m = np.nanmean(self.X, axis=0)
+        # for i, j in zip(r_, c_):
+        #    self.X[i, j] = m[j]
 
     def parse_csv(self):
         # self.df = pd.read_csv(self.csv_path, sep='|')
@@ -69,13 +66,13 @@ class HMCDatasetCsv:
             # Assuming the path is a directory containing multiple CSV files
             self.df = load_and_concat_csv_files(self.csv_path, sep="|")
         # X = df['features'].tolist()
-        # self.df['features'] = self.df['features'].apply(json.loads)
+        # self.df["features"] = self.df["features"].apply(json.loads)
         print(self.df.columns)
         if "features" not in self.df.columns:
             raise ValueError("The CSV file does not contain a 'features' column.")
         if "labels" not in self.df.columns:
             raise ValueError("The CSV file does not contain a 'labels' column.")
         self.Y = self.df["labels"].tolist()
-        self.transform_features()
+        # self.transform_features()
 
-        # X = np.array([json.loads(x) for x in df['features']])
+        self.X = np.array([json.loads(x) for x in self.df["features"]])
