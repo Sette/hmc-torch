@@ -55,7 +55,7 @@ import keras
 # In[8]:
 
 
-data_path = "/home/bruno/git/hmc-torch/data"
+data_path = "/home/sette/git/hmc-torch/data"
 
 
 # In[9]:
@@ -227,10 +227,6 @@ class arff_data_to_csv:
         self.X, self.Y = parse_arff_to_csv(
             arff_file=arff_file, output_path=self.output_path, is_GO=is_GO
         )
-        r_, c_ = np.where(np.isnan(self.X))
-        m = np.nanmean(self.X, axis=0)
-        for i, j in zip(r_, c_):
-            self.X[i][j] = m[j]
 
     def to_csv(self, output_file):
         """Salva X e Y como um arquivo CSV."""

@@ -15,7 +15,7 @@ DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo
 
 
 # Definição de valores padrão para os parâmetros
-DATASET="cellcycle_GO"
+DATASET="seq_FUN"
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"

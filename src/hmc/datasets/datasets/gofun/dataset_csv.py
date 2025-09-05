@@ -51,12 +51,13 @@ class HMCDatasetCsv:
     def transform_features(self):
         # print(self.df.features[0])
         # print(type(self.df.features[0]))
-        self.df.features = self.df.features.apply(safe_parse)
-        self.X = self.df.features.values.tolist()
-        # r_, c_ = np.where(np.isnan(self.X))
-        # m = np.nanmean(self.X, axis=0)
-        # for i, j in zip(r_, c_):
-        #    self.X[i, j] = m[j]
+        self.X = np.array([json.loads(x) for x in self.df["features"]])
+
+        r_, c_ = np.where(np.isnan(self.X))
+        # self.X = self.X.tolist()
+        m = np.nanmean(self.X, axis=0)
+        for i, j in zip(r_, c_):
+            self.X[i, j] = m[j]
 
     def parse_csv(self):
         # self.df = pd.read_csv(self.csv_path, sep='|')
@@ -73,6 +74,6 @@ class HMCDatasetCsv:
         if "labels" not in self.df.columns:
             raise ValueError("The CSV file does not contain a 'labels' column.")
         self.Y = self.df["labels"].tolist()
-        # self.transform_features()
+        self.transform_features()
 
-        self.X = np.array([json.loads(x) for x in self.df["features"]])
+        # self.X = np.array([json.loads(x) for x in self.df["features"]])

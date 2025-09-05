@@ -93,9 +93,10 @@ if [ "$RUN_ONLY" = false ]; then
         ssh "$REMOTE_HOST" "
             source ~/.bashrc &&
             apt update &&
-            apt install -y python3-venv &&
+            apt install -y python3-venv python3.11-venv &&
             cd $REMOTE_PATH &&
-            python3 -m venv .venv \
+            pip install --upgrade virtualenv &&
+            python -m venv .venv \
         "
     else
         echo "Skipping venv installation."
