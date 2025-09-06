@@ -64,9 +64,7 @@ def parse_arff(arff_file, is_go=False):
         local_nodes_idx = {}
         nodes_idx = {}
         nodes = []
-        for count, l in enumerate(f):
-            if l.strip() == "":
-                pass
+        for _, l in enumerate(f):
             if l.startswith("@ATTRIBUTE"):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()
@@ -87,7 +85,10 @@ def parse_arff(arff_file, is_go=False):
                                     g.add_edge(
                                         ".".join(terms[:i]), ".".join(terms[: i - 1])
                                     )
-
+                    levels_size = {
+                        key: len(set(value)) for key, value in levels.items()
+                    }
+                    print(f"Levels size: {levels_size}")
                     # print(f'Levels: {levels}')
                     nodes = sorted(
                         g.nodes(),
@@ -99,23 +100,7 @@ def parse_arff(arff_file, is_go=False):
                     )
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
-                    local_nodes_idx = {}
-                    if is_go:
-                        for label in nodes:
-                            level = nx.shortest_path_length(g_t, "root").get(label)
-                            levels[level].append(label)
-
-                    else:
-                        for label in nodes:
-                            level = label.count(".")
-                            levels[level].append(label)
-                    levels_size = {
-                        key: len(set(value)) for key, value in levels.items()
-                    }
-                    print(f"Levels size: {levels_size}")
                     max_depth = len(levels_size)
-                    # print(f'Levels: {levels}')
-
                     local_nodes_idx = {
                         idx: dict(zip(level_nodes, range(len(level_nodes))))
                         for idx, level_nodes in levels.items()
@@ -171,40 +156,21 @@ def parse_arff(arff_file, is_go=False):
                     ] = 1
                     y_[nodes_idx[t.replace("/", ".")]] = 1
 
-                    if is_go:
-                        # node = t.replace("/", ".")
-                        depth = nx.shortest_path_length(g_t, "root").get(
-                            t.replace("/", ".")
-                        )
-                        y_local_[depth][
-                            local_nodes_idx[depth].get(t.replace("/", "."))
+                    depth = t.count("/") + 1
+
+                    assert depth is not None
+
+                    for index in range(depth, 0, -1):
+                        local_terms = t.split("/")[:index]
+                        local_label = "/".join(local_terms)
+                        local_depth = local_label.count("/")
+
+                        y_local_[local_depth][
+                            local_nodes_idx.get(local_depth).get(local_label)
                         ] = 1
-                        for ancestor in nx.ancestors(g_t, t.replace("/", ".")):
-                            if ancestor != "root":
-                                depth = nx.shortest_path_length(g_t, "root").get(
-                                    ancestor
-                                )
-                                y_local_[depth][
-                                    local_nodes_idx[depth].get(ancestor)
-                                ] = 1
-                    else:
-
-                        depth = t.count("/") + 1
-
-                        assert depth is not None
-
-                        for index in range(depth, 0, -1):
-                            local_terms = t.split("/")[:index]
-                            local_label = "/".join(local_terms)
-                            local_depth = local_label.count("/")
-
-                            y_local_[local_depth][
-                                local_nodes_idx.get(local_depth).get(local_label)
-                            ] = 1
 
                 Y.append(y_)
-                Y_local.append(y_local_)
-
+                Y_local.append([np.stack(y) for y in y_local_])
         X = np.array(X)
         Y = np.stack(Y)
         edges_matrix_dict = {}
@@ -215,12 +181,12 @@ def parse_arff(arff_file, is_go=False):
                     nx.to_numpy_array(g, nodelist=level_nodes)
                 )
 
-        # logger.info(
-        #     "Shape of edges matrix: %s",
-        #     {k: v.shape for k, v in edges_matrix_dict.items()},
-        # )
-        # logger.info("Parsed ARFF file: %s", arff_file)
-        # logger.info("Number of matrix: %d", len(edges_matrix_dict))
+        logger.info(
+            "Shape of edges matrix: %s",
+            {k: v.shape for k, v in edges_matrix_dict.items()},
+        )
+        logger.info("Parsed ARFF file: %s", arff_file)
+        logger.info("Number of matrix: %d", len(edges_matrix_dict))
 
         return (
             X,
