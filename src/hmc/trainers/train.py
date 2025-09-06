@@ -56,6 +56,33 @@ def get_train_methods(x):
             raise ValueError(f"Método '{x}' não reconhecido.")
 
 
+def assert_hyperparameter_lengths(
+    args, lr_values, dropout_values, hidden_dims, num_layers_values, weight_decay_values
+):
+    checks = {
+        "lr_values": lr_values,
+        "dropout_values": dropout_values,
+        "hidden_dims": hidden_dims,
+        "num_layers_values": num_layers_values,
+        "weight_decay_values": weight_decay_values,
+    }
+    all_passed = True
+
+    for name, lst in checks.items():
+        try:
+            assert (
+                len(lst) == args.max_depth
+            ), f"{name} length {len(lst)} != max_depth {args.max_depth}"
+        except AssertionError as e:
+            print(f"Assert failed: {e}")
+            all_passed = False
+
+    if all_passed:
+        print("All hyperparameter lists have the correct length.")
+    else:
+        print("One or more hyperparameter lists have the wrong length.")
+
+
 def train_local(args):
     """
     Trains a local hierarchical multi-label classifier using the specified \
@@ -200,6 +227,7 @@ def train_local(args):
 
         logging.info(best_params)
     else:
+        print(args.hidden_dims)
         lr_values = [float(x) for x in args.lr_values]
         dropout_values = [float(x) for x in args.dropout_values]
         hidden_dims = [int(x) for x in args.hidden_dims]
@@ -207,17 +235,14 @@ def train_local(args):
         weight_decay_values = [float(x) for x in args.weight_decay_values]
 
         # Ensure all hyperparameter lists have the same length as 'max_depth'
-        assert all(
-            len(lst) == args.max_depth
-            for lst in [
-                lr_values,
-                dropout_values,
-                hidden_dims,
-                num_layers_values,
-                weight_decay_values,
-            ]
-        ), "All hyperparameter lists must have the same length as 'max_depth'."
-
+        assert_hyperparameter_lengths(
+            args,
+            lr_values,
+            dropout_values,
+            hidden_dims,
+            num_layers_values,
+            weight_decay_values,
+        )
         params = {
             "levels_size": hmc_dataset.levels_size,
             "input_size": args.input_dims[args.data],

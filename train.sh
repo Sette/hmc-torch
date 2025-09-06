@@ -15,13 +15,13 @@ DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo
 
 
 # Definição de valores padrão para os parâmetros
-DATASET="seq_FUN"
+DATASET="seq_GO"
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"
 DEVICE="cpu"
 EPOCHS=2000
-EPOCHS_TO_EVALUATE=10
+EPOCHS_TO_EVALUATE=1
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
@@ -36,7 +36,8 @@ DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET"'.dropout_values[]' config.yaml
 NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET"'.num_layers_values[]' config.yaml | xargs)
 WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET"'.weight_decay_values[]' config.yaml | xargs)
 
-
+echo "Using dataset: $DATASET"
+echo "Using hidden dimensions: $HIDDEN_DIMS"
 
 export PYTHONPATH=src
 export DATASET_PATH
