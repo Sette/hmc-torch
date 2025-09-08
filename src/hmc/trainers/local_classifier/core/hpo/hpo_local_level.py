@@ -1,6 +1,6 @@
 import logging
 import sys
-
+import gc
 import optuna
 import torch
 from sklearn.metrics import precision_recall_fscore_support
@@ -228,9 +228,11 @@ def optimize_hyperparameters(args):
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
                     break
+                
+                metric = combined_metric(val_loss, val_f1, alpha=0.5)
 
                 # Reporta o valor de validação para Optuna
-                trial.report(val_loss, step=epoch)
+                trial.report(metric, step=epoch)
 
                 logging.info(
                     "Trial %d Local validation loss: %f F1: %f",
@@ -248,7 +250,7 @@ def optimize_hyperparameters(args):
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return val_loss
+        return metric
 
     best_params_per_level = {}
 
@@ -268,6 +270,9 @@ def optimize_hyperparameters(args):
             lambda trial: objective(trial, level),
             n_trials=args.n_trials,
         )
+        
+        gc.collect()
+        torch.cuda.empty_cache()
 
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
         level_parameters = {

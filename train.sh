@@ -11,9 +11,6 @@ export CUDA_LAUNCH_BLOCKING=1
 
 DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO"
 
-
-
-
 # Definição de valores padrão para os parâmetros
 DATASET="seq_GO"
 DATASET_PATH="./data"
@@ -21,7 +18,7 @@ BATCH_SIZE=64
 NON_LIN="relu"
 DEVICE="cpu"
 EPOCHS=2000
-EPOCHS_TO_EVALUATE=1
+EPOCHS_TO_EVALUATE=10
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
