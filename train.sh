@@ -9,7 +9,7 @@ export CUDA_LAUNCH_BLOCKING=1
 #           'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
 
 
-DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO"
+DATASETS="gasch1_GO gasch2_GO seq_GO spo_GO"
 
 # Definição de valores padrão para os parâmetros
 DATASET="seq_GO"
