@@ -211,11 +211,12 @@ def train_local(args):
     args.max_depth = hmc_dataset.max_depth
     args.to_eval = hmc_dataset.to_eval
     args.constrained = True
+    logging.info("Active levels before processing: %s", args.active_levels)
     if args.active_levels is None:
         args.active_levels = list(range(args.max_depth))
     else:
         args.active_levels = [int(x) for x in args.active_levels]
-    logging.info("Active levels: %s", args.active_levels)
+
 
     criterions = [nn.BCELoss() for _ in hmc_dataset.levels_size]
     args.criterions = criterions

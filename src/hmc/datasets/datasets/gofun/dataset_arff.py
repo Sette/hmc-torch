@@ -64,7 +64,8 @@ def parse_arff(arff_file, is_go=False):
         local_nodes_idx = {}
         nodes_idx = {}
         nodes = []
-        for count, l in enumerate(f):
+        count = 0
+        for l in f:
             if l.startswith("@ATTRIBUTE"):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()
@@ -161,7 +162,7 @@ def parse_arff(arff_file, is_go=False):
                         )
                     )
                 )
-
+                count+=1
                 for t in lab.split("@"):
                     y_[
                         [
@@ -204,7 +205,8 @@ def parse_arff(arff_file, is_go=False):
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
-
+            # if count != 0 and count % 100 == 0:
+            #     break
         X = np.array(X)
         Y = np.stack(Y)
         edges_matrix_dict = {}

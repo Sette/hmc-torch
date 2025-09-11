@@ -51,7 +51,7 @@ def combined_metric(val_loss, val_f1, alpha=0.5):
     Returns:
         float: métrica combinada (quanto MAIOR melhor)
     """
-    # Normaliza loss para [0,1] - ajuste conforme seus ranges
+    # Normaliza loss para [0,1]
     norm_loss = 1.0 / (1.0 + val_loss)
     # norm_loss cresce quando loss tende a zero
 
@@ -136,7 +136,7 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, 64, 512, log=True)
+        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, args.input_size, args.input_size*4, log=True)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
         num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
         weight_decay = trial.suggest_float(
@@ -149,9 +149,10 @@ def optimize_hyperparameters(args):
             True if i == level else False for i in range(args.max_depth)
         ]
 
+
         params = {
             "levels_size": args.levels_size,
-            "input_size": args.input_dims[args.data],
+            "input_size": args.input_size,
             "hidden_size": hidden_dim,
             "num_layers": num_layers,
             "dropout": dropout,
@@ -170,8 +171,9 @@ def optimize_hyperparameters(args):
         args.model = args.model.to(args.device)
         args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
-        args.best_val_loss = [float("inf") for _ in range(args.max_depth)]
+        args.best_val_loss = [float("inf")] * args.max_depth
         args.best_val_score = [0.0] * args.max_depth
+        args.best_model = [None] * args.max_depth
 
         args.local_val_losses = [0.0] * args.max_depth
         args.early_stopping_patience = args.patience
@@ -180,10 +182,6 @@ def optimize_hyperparameters(args):
         #     args.early_stopping_patience = 20
         args.patience_counters = [0] * args.hmc_dataset.max_depth
         args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
-
-        # args.best_val_loss = [float("inf")] * args.max_depth
-        # args.best_val_score = [0.0] * args.max_depth
-        args.best_model = [None] * args.max_depth
 
         args.local_val_score = {
             level: None for _, level in enumerate(args.active_levels)
@@ -259,6 +257,8 @@ def optimize_hyperparameters(args):
     args.results_path = (
         f"{args.output_path}/hpo/{args.method}/{args.dataset_name}/{args.job_id}"
     )
+
+    args.input_size = args.input_dims[args.data]
 
     create_dir(args.results_path)
     # Add stream handler of stdout to show the messages
