@@ -134,7 +134,7 @@ if [ "$DATASET" = "all" ]; then
 
         echo "Starting experiment for dataset: $dataset"
         TRAIN_PID=$!
-        cmd_dataset+=" --datasets $dataset"
+        cmd_dataset+=" --dataset $dataset"
         echo "Running: $cmd_dataset"
         $cmd_dataset
         trap "kill $TRAIN_PID" SIGINT SIGTERM
