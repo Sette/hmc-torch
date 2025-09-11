@@ -9,9 +9,10 @@ export CUDA_LAUNCH_BLOCKING=1
 #           'eisen_FUN' 'expr_FUN' 'gasch1_FUN' 'gasch2_FUN' 'seq_FUN' 'spo_FUN')
 
 
-DATASETS="gasch1_GO gasch2_GO seq_GO spo_GO"
+DATASETS="cellcycle_GO derisi_GO  eisen_GO gasch1_GO gasch2_GO seq_GO spo_GO"
 
-
+# Definição de valores padrão para os parâmetros
+DATASET="seq_GO"
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"
@@ -26,12 +27,18 @@ HPO="false"
 REMOTE="false"
 N_TRIALS=30
 
+HIDDEN_DIMS=$(yq '.datasets_params.'"$DATASET"'.hidden_dims[]' config.yaml | xargs)
+LR_VALUES=$(yq '.datasets_params.'"$DATASET"'.lr_values[]' config.yaml | xargs)
+DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET"'.dropout_values[]' config.yaml | xargs)
+NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET"'.num_layers_values[]' config.yaml | xargs)
+WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET"'.weight_decay_values[]' config.yaml | xargs)
 
+echo "Using dataset: $DATASET"
+echo "Using hidden dimensions: $HIDDEN_DIMS"
 
 export PYTHONPATH=src
 export DATASET_PATH
 export OUTPUT_PATH
-
 
 # Function to display help
 usage() {
@@ -72,6 +79,11 @@ while [ "$#" -gt 0 ]; do
         --seed) SEED="$2"; shift ;;
         --dataset_type) DATASET_TYPE="$2"; shift ;;
         --batch_size) BATCH_SIZE="$2"; shift ;;
+        --lr_values) LR_VALUES=($2); shift ;;
+        --dropout_values) DROPOUT_VALUES=($2); shift ;;
+        --hidden_dims) HIDDEN_DIMS=($2); shift ;;
+        --num_layers_values) NUM_LAYERS_VALUES=($2); shift ;;
+        --weight_decay_values) WEIGHT_DECAY_VALUES=($2); shift ;;
         --non_lin) NON_LIN="$2"; shift ;;
         --device) DEVICE="$2"; shift ;;
         --epochs) EPOCHS="$2"; shift ;;
@@ -88,9 +100,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-
-
-cmd="python -m hmc.trainers.main \
+ cmd="python -m hmc.trainers.main \
                 --dataset_path $DATASET_PATH \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
@@ -106,74 +116,41 @@ cmd="python -m hmc.trainers.main \
 
 
 
+if [ "$ACTIVE_LEVELS" ]; then
+    cmd+=" --active_levels $ACTIVE_LEVELS"
+fi
+
+
+if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
+        cmd+=" \
+            --lr_values ${LR_VALUES[@]} \
+            --dropout_values ${DROPOUT_VALUES[@]} \
+            --hidden_dims ${HIDDEN_DIMS[@]} \
+            --num_layers_values ${NUM_LAYERS_VALUES[@]} \
+            --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
+fi
+
+
+
 if [ "$DATASET" = "all" ]; then
     for dataset in $DATASETS; do
-        HIDDEN_DIMS=$(yq '.datasets_params.'"$dataset"'.hidden_dims[]' config.yaml | xargs)
-        LR_VALUES=$(yq '.datasets_params.'"$dataset"'.lr_values[]' config.yaml | xargs)
-        DROPOUT_VALUES=$(yq '.datasets_params.'"$dataset"'.dropout_values[]' config.yaml | xargs)
-        NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$dataset"'.num_layers_values[]' config.yaml | xargs)
-        WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$dataset"'.weight_decay_values[]' config.yaml | xargs)
-
-        echo "Using dataset: $dataset"
-        echo "Using hidden dimensions: $HIDDEN_DIMS"
-
-        if [ "$ACTIVE_LEVELS" ]; then
-            cmd_dataset=cmd+" --active_levels $ACTIVE_LEVELS"
-        fi
-
-
-        if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
-            cmd_dataset+=" \
-                --lr_values ${LR_VALUES[@]} \
-                --dropout_values ${DROPOUT_VALUES[@]} \
-                --hidden_dims ${HIDDEN_DIMS[@]} \
-                --num_layers_values ${NUM_LAYERS_VALUES[@]} \
-                --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
-        fi
-
-
         echo "Starting experiment for dataset: $dataset"
         TRAIN_PID=$!
-        cmd_dataset+=" --dataset $dataset"
-        echo "Running: $cmd_dataset"
-        $cmd_dataset
-        trap "kill $TRAIN_PID" SIGINT SIGTERM
-        wait
+        cmd="$cmd --datasets $dataset"
+        echo "Running: $cmd"
+        $cmd
 
     done
+
+
 else
-    echo "Using specific dataset: $DATASET"
-    HIDDEN_DIMS=$(yq '.datasets_params.'"$DATASET"'.hidden_dims[]' config.yaml | xargs)
-    LR_VALUES=$(yq '.datasets_params.'"$DATASET"'.lr_values[]' config.yaml | xargs)
-    DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET"'.dropout_values[]' config.yaml | xargs)
-    NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET"'.num_layers_values[]' config.yaml | xargs)
-    WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET"'.weight_decay_values[]' config.yaml | xargs)
-
-    echo "Using hidden dimensions: $HIDDEN_DIMS"
-
     cmd="$cmd --datasets $DATASET"
-
-    if [ "$ACTIVE_LEVELS" ]; then
-        cmd+=" --active_levels $ACTIVE_LEVELS"
-    fi
-
-    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
-            cmd+=" \
-                --lr_values ${LR_VALUES[@]} \
-                --dropout_values ${DROPOUT_VALUES[@]} \
-                --hidden_dims ${HIDDEN_DIMS[@]} \
-                --num_layers_values ${NUM_LAYERS_VALUES[@]} \
-                --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
-    fi
-
     TRAIN_PID=$!
     echo "Running: $cmd"
     $cmd
-
-    trap "kill $TRAIN_PID" SIGINT SIGTERM
-    wait
-
-    echo "All experiments completed!"
-
 fi
 
+trap "kill $TRAIN_PID" SIGINT SIGTERM
+wait
+
+echo "All experiments completed!"
