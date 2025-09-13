@@ -119,6 +119,14 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
+            node_name = node_name.replace("/", ".")
+            node_name_parsed = []
+            if len(node_name.split(".")) > 1:
+                node_name_parsed.append(node_name.split("."))
+            else:
+                node_name_parsed.append(node_name)
+
+
             for key in node_name.split("/"):
                 if key in nodes_idx:
                     global_idx = nodes_idx[key]

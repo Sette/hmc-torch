@@ -136,13 +136,13 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, args.input_size, args.input_size*4, log=True)
+        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, args.input_size, args.input_size*3, log=True)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
         num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
         weight_decay = trial.suggest_float(
             "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
         )
-        lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-3, log=True)
+        lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-2, log=True)
         args.current_level = [level]
 
         args.level_active = [
@@ -169,13 +169,12 @@ def optimize_hyperparameters(args):
         args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
-        args.criterions = [criterion.to(args.device) for criterion in args.criterions]
+        criterions = [criterion.to(args.device) for criterion in args.criterions]
 
         args.best_val_loss = [float("inf")] * args.max_depth
         args.best_val_score = [0.0] * args.max_depth
         args.best_model = [None] * args.max_depth
 
-        args.local_val_losses = [0.0] * args.max_depth
         args.early_stopping_patience = args.patience
         args.early_stopping_patience_f1 = args.patience_f1
         # if args.early_metric == "f1-score":
@@ -183,19 +182,12 @@ def optimize_hyperparameters(args):
         args.patience_counters = [0] * args.hmc_dataset.max_depth
         args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
 
-        args.local_val_score = {
-            level: None for _, level in enumerate(args.active_levels)
-        }
-
-        logging.info("Levels to evaluate: %s", args.active_levels)
+        local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
 
         for epoch in range(1, args.epochs + 1):
             args.model.train()
-            local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
             for inputs, targets, _ in args.train_loader:
-                if torch.cuda.is_available():
-                    inputs = inputs.to(args.device)
-
+                inputs = inputs.to(args.device)
                 outputs = args.model(inputs.float())
 
                 # Zerar os gradientes antes de cada batch
@@ -205,8 +197,9 @@ def optimize_hyperparameters(args):
 
                 output = outputs[level].to(args.device)
                 target = targets[level].to(args.device)
+
                 loss = args.criterions[level](output.double(), target)
-                local_train_losses[level] += loss  # Acumula média por batch
+                local_train_losses[level] += loss.item()  # Acumula média por batch
                 total_loss += loss  # Soma da loss para backward
 
                 # Após terminar loop dos níveis, execute backward
@@ -227,10 +220,10 @@ def optimize_hyperparameters(args):
                     logging.info("All levels have triggered early stopping.")
                     break
                 
-                metric = combined_metric(val_loss, val_f1, alpha=0.5)
+                # metric = combined_metric(val_loss, val_f1, alpha=0.5)
 
                 # Reporta o valor de validação para Optuna
-                trial.report(metric, step=epoch)
+                trial.report(val_f1, step=epoch)
 
                 logging.info(
                     "Trial %d Local validation loss: %f F1: %f",
@@ -248,7 +241,7 @@ def optimize_hyperparameters(args):
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return metric
+        return val_f1
 
     best_params_per_level = {}
 
@@ -265,14 +258,11 @@ def optimize_hyperparameters(args):
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
     for level in args.active_levels:
-        study = optuna.create_study()
+        study = optuna.create_study(direction="maximize")
         study.optimize(
             lambda trial: objective(trial, level),
             n_trials=args.n_trials,
         )
-        
-        gc.collect()
-        torch.cuda.empty_cache()
 
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
         level_parameters = {
@@ -325,16 +315,21 @@ def val_optimizer(args, level):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
+    args.local_val_score = {
+        level: None for _, level in enumerate(args.active_levels)
+    }
+
+    args.local_val_losses = [0.0] * args.max_depth
+
     # Get local scores
     threshold = 0.2
 
     with torch.no_grad():
+        total_loss = 0.0  # <-- inicializa aqui, fora do loop
         for i, (inputs, targets, _) in enumerate(args.val_loader):
             if torch.cuda.is_available():
                 inputs = inputs.to(args.device)
             outputs = args.model(inputs.float())
-
-            total_loss = 0.0
 
             if not args.level_active[level]:
                 continue  # Pula se não estiver ativo
