@@ -205,8 +205,8 @@ def parse_arff(arff_file, is_go=False):
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
-            if count != 0 and count % 100 == 0:
-                break
+            # if count != 0 and count % 100 == 0:
+            #     break
         X = np.array(X)
         Y = np.stack(Y)
         edges_matrix_dict = {}
