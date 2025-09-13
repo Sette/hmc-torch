@@ -144,6 +144,8 @@ if [ "$RUN_ONLY" = false ]; then
             source .venv/bin/activate &&
             poetry source add pytorch --priority=explicit &&
             poetry source remove pytorch-cpu || true &&
+            poetry add \
+              https://storage.googleapis.com/libtpu-nightly-releases/wheels/libtpu-nightly/libtpu_nightly-0.1.dev20210615-py3-none-any.whl &&
             poetry install --no-root \
         "
     else
@@ -154,6 +156,8 @@ fi
 echo "Executando o script de treinamento diretamente..."
 echo "Usando PyTorch com CUDA..."
 ssh "$REMOTE_HOST" "
+    add-apt-repository ppa:rmescandon/yq -y &&
+    apt update && apt install yq -y &&
     cd $REMOTE_PATH &&
     source .venv/bin/activate &&
     chmod +x $SCRIPT_TO_RUN && ./$SCRIPT_TO_RUN --device cuda \

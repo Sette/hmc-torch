@@ -1,10 +1,8 @@
 import pickle
-
+import logging
 import numpy as np
-
 from sklearn.preprocessing import MultiLabelBinarizer
 
-import logging
 
 logging.basicConfig(level=logging.INFO)
 
@@ -121,12 +119,12 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
-            key = node_name.replace("/", ".")
-            if key in nodes_idx:
-                global_idx = nodes_idx[key]
-                global_preds[idx_example][global_idx] = 1
-            else:
-                logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")
+            for key in node_name.split("/"):
+                if key in nodes_idx:
+                    global_idx = nodes_idx[key]
+                    global_preds[idx_example][global_idx] = 1
+                else:
+                    logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")
 
     return global_preds
 

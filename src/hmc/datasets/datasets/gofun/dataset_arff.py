@@ -164,23 +164,23 @@ def parse_arff(arff_file, is_go=False):
                 )
                 count+=1
                 for t in lab.split("@"):
+                    y_node = t.replace("/", ".")
                     y_[
                         [
                             nodes_idx.get(a)
-                            for a in nx.ancestors(g_t, t.replace("/", "."))
+                            for a in nx.ancestors(g_t, y_node)
                         ]
                     ] = 1
-                    y_[nodes_idx[t.replace("/", ".")]] = 1
+                    y_[nodes_idx[y_node]] = 1
 
                     if is_go:
-                        # node = t.replace("/", ".")
                         depth = nx.shortest_path_length(g_t, "root").get(
-                            t.replace("/", ".")
+                            y_node
                         ) - 1
                         y_local_[depth][
-                            local_nodes_idx[depth].get(t.replace("/", "."))
+                            local_nodes_idx[depth].get(y_node)
                         ] = 1
-                        for ancestor in nx.ancestors(g_t, t.replace("/", ".")):
+                        for ancestor in nx.ancestors(g_t, y_node):
                             if ancestor != "root":
                                 depth = nx.shortest_path_length(g_t, "root").get(
                                     ancestor
@@ -205,8 +205,8 @@ def parse_arff(arff_file, is_go=False):
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
-            # if count != 0 and count % 100 == 0:
-            #     break
+            if count != 0 and count % 100 == 0:
+                break
         X = np.array(X)
         Y = np.stack(Y)
         edges_matrix_dict = {}

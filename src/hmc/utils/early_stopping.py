@@ -28,12 +28,24 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
     Args:
         args: An object containing all necessary arguments and attributes.
     """
-
+    bypass_best_model_only = False
     for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 logging.info("Level %d: initialized best model", level)
+                if save_model and bypass_best_model_only:
+                    # Salvar em disco
+                    logging.info("Saving best model for Level %d", level)
+                    torch.save(
+                        args.model.levels[str(level)].state_dict(),
+                        os.path.join(
+                            args.results_path, f"best_model_level_{level}.pth"
+                        ),
+                    )
+                    logging.info("best model updated and saved for Level %d", level)
+
+
             loss = round(args.local_val_losses[level], 4)
             best_loss = args.best_val_loss[level]
             metric = round(args.local_val_score[level], 4)

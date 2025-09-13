@@ -13,7 +13,8 @@ if [ "$PYTORCH_MODE" != "cuda" ] && [ "$PYTORCH_MODE" != "cpu" ]; then
     exit 1
 fi
 
-
+echo "Installing yq"
+sudo apt install yq -y
 
 # Ask the user if they want to create a local virtual environment
 echo -n "Do you want to create a local venv? (y/n): "
@@ -97,6 +98,15 @@ else
         poetry install --no-root &&
         chmod +x train.sh
     fi
+
+    if [ "$INSTALL_CHOICE" = "y" ] && [ "$PYTORCH_MODE" = "tpu" ]; then
+        # instala torch_xla via wheel oficial (ajuste pyversion e torch version conforme seu ambiente)
+        poetry add \
+          https://storage.googleapis.com/tpu-pytorch/wheels/tpuvm/torch_xla-2.2-cp310-cp310-linux_x86_64.whl
+
+        chmod +x train.sh
+    fi
+
 
     if [ "$PYTORCH_MODE" = "cuda" ]; then
         echo "Usando PyTorch com CUDA..."
