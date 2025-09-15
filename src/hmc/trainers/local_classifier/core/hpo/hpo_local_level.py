@@ -1,6 +1,5 @@
 import logging
 import sys
-import gc
 import optuna
 import torch
 from sklearn.metrics import precision_recall_fscore_support
@@ -21,6 +20,15 @@ from hmc.utils.early_stopping import (
 from hmc.utils.output import save_dict_to_json
 
 from hmc.utils.dir import create_dir
+
+import numpy as np
+import random
+
+def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
 def check_metrics(metric, best_metric, metric_type="loss"):
@@ -256,9 +264,11 @@ def optimize_hyperparameters(args):
     create_dir(args.results_path)
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    # Cria um sampler com seed fixa
+    sampler = optuna.samplers.TPESampler(seed=42)
 
     for level in args.active_levels:
-        study = optuna.create_study(direction="maximize")
+        study = optuna.create_study(direction="maximize", sampler=sampler)
         study.optimize(
             lambda trial: objective(trial, level),
             n_trials=args.n_trials,
