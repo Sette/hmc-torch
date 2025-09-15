@@ -24,6 +24,7 @@ from hmc.utils.dir import create_dir
 import numpy as np
 import random
 
+
 def set_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
@@ -157,7 +158,6 @@ def optimize_hyperparameters(args):
             True if i == level else False for i in range(args.max_depth)
         ]
 
-
         params = {
             "levels_size": args.levels_size,
             "input_size": args.input_size,
@@ -227,7 +227,7 @@ def optimize_hyperparameters(args):
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
                     break
-                
+
                 # metric = combined_metric(val_loss, val_f1, alpha=0.5)
 
                 # Reporta o valor de validação para Optuna
@@ -265,7 +265,7 @@ def optimize_hyperparameters(args):
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     # Cria um sampler com seed fixa
-    sampler = optuna.samplers.TPESampler(seed=42)
+    sampler = optuna.samplers.TPESampler(seed=args.seed)
 
     for level in args.active_levels:
         study = optuna.create_study(direction="maximize", sampler=sampler)
