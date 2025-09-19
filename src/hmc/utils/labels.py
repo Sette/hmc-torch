@@ -7,7 +7,32 @@ from sklearn.preprocessing import MultiLabelBinarizer
 logging.basicConfig(level=logging.INFO)
 
 def get_structure(genres_id, df_genres):
+    """
+    Retrieve the hierarchical structure (ancestry) of each genre_id from the DataFrame.
+
+    Args:
+        genres_id (list or iterable): List of genre IDs to retrieve the structure for.
+        df_genres (pd.DataFrame): DataFrame containing the columns "genre_id" and "parent".
+            It is expected that "parent" is the parent genre_id for each genre.
+
+    Returns:
+        list: A list where each element is a list of genre IDs representing the hierarchy (ancestry)
+              for the corresponding genre_id in `genres_id`. Each list starts from the genre_id and
+              recursively adds its parents up to the root (where parent is 0 or missing).
+    """
+
     def get_from_df(genre_id, df_genres, output):
+        """
+        Recursively retrieves the ancestry of a given genre_id.
+
+        Args:
+            genre_id (int): The current genre ID.
+            df_genres (pd.DataFrame): DataFrame containing genre hierarchy.
+            output (list): The list being built up with the ancestry.
+
+        Returns:
+            list: List including this genre_id and its ancestors up to the root.
+        """
         if genre_id != 0:
             parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
             output.append(genre_id)
@@ -21,6 +46,16 @@ def get_structure(genres_id, df_genres):
 
 
 def group_labels_by_level(df, max_depth):
+    """
+    Groups hierarchical labels in the DataFrame by each level, up to the specified max_depth.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing a column 'y_true', where each item is a list of hierarchical label lists per track.
+        max_depth (int): Maximum number of hierarchy levels to consider.
+
+    Returns:
+        list: A list of length max_depth, where each element is a list of unique labels per example at that level.
+    """
     # Initialize empty lists for each level based on max_depth
     levels = [[] for _ in range(max_depth)]
 
@@ -39,6 +74,18 @@ def group_labels_by_level(df, max_depth):
 
 
 def binarize_labels(dataset_df, args):
+    """
+    Binarizes multi-level hierarchical labels in the dataset, using MultiLabelBinarizer per level.
+
+    Args:
+        dataset_df (pd.DataFrame): DataFrame containing 'y_true' column with hierarchical label lists.
+        args (Namespace): Arguments namespace with:
+            - max_depth (int): Maximum hierarchy depth.
+            - mlb_path (str): Path to save the list of fitted MultiLabelBinarizer objects.
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ['track_id', 'y_true', 'all_binarized'], where 'all_binarized' contains binarized label lists per level.
+    """
     # Labels
     mlbs = []
 
@@ -74,6 +121,18 @@ def binarize_labels(dataset_df, args):
 
 
 def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
+    """
+    Converts local-level predictions to global predictions.
+
+    Args:
+        local_labels (list of np.array): List where each element is an array of shape [n_samples, n_classes_at_level],
+                                         containing the local (per-level) binary predictions.
+        local_nodes_idx (dict): Dictionary mapping level name to {node_name_local: idx_local} dicts.
+        nodes_idx (dict): Dictionary mapping global node names to their global indices.
+
+    Returns:
+        np.ndarray: Array of shape [n_samples, n_global_labels] with the corresponding global binary predictions.
+    """
     n_samples = local_labels[0].shape[0]
     n_global_labels = len(nodes_idx)
     global_preds = np.zeros((n_samples, n_global_labels))
@@ -89,7 +148,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
     # logging.info(f"Shape local_preds: {len(local_labels)}")
     # logging.info(f"Local nodes idx: {local_nodes_reverse}")
 
-    # Etapa 1: montar node_names ativados por exemplo
+    # Step 1: Build list of activated node names for each example
     activated_nodes_by_example = [[] for _ in range(n_samples)]
 
     for level_index, level in enumerate(sorted_levels):
@@ -97,14 +156,14 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
             level_index
         ]  # shape: [n_samples, n_classes_at_level]
         for idx_example, label in enumerate(level_preds):
-            local_indices = np.where(label == 1)[0]  # aceita floats ou binários
+            local_indices = np.where(label == 1)[0]  # accepts float or binary
             for local_idx in local_indices:
                 node_name = local_nodes_reverse[level].get(local_idx)
                 if node_name:
                     activated_nodes_by_example[idx_example].append(node_name)
                 else:
                     logging.info(
-                        "[WARN] Índice local %d não encontrado no nível %d ",
+                        "[WARNING] Local index %d not found at level %d ",
                         local_idx,
                         level,
                     )
@@ -126,8 +185,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
             else:
                 node_name_parsed.append(node_name)
 
-
-            for key in node_name.split("/"):
+            for key in node_name.split("."):
                 if key in nodes_idx:
                     global_idx = nodes_idx[key]
                     global_preds[idx_example][global_idx] = 1
@@ -190,6 +248,16 @@ def show_metrics(losses, scores, dataset="Train"):
 
 
 def show_local_losses(local_losses, dataset="Train"):
+    """
+    Logs the local (per-level) losses for a given dataset.
+
+    Args:
+        local_losses (list): A list containing the loss value for each hierarchy level.
+        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+
+    Returns:
+        None
+    """
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
         if local_loss is not None and local_loss != 0.0:
@@ -201,10 +269,30 @@ def show_local_losses(local_losses, dataset="Train"):
 
 
 def show_global_loss(global_loss, dataset="Train"):
+    """
+    Logs the global (average) loss for a given dataset.
+
+    Args:
+        global_loss (float): The global loss value.
+        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+
+    Returns:
+        None
+    """
     logging.info("Global average loss %s Loss: %s", dataset, global_loss)
 
 
 def show_local_score(local_scores, dataset="Train"):
+    """
+    Logs the local (per-level) scores for a given dataset.
+
+    Args:
+        local_scores (dict): A dictionary mapping each level to its corresponding score.
+        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+
+    Returns:
+        None
+    """
     formatted_string = ""
     for level, local_score in local_scores.items():
         if local_score is not None and local_score != 0.0:
@@ -214,5 +302,3 @@ def show_local_score(local_scores, dataset="Train"):
             )
 
     logging.info(formatted_string)
-
-
