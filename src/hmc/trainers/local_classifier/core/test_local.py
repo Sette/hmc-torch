@@ -111,6 +111,10 @@ def test_step(args):
         args.hmc_dataset.local_nodes_idx,
         args.hmc_dataset.nodes_idx,
     )
+    # logging.info("Y true")
+    # logging.info(y_true_global_original)
+    # logging.info("Y pred")
+    # logging.info(y_pred_global_binary)
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],
