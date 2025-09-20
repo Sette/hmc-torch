@@ -43,7 +43,7 @@ def test_step(args):
 
     for level in args.active_levels:
         args.model.levels[str(level)].load_state_dict(
-            torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"))
+            torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"), weights_only=True)
         )
 
     threshold = 0.2

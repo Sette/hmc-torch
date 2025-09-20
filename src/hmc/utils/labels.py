@@ -120,7 +120,7 @@ def binarize_labels(dataset_df, args):
 
 
 
-def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
+def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=True):
     """
     Converts local-level predictions to global predictions.
 
@@ -148,7 +148,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
     # logging.info(f"Shape local_preds: {len(local_labels)}")
     # logging.info(f"Local nodes idx: {local_nodes_reverse}")
 
-    # Step 1: Build list of activated node names for each example
+    # Etapa 1: montar node_names ativados por exemplo
     activated_nodes_by_example = [[] for _ in range(n_samples)]
 
     for level_index, level in enumerate(sorted_levels):
@@ -156,14 +156,14 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx):
             level_index
         ]  # shape: [n_samples, n_classes_at_level]
         for idx_example, label in enumerate(level_preds):
-            local_indices = np.where(label == 1)[0]  # accepts float or binary
+            local_indices = np.where(label == 1)[0]  # aceita floats ou binários
             for local_idx in local_indices:
                 node_name = local_nodes_reverse[level].get(local_idx)
                 if node_name:
                     activated_nodes_by_example[idx_example].append(node_name)
                 else:
                     logging.info(
-                        "[WARNING] Local index %d not found at level %d ",
+                        "[WARN] Índice local %d não encontrado no nível %d ",
                         local_idx,
                         level,
                     )

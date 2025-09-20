@@ -48,6 +48,7 @@ class HMCDatasetArff:
 
 
 def parse_arff(arff_file, is_go=False):
+    sample_limit = False
     with open(arff_file, "r", encoding="utf-8") as f:
         read_data = False
         X = []
@@ -162,7 +163,7 @@ def parse_arff(arff_file, is_go=False):
                         )
                     )
                 )
-                count+=1
+                count += 1
                 for t in lab.split("@"):
                     y_node = t.replace("/", ".")
                     y_[
@@ -205,8 +206,8 @@ def parse_arff(arff_file, is_go=False):
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
-            # if count != 0 and count % 100 == 0:
-            #     break
+            if sample_limit and count != 0 and count % 100 == 0:
+                break
         X = np.array(X)
         Y = np.stack(Y)
         edges_matrix_dict = {}
