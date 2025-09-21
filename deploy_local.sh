@@ -71,7 +71,7 @@ if [ "$TMUX_CHOICE" = "s" ]; then
         poetry source add pytorch-gpu https://download.pytorch.org/whl/cu118 --priority=explicit &&
         poetry source remove pytorch-cpu || true &&
         poetry install --no-root &&
-        chmod +x train.sh && ./train.sh --device cuda'
+        chmod +x run.sh && ./run.sh --device cuda'
     else
         tmux send-keys -t $TMUX_SESSION 'source ~/.zshrc &&
         python3 -m venv .venv &&
@@ -79,7 +79,7 @@ if [ "$TMUX_CHOICE" = "s" ]; then
         poetry source add pytorch-cpu https://download.pytorch.org/whl/cpu --priority=explicit &&
         poetry source remove pytorch-gpu || true &&
         poetry install --no-root &&
-        chmod +x train.sh && ./train.sh --device cpu'
+        chmod +x run.sh && ./run.sh --device cpu'
     fi
     echo "Treinamento iniciado dentro do tmux! Sessão: '$TMUX_SESSION'."
 else
@@ -89,14 +89,14 @@ else
         poetry source add pytorch-gpu https://download.pytorch.org/whl/cu118 --priority=explicit &&
         poetry source remove pytorch-cpu || true &&
         poetry install --no-root &&
-        chmod +x train.sh
+        chmod +x run.sh
     fi
 
     if [ "$INSTALL_CHOICE" = "y" ] && [ "$PYTORCH_MODE" = "cpu" ]; then
         poetry source add pytorch-cpu https://download.pytorch.org/whl/cpu --priority=explicit &&
         poetry source remove pytorch-gpu || true &&
         poetry install --no-root &&
-        chmod +x train.sh
+        chmod +x run.sh
     fi
 
     if [ "$INSTALL_CHOICE" = "y" ] && [ "$PYTORCH_MODE" = "tpu" ]; then
@@ -104,16 +104,16 @@ else
         poetry add \
           https://storage.googleapis.com/tpu-pytorch/wheels/tpuvm/torch_xla-2.2-cp310-cp310-linux_x86_64.whl
 
-        chmod +x train.sh
+        chmod +x run.sh
     fi
 
 
     if [ "$PYTORCH_MODE" = "cuda" ]; then
         echo "Usando PyTorch com CUDA..."
-        ./train.sh --device cuda
+        ./run.sh --device cuda
     else
         echo "Usando PyTorch com CPU..."
-        ./train.sh --device cpu
+        ./run.sh --device cpu
     fi
 
     echo "Treinamento terminado sem tmux."

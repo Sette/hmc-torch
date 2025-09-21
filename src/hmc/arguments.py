@@ -100,6 +100,7 @@ def get_parser():
             "global_baseline",
             "local_constrained",
             "local_mask",
+            "local_test",
         ],
         metavar="METHOD",
         required=False,

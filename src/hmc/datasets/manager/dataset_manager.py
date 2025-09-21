@@ -40,7 +40,12 @@ class HMCDatasetManager:
 
     """
 
-    def __init__(self, dataset, dataset_type="arff", device="cpu", is_global=False):
+    def __init__(self,
+                 dataset,
+                 dataset_type="arff",
+                 device="cpu",
+                 is_global=False,
+                 ):
         # Extract dataset paths
         self.test, self.train, self.valid, self.to_eval, self.max_depth, self.r = (
             None,
@@ -407,7 +412,7 @@ def initialize_dataset_experiments(
     name: str,
     device: str = "cpu",
     dataset_path: str = "data/",
-    dataset_type="torch",
+    dataset_type: str ="torch",
     is_global: bool = False,
 ) -> HMCDatasetManager:
     """

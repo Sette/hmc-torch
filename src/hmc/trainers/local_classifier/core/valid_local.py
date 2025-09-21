@@ -43,15 +43,11 @@ def valid_step(args):
 
     args.model.eval()
 
-    args.results_path = (
-        f"{args.output_path}/train/{args.method}/{args.dataset_name}/{args.job_id}"
-    )
 
     args.result_path = "%s/train/%s-%s-%s/%s" % (
         args.output_path,
         args.method,
         args.dataset_name,
-        args.early_stopping_patience,
         args.job_id,
     )
 

@@ -95,7 +95,7 @@ done
 
 
 
-cmd="python -m hmc.trainers.main \
+cmd="python -m hmc.main \
                 --dataset_path $DATASET_PATH \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
@@ -160,7 +160,7 @@ else
         cmd+=" --active_levels $ACTIVE_LEVELS"
     fi
 
-    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
+    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
             cmd+=" \
                 --lr_values ${LR_VALUES[@]} \
                 --dropout_values ${DROPOUT_VALUES[@]} \

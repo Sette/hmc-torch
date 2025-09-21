@@ -11,7 +11,6 @@ from hmc.utils.output import (
 
 from hmc.utils.labels import local_to_global_predictions
 
-
 def test_step(args):
     """
     Evaluates the model on the test dataset for each active level and \
@@ -35,7 +34,7 @@ def test_step(args):
         - Saves local test scores (precision, recall, f-score, support) for \
             each active level to a JSON file.
     """
-
+    args.model.to(args.device)
     args.model.eval()
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
