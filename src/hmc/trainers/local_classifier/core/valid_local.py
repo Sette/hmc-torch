@@ -44,7 +44,7 @@ def valid_step(args):
     args.model.eval()
 
 
-    args.result_path = "%s/train/%s-%s-%s/%s" % (
+    args.result_path = "%s/train/%s-%s/%s" % (
         args.output_path,
         args.method,
         args.dataset_name,
@@ -130,7 +130,7 @@ def valid_step(args):
 
             args.local_val_score[idx] = score[2]
 
-    create_dir(args.results_path)
+    
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
