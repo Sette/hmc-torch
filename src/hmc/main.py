@@ -10,6 +10,7 @@ from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constrained.train_global import train_global
 
 from hmc.utils.dir import create_job_id
+from hmc.utils.dir import create_dir
 
 import torch.nn as nn
 from sklearn import preprocessing
@@ -278,13 +279,21 @@ def main():
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
-    args.job_id = create_job_id()
-    print(f"Job ID: {args.job_id}")
+    if args.job_id == "false":
+        args.job_id = create_job_id()
+        logging.info(f"Job ID created: {args.job_id}")
+    else:
+        logging.info(f"Using Job ID: {args.job_id}")
+    
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     for dataset_name in datasets:
         args.dataset_name = dataset_name
+
+        args.results_path = (
+                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+                )
 
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
@@ -306,61 +315,94 @@ def main():
 
         args.data, args.ontology = args.dataset_name.split("_")
 
-        args.hmc_dataset = initialize_dataset_experiments(
-            args.dataset_name,
-            device=args.device,
-            dataset_path=args.dataset_path,
-            dataset_type=args.dataset_type,
-            is_global=False,
-        )
+        create_dir(args.results_path)
+        
 
-        data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+        # Caminhos
+        train_path = os.path.join(args.results_path, "train_dataset.pt")
+        val_path = os.path.join(args.results_path, "val_dataset.pt")
+        test_path = os.path.join(args.results_path, "test_dataset.pt")
 
-        scaler = preprocessing.StandardScaler().fit(
-            np.concatenate((data_train.X, data_valid.X))
-        )
-        imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-            np.concatenate((data_train.X, data_valid.X))
-        )
-        data_valid.X = (
-            torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
-            .clone()
-            .detach()
-            .to(args.device)
-        )
-        data_train.X = (
-            torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
-            .clone()
-            .detach()
-            .to(args.device)
-        )
+        read_data = True
 
-        data_test.X = (
-            torch.as_tensor(scaler.transform(imp_mean.transform(data_test.X)))
-            .clone()
-            .detach()
-            .to(args.device)
-        )
+        # Se já existir, carrega. Se não, cria e salva
+        if os.path.exists(train_path) and os.path.exists(val_path) and os.path.exists(test_path):
+            print("Loading existing datasets...")
+            read_data = False
+            args.hmc_dataset = initialize_dataset_experiments(
+                args.dataset_name,
+                device=args.device,
+                dataset_path=args.dataset_path,
+                dataset_type=args.dataset_type,
+                is_global=False,
+                read_data=read_data,
+            )
+            train_dataset = torch.load(train_path, weights_only=False)
+            val_dataset = torch.load(val_path, weights_only=False)
+            test_dataset = torch.load(test_path, weights_only=False)
+        else:          
+            args.hmc_dataset = initialize_dataset_experiments(
+                args.dataset_name,
+                device=args.device,
+                dataset_path=args.dataset_path,
+                dataset_type=args.dataset_type,
+                is_global=False,
+                read_data=read_data,
+            )
+            data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
 
-        data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
-        data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
-        data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
+            scaler = preprocessing.StandardScaler().fit(
+                np.concatenate((data_train.X, data_valid.X))
+            )
+            imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
+                np.concatenate((data_train.X, data_valid.X))
+            )
+            data_valid.X = (
+                torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
+                .clone()
+                .detach()
+                .to(args.device)
+            )
+            data_train.X = (
+                torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
+                .clone()
+                .detach()
+                .to(args.device)
+            )
 
-        # Create loaders using local (per-level) y labels
-        train_dataset = [
-            (x, y_levels, y)
-            for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
-        ]
+            data_test.X = (
+                torch.as_tensor(scaler.transform(imp_mean.transform(data_test.X)))
+                .clone()
+                .detach()
+                .to(args.device)
+            )
 
-        val_dataset = [
-            (x, y_levels, y)
-            for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
-        ]
+            data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
+            data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
+            data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
 
-        test_dataset = [
-            (x, y_levels, y)
-            for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
-        ]
+            # Create loaders using local (per-level) y labels
+            train_dataset = [
+                (x, y_levels, y)
+                for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
+            ]
+
+            val_dataset = [
+                (x, y_levels, y)
+                for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
+            ]
+
+            test_dataset = [
+                (x, y_levels, y)
+                for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
+            ]
+
+
+            # Save datasets in torch format
+            torch.save(train_dataset, train_path)
+            torch.save(val_dataset, val_path)
+            torch.save(test_dataset, test_path)
+
 
         train_loader = DataLoader(
             dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -442,8 +484,6 @@ def main():
                 from hmc.trainers.local_classifier.core.test_local import test_step
 
                 logging.info("Test local method selected")
-
-                args.job_id = "test_20250919_225159"
 
                 args.results_path = (
                     f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
