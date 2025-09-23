@@ -45,6 +45,8 @@ class HMCDatasetManager:
                  dataset_type="arff",
                  device="cpu",
                  is_global=False,
+                 read_data=True,
+                 use_sample=False,
                  ):
         # Extract dataset paths
         self.test, self.train, self.valid, self.to_eval, self.max_depth, self.r = (
@@ -90,7 +92,8 @@ class HMCDatasetManager:
         # Initialize attributes
         self.is_global = is_global
         self.device = device
-
+        self.read_data = read_data
+        self.use_sample = use_sample
         # Construct graph path
         self.g = nx.DiGraph()
         # train_csv_name = Path(self.train_file).name
@@ -107,7 +110,7 @@ class HMCDatasetManager:
             # Load hierarchical structure
             self.load_structure_from_json(self.labels_file)
 
-        logger.info("Loading dataset from %s", self.train_file)
+        logger.info("Train file: %s", self.train_file)
 
         if dataset_type == "csv":
             self.load_csv_data()
@@ -266,8 +269,6 @@ class HMCDatasetManager:
             - Uses NetworkX for graph operations.
             - The function expects the graph to have a "root" node for local transformations.
         """
-        y_local_ = []
-        y_ = []
         Y = []
         Y_local = []
         for labels in dataset_labels:
@@ -383,9 +384,9 @@ class HMCDatasetManager:
             - Sets attributes: train, valid, test, A, edges_matrix_dict, R, all_matrix_r,
               to_eval, nodes, nodes_idx, local_nodes_idx, max_depth, levels, levels_size.
         """
-        self.train = HMCDatasetArff(self.train_file, is_go=self.is_go)
-        self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go)
-        self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
+        self.train = HMCDatasetArff(self.train_file, is_go=self.is_go, use_sample=self.use_sample)
+        self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go, use_sample=self.use_sample)
+        self.test = HMCDatasetArff(self.test_file, is_go=self.is_go, use_sample=self.use_sample)
         self.a = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
         # self.r = self._matrix_r(self.a)
@@ -412,8 +413,10 @@ def initialize_dataset_experiments(
     name: str,
     device: str = "cpu",
     dataset_path: str = "data/",
-    dataset_type: str ="torch",
+    dataset_type: str = "torch",
     is_global: bool = False,
+    read_data: bool = True,
+    use_sample: bool = False,
 ) -> HMCDatasetManager:
     """
     Initialize and return an HMCDatasetManager for the specified dataset.
@@ -447,4 +450,6 @@ def initialize_dataset_experiments(
         dataset_type=dataset_type,
         device=device,
         is_global=is_global,
+        read_data=read_data,
+        use_sample=use_sample,
     )

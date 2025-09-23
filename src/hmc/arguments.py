@@ -23,6 +23,28 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use_sample",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use a sample of data (for tests). \
+                Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--save_torch_dataset",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use save torch dataset. \
+                    Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
         "--dataset_path",
         type=str,
         required=True,

@@ -1,10 +1,11 @@
+
+import logging
 from collections import defaultdict
 from itertools import chain
-
 import keras
 import networkx as nx
 import numpy as np
-import logging
+
 from hmc.datasets.datasets.gofun import to_skip
 
 # Set a logger config
@@ -24,7 +25,7 @@ def get_depth_by_root(g_t, t, roots):
 
 
 class HMCDatasetArff:
-    def __init__(self, arff_file, is_go):
+    def __init__(self, arff_file, is_go, read_data=True, use_sample=False):
         self.arff_file = arff_file
         (
             self.X,
@@ -39,18 +40,19 @@ class HMCDatasetArff:
             self.nodes_idx,
             self.local_nodes_idx,
             self.max_depth,
-        ) = parse_arff(arff_file=arff_file, is_go=is_go)
+        ) = parse_arff(arff_file=arff_file, is_go=is_go, read_data=read_data, use_sample=use_sample)
         self.to_eval = [t not in to_skip for t in self.terms]
-        r_, c_ = np.where(np.isnan(self.X))
-        m = np.nanmean(self.X, axis=0)
-        for i, j in zip(r_, c_):
-            self.X[i, j] = m[j]
+        if read_data:
+            r_, c_ = np.where(np.isnan(self.X))
+            m = np.nanmean(self.X, axis=0)
+            for i, j in zip(r_, c_):
+                self.X[i, j] = m[j]
 
 
-def parse_arff(arff_file, is_go=False):
-    sample_limit = False
+def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
+    reading_data = False
+    print("Use sample %s" % use_sample)
     with open(arff_file, "r", encoding="utf-8") as f:
-        read_data = False
         X = []
         Y = []
         Y_local = []
@@ -72,14 +74,17 @@ def parse_arff(arff_file, is_go=False):
                     h = l.split("hierarchical")[1].strip()
                     for branch in h.split(","):
                         terms = branch.split("/")
-                        all_terms.append(branch)
-                        level = branch.count(
-                            "/"
-                        )  # Count the number of '.' to determine the level
-                        levels[level].append(branch)
+                        if len(terms) > 1:
+                            all_terms.extend(terms)
+                        else:
+                            all_terms.append(terms)
                         if is_go:
                             g.add_edge(terms[1], terms[0])
                         else:
+                            level = branch.count(
+                                "/"
+                            )  # Count the number of '.' to determine the level
+                            levels[level].append(branch)
                             if len(terms) == 1:
                                 g.add_edge(terms[0], "root")
                             else:
@@ -145,8 +150,9 @@ def parse_arff(arff_file, is_go=False):
                             lambda x, i: d[i].get(x, [0.0] * cats_lens[i])
                         )
             elif l.startswith("@DATA"):
-                read_data = True
-            elif read_data:
+                if read_data:
+                    reading_data = True
+            elif reading_data:
                 y_ = np.zeros(len(nodes))
                 sorted_keys = sorted(levels_size.keys())
                 y_local_ = [np.zeros(levels_size.get(key)) for key in sorted_keys]
@@ -206,7 +212,8 @@ def parse_arff(arff_file, is_go=False):
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
-            if sample_limit and count != 0 and count % 100 == 0:
+            if use_sample and count != 0 and count % 20 == 0:
+                print("fazendo parada")
                 break
         X = np.array(X)
         Y = np.stack(Y)

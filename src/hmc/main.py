@@ -284,7 +284,11 @@ def main():
         logging.info(f"Job ID created: {args.job_id}")
     else:
         logging.info(f"Using Job ID: {args.job_id}")
-    
+
+    if args.use_sample == "true":
+        args.use_sample = True
+    else:
+        args.use_sample = False
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -336,6 +340,7 @@ def main():
                 dataset_type=args.dataset_type,
                 is_global=False,
                 read_data=read_data,
+                use_sample=args.use_sample,
             )
             train_dataset = torch.load(train_path, weights_only=False)
             val_dataset = torch.load(val_path, weights_only=False)
@@ -348,6 +353,7 @@ def main():
                 dataset_type=args.dataset_type,
                 is_global=False,
                 read_data=read_data,
+                use_sample=args.use_sample,
             )
             data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
 
@@ -397,11 +403,11 @@ def main():
                 for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
             ]
 
-
-            # Save datasets in torch format
-            torch.save(train_dataset, train_path)
-            torch.save(val_dataset, val_path)
-            torch.save(test_dataset, test_path)
+            if args.save_torch_dataset:
+                # Save datasets in torch format
+                torch.save(train_dataset, train_path)
+                torch.save(val_dataset, val_path)
+                torch.save(test_dataset, test_path)
 
 
         train_loader = DataLoader(

@@ -133,6 +133,10 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
     Returns:
         np.ndarray: Array of shape [n_samples, n_global_labels] with the corresponding global binary predictions.
     """
+    print("nodes idx")
+    print(nodes_idx)
+    print("local nodes idx")
+    print(local_nodes_idx)
     n_samples = local_labels[0].shape[0]
     n_global_labels = len(nodes_idx)
     global_preds = np.zeros((n_samples, n_global_labels))
@@ -144,7 +148,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
     # logging.info(f"Local nodes idx: {local_nodes_idx}")
     # logging.info(f"Local nodes reverse: {local_nodes_reverse}")
 
-    logging.info("Exemplos: %d", n_samples)
+    logging.info(f"Exemplos: {n_samples}")
     # logging.info(f"Shape local_preds: {len(local_labels)}")
     # logging.info(f"Local nodes idx: {local_nodes_reverse}")
 
@@ -163,9 +167,8 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
                     activated_nodes_by_example[idx_example].append(node_name)
                 else:
                     logging.info(
-                        "[WARN] Índice local %d não encontrado no nível %d ",
-                        local_idx,
-                        level,
+                        f"[WARN] Índice local {local_idx} \
+                            não encontrado no nível {level}"
                     )
 
     # logging.info(f"Node names ativados por exemplo: {activated_nodes_by_example[0]}")
@@ -178,22 +181,14 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
-            node_name = node_name.replace("/", ".")
-            node_name_parsed = []
-            if len(node_name.split(".")) > 1:
-                node_name_parsed.append(node_name.split("."))
+            key = node_name.replace("/", ".")
+            if key in nodes_idx:
+                global_idx = nodes_idx[key]
+                global_preds[idx_example][global_idx] = 1
             else:
-                node_name_parsed.append(node_name)
-
-            for key in node_name.split("."):
-                if key in nodes_idx:
-                    global_idx = nodes_idx[key]
-                    global_preds[idx_example][global_idx] = 1
-                else:
-                    logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")
+                logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")
 
     return global_preds
-
 
 def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
     """

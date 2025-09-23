@@ -25,7 +25,8 @@ DATASET_TYPE="arff"
 HPO="false"
 REMOTE="false"
 N_TRIALS=30
-
+JOB_ID="false"
+USE_SAMPLE="false"
 
 
 export PYTHONPATH=src
@@ -38,7 +39,9 @@ usage() {
     echo "Usage: $0 [options]"
     echo ""
     echo "Available options:"
+    echo "  --job_id <type>           Job id  (default: $JOB_ID)" 
     echo "  --dataset <name>          Dataset name (default: $DATASET)"
+    echo "  --use_sample <yes/no      Use just a smple of data  (default: $USE_SAMPLE)"
     echo "  --dataset_path <path>     Dataset path (default: $DATASET_PATH)"
     echo "  --seed <num>              Random seed (default: $SEED)"
     echo "  --dataset_type <type>     Dataset type (default: $DATASET_TYPE)"
@@ -67,7 +70,9 @@ usage() {
 # Processamento dos argumentos
 while [ "$#" -gt 0 ]; do
     case $1 in
+        --job_id) JOB_ID="$2"; shift ;;
         --dataset) DATASET="$2"; shift ;;
+        --use_sample) USE_SAMPLE="$2"; shift ;;
         --dataset_path) DATASET_PATH="$2"; shift ;;
         --seed) SEED="$2"; shift ;;
         --dataset_type) DATASET_TYPE="$2"; shift ;;
@@ -96,7 +101,9 @@ done
 
 
 cmd="python -m hmc.main \
+                --job_id $JOB_ID \
                 --dataset_path $DATASET_PATH \
+                --use_sample $USE_SAMPLE \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
                 --non_lin $NON_LIN \

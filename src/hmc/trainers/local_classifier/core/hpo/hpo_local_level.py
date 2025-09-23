@@ -145,13 +145,20 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, args.input_size, args.input_size*3, log=True)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
-        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
         weight_decay = trial.suggest_float(
             "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
         )
         lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-2, log=True)
+        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 5, log=True)
+        hidden_dims = []
+
+        # 3. Use um laço para sugerir a dimensão de CADA camada
+        for i in range(num_layers):
+            # O nome do parâmetro agora inclui o índice da camada (ex: 'hidden_dim_level_0_layer_0')
+            dim = trial.suggest_int("hidden_dim_level_%s_layer_%s" % (level, i), args.input_size, args.input_size*3, log=True)
+            hidden_dims.append(dim)
+
         args.current_level = [level]
 
         args.level_active = [
@@ -161,7 +168,7 @@ def optimize_hyperparameters(args):
         params = {
             "levels_size": args.levels_size,
             "input_size": args.input_size,
-            "hidden_size": hidden_dim,
+            "hidden_dims": hidden_dims,
             "num_layers": num_layers,
             "dropout": dropout,
             "active_levels": args.current_level,
@@ -177,7 +184,8 @@ def optimize_hyperparameters(args):
         args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
-        criterions = [criterion.to(args.device) for criterion in args.criterions]
+        for criterion in args.criterions:
+            criterion.to(args.device)
 
         args.best_val_loss = [float("inf")] * args.max_depth
         args.best_val_score = [0.0] * args.max_depth
@@ -275,10 +283,19 @@ def optimize_hyperparameters(args):
         )
 
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
+
+        num_layers = study.best_params[f"num_layers_level_{level}"]
+
+        # Reconstrói a lista de dimensões
+        hidden_dims = [
+            study.best_params[f"hidden_dim_level_{level}_layer_{i}"]
+            for i in range(num_layers)
+        ]
+
         level_parameters = {
-            "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
+            "hidden_dims": hidden_dims,
             "dropout": study.best_params[f"dropout_level_{level}"],
-            "num_layers": study.best_params[f"num_layers_level_{level}"],
+            "num_layers": num_layers,
             "weight_decay": study.best_params[f"weight_decay_level_{level}"],
             "lr": study.best_params[f"lr_level_{level}"],
         }
