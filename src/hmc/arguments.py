@@ -5,6 +5,14 @@ def get_parser():
     parser = argparse.ArgumentParser(
         description="Train a Hierarchical Multi-label Classification model."
     )
+
+    parser.add_argument(
+        "--job_id",
+        type=str,
+        required=False,
+        help="Job id for trainer job.",
+    )
+
     # Dataset parameters
     parser.add_argument(
         "--datasets",
@@ -13,6 +21,7 @@ def get_parser():
         default=["seq_GO", "derisi_GO", "gasch1_GO", "cellcycle_FUN"],
         help="List with dataset names.",
     )
+
     parser.add_argument(
         "--dataset_path",
         type=str,
