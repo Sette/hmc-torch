@@ -89,7 +89,7 @@ class HMCLocalModel(nn.Module):
         else:
             self.max_depth = len(levels_size)
         if isinstance(hidden_dims, int) or isinstance(hidden_dims, list):
-            hidden_dims = {level: hidden_dims for level in active_levels}
+            hidden_dims = {level: hidden_dims[level] for level in active_levels}
         if isinstance(num_layers, int):
             num_layers = {level: num_layers for level in active_levels}
         if isinstance(dropout, float):
