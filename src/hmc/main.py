@@ -8,6 +8,7 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constrained.train_global import train_global
+from hmc.trainers.local_classifier.core.test_local import test_step
 
 from hmc.utils.dir import create_job_id
 from hmc.utils.dir import create_dir
@@ -466,7 +467,7 @@ def main():
             params = {
                 "levels_size": args.hmc_dataset.levels_size,
                 "input_size": args.input_dims[args.data],
-                "hidden_size": args.hidden_dims,
+                "hidden_dims": args.hidden_dims,
                 "num_layers": args.num_layers_values,
                 "dropout": args.dropout_values,
                 "active_levels": args.active_levels,
@@ -477,10 +478,6 @@ def main():
 
             args.model = args.train_methods["model"](**params)
             logging.info(args.model)
-            # Create the model
-            # model = HMCLocalClassificationModel(levels_size=hmc_dataset.levels_size,
-            #                                     input_size=args.input_dims[data],
-            #                                     hidden_size=args.hidden_dim)
 
         match args.method:
             case "local" | "local_constrained" | "local_mask":
@@ -492,7 +489,6 @@ def main():
                 logging.info("Global method selected")
                 train_global(dataset_name, args)
             case "local_test":
-                from hmc.trainers.local_classifier.core.test_local import test_step
 
                 logging.info("Test local method selected")
 
