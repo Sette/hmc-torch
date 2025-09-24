@@ -7,12 +7,12 @@ packages = [{ include = "hmc", from = "src" }]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.11,<3.13"
 tqdm = ">=4.66.4"
-numpy = "2.0"
-torch = { version = "2.5.1", source = "pytorch-gpu" }
-torchaudio = { version = "2.5.1", source = "pytorch-gpu" }
-torchvision = { version = "0.20.1", source = "pytorch-gpu" }
+numpy = "^2.3.3"
+torch = { version = "2.5.1", source = "pytorch-cpu" }
+torchaudio = { version = "2.5.1", source = "pytorch-cpu" }
+torchvision = { version = "0.20.1", source = "pytorch-cpu" }
 pandas = ">=1.5.0"
 dataset = ">=1.6.2"
 scikit-learn = ">=1.2.2"
@@ -24,8 +24,8 @@ logging = "^0.4.9.6"
 
 
 [[tool.poetry.source]]
-name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/cu118"
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 priority = "explicit"
 
 [tool.poetry.group.dev.dependencies]

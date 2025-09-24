@@ -1,4 +1,5 @@
 import argparse
+import json
 
 
 def get_parser():
@@ -179,12 +180,11 @@ def get_parser():
     )
     parser.add_argument(
         "--hidden_dims",
-        type=int,
-        nargs="+",
+        type=json.loads,  # aceita JSON (ex.: '[[128,64],[256]]')
         required=False,
         metavar="HIDDEN_DIMS",
-        help="List of values for the number"
-        " of hidden neurons (used when HPO is disabled).",
+        help="List (or list of lists) of hidden neurons. "
+        "Can be passed as JSON when HPO is enabled (e.g. '[[128,64],[256]]').",
     )
     parser.add_argument(
         "--num_layers_values",
