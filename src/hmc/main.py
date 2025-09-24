@@ -28,6 +28,7 @@ from hmc.trainers.local_classifier.core.test_local import (
 from hmc.trainers.local_classifier.core.train_local import (
     train_step as train_step_core,
 )
+
 # Import necessary modules for constrained training local classifiers
 from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
 
@@ -105,8 +106,6 @@ def assert_hyperparameter_lengths(
         print("All hyperparameter lists have the correct length.")
     else:
         print("One or more hyperparameter lists have the wrong length.")
-
-
 
 
 def main():
@@ -296,8 +295,8 @@ def main():
         args.dataset_name = dataset_name
 
         args.results_path = (
-                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-                )
+            f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+        )
 
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
@@ -320,7 +319,6 @@ def main():
         args.data, args.ontology = args.dataset_name.split("_")
 
         create_dir(args.results_path)
-        
 
         # Caminhos
         train_path = os.path.join(args.results_path, "train_dataset.pt")
@@ -330,7 +328,11 @@ def main():
         read_data = True
 
         # Se já existir, carrega. Se não, cria e salva
-        if os.path.exists(train_path) and os.path.exists(val_path) and os.path.exists(test_path):
+        if (
+            os.path.exists(train_path)
+            and os.path.exists(val_path)
+            and os.path.exists(test_path)
+        ):
             print("Loading existing datasets...")
             read_data = False
             args.hmc_dataset = initialize_dataset_experiments(
@@ -345,7 +347,7 @@ def main():
             train_dataset = torch.load(train_path, weights_only=False)
             val_dataset = torch.load(val_path, weights_only=False)
             test_dataset = torch.load(test_path, weights_only=False)
-        else:          
+        else:
             args.hmc_dataset = initialize_dataset_experiments(
                 args.dataset_name,
                 device=args.device,
@@ -390,12 +392,16 @@ def main():
             # Create loaders using local (per-level) y labels
             train_dataset = [
                 (x, y_levels, y)
-                for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
+                for (x, y_levels, y) in zip(
+                    data_train.X, data_train.Y_local, data_train.Y
+                )
             ]
 
             val_dataset = [
                 (x, y_levels, y)
-                for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
+                for (x, y_levels, y) in zip(
+                    data_valid.X, data_valid.Y_local, data_valid.Y
+                )
             ]
 
             test_dataset = [
@@ -408,7 +414,6 @@ def main():
                 torch.save(train_dataset, train_path)
                 torch.save(val_dataset, val_path)
                 torch.save(test_dataset, test_path)
-
 
         train_loader = DataLoader(
             dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -445,7 +450,7 @@ def main():
         else:
             args.lr_values = [float(x) for x in args.lr_values]
             args.dropout_values = [float(x) for x in args.dropout_values]
-            args.hidden_dims = [int(x) for x in args.hidden_dims]
+            # args.hidden_dims = [int(x) for x in args.hidden_dims]
             args.num_layers_values = [int(x) for x in args.num_layers_values]
             args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
