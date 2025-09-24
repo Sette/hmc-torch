@@ -120,11 +120,11 @@ cmd="python -m hmc.main \
 
 if [ "$DATASET" = "all" ]; then
     for dataset_local in $DATASETS; do
-        HIDDEN_DIMS=$(yq '.datasets_params.'"$dataset_local"'.hidden_dims[]' config.yaml | xargs)
-        LR_VALUES=$(yq '.datasets_params.'"$dataset_local"'.lr_values[]' config.yaml | xargs)
-        DROPOUT_VALUES=$(yq '.datasets_params.'"$dataset_local"'.dropout_values[]' config.yaml | xargs)
-        NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$dataset_local"'.num_layers_values[]' config.yaml | xargs)
-        WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$dataset_local"'.weight_decay_values[]' config.yaml | xargs)
+        HIDDEN_DIMS=$(yq eval -j '.datasets_params.'"$dataset_local"'.hidden_dims' config.yaml | jq -c .)
+        LR_VALUES=$(yq eval '.datasets_params.'"$dataset_local"'.lr_values[]' config.yaml | xargs)
+        DROPOUT_VALUES=$(yq eval '.datasets_params.'"$dataset_local"'.dropout_values[]' config.yaml | xargs)
+        NUM_LAYERS_VALUES=$(yq eval '.datasets_params.'"$dataset_local"'.num_layers_values[]' config.yaml | xargs)
+        WEIGHT_DECAY_VALUES=$(yq eval '.datasets_params.'"$dataset_local"'.weight_decay_values[]' config.yaml | xargs)
 
         echo "Using dataset: $dataset_local"
         echo "Using hidden dimensions: $HIDDEN_DIMS"
