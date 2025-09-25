@@ -172,6 +172,7 @@ def optimize_hyperparameters(args):
             "num_layers": num_layers,
             "dropout": dropout,
             "active_levels": args.current_level,
+            "hpo": True,
         }
 
         args.model = HMCLocalModel(**params).to(args.device)

@@ -17,7 +17,7 @@ BATCH_SIZE=64
 NON_LIN="relu"
 DEVICE="cpu"
 EPOCHS=2000
-EPOCHS_TO_EVALUATE=10
+EPOCHS_TO_EVALUATE=1
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
@@ -27,6 +27,7 @@ REMOTE="false"
 N_TRIALS=30
 JOB_ID="false"
 USE_SAMPLE="false"
+SAVE_TORCH_DATASET="true"
 
 
 export PYTHONPATH=src
@@ -41,7 +42,8 @@ usage() {
     echo "Available options:"
     echo "  --job_id <type>           Job id  (default: $JOB_ID)" 
     echo "  --dataset <name>          Dataset name (default: $DATASET)"
-    echo "  --use_sample <yes/no      Use just a smple of data  (default: $USE_SAMPLE)"
+    echo "  --use_sample <yes/no>     Use just a smple of data  (default: $USE_SAMPLE)"
+    echo "  --save_torch_dataset <yes/no> Save torch dataset (default: $SAVE_TORCH_DATASET)"
     echo "  --dataset_path <path>     Dataset path (default: $DATASET_PATH)"
     echo "  --seed <num>              Random seed (default: $SEED)"
     echo "  --dataset_type <type>     Dataset type (default: $DATASET_TYPE)"
@@ -73,6 +75,7 @@ while [ "$#" -gt 0 ]; do
         --job_id) JOB_ID="$2"; shift ;;
         --dataset) DATASET="$2"; shift ;;
         --use_sample) USE_SAMPLE="$2"; shift ;;
+        --save_torch_dataset) SAVE_TORCH_DATASET="$2"; shift ;;
         --dataset_path) DATASET_PATH="$2"; shift ;;
         --seed) SEED="$2"; shift ;;
         --dataset_type) DATASET_TYPE="$2"; shift ;;
@@ -104,6 +107,7 @@ cmd="python -m hmc.main \
                 --job_id $JOB_ID \
                 --dataset_path $DATASET_PATH \
                 --use_sample $USE_SAMPLE \
+                --save_torch_dataset $SAVE_TORCH_DATASET \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
                 --non_lin $NON_LIN \

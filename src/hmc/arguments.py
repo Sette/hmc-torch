@@ -37,7 +37,7 @@ def get_parser():
     parser.add_argument(
         "--save_torch_dataset",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
         metavar="USE_SAMPLE",
         required=False,

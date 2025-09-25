@@ -74,10 +74,7 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                     h = l.split("hierarchical")[1].strip()
                     for branch in h.split(","):
                         terms = branch.split("/")
-                        if len(terms) > 1:
-                            all_terms.extend(terms)
-                        else:
-                            all_terms.append(terms)
+                        all_terms.append(branch)
                         if is_go:
                             g.add_edge(terms[1], terms[0])
                         else:
@@ -103,12 +100,6 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
 
-                    if not is_go:
-                        levels_size = {
-                            key: len(set(value)) for key, value in levels.items()
-                        }
-                        max_depth = len(levels_size)
-                        print(f"Levels size: {levels_size}")
 
                     if is_go:
                         for label in nodes:
@@ -123,6 +114,13 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                         max_depth = len(levels_size)
                         print(f"Levels size go dataset: {levels_size}")
                         print(f"Max depth: {max_depth}")
+                    else:
+                        levels_size = {
+                            key: len(set(value)) for key, value in levels.items()
+                        }
+                        max_depth = len(levels_size)
+                        print(f"Levels size: {levels_size}")
+
                     local_nodes_idx = {
                         idx: dict(zip(level_nodes, range(len(level_nodes))))
                         for idx, level_nodes in levels.items()
@@ -191,7 +189,7 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                             if ancestor != "root":
                                 depth = nx.shortest_path_length(g_t, "root").get(
                                     ancestor
-                                )
+                                ) - 1
                                 y_local_[depth][
                                     local_nodes_idx[depth].get(ancestor)
                                 ] = 1

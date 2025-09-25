@@ -10,9 +10,9 @@ readme = "README.md"
 python = ">=3.11,<3.13"
 tqdm = ">=4.66.4"
 numpy = "^2.3.3"
-torch = { version = "2.5.1", source = "pytorch-cpu" }
-torchaudio = { version = "2.5.1", source = "pytorch-cpu" }
-torchvision = { version = "0.20.1", source = "pytorch-cpu" }
+torch = { version = "2.8.0", source = "pytorch-gpu" }
+torchaudio = { version = "2.8.0", source = "pytorch-gpu" }
+torchvision = { version = "0.23.0", source = "pytorch-gpu" }
 pandas = ">=1.5.0"
 dataset = ">=1.6.2"
 scikit-learn = ">=1.2.2"
@@ -24,8 +24,8 @@ logging = "^0.4.9.6"
 
 
 [[tool.poetry.source]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/cu126"
 priority = "explicit"
 
 [tool.poetry.group.dev.dependencies]

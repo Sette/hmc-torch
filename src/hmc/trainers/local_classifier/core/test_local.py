@@ -45,7 +45,7 @@ def test_step(args):
             torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"), weights_only=True)
         )
 
-    threshold = 0.2
+    threshold = 0.6
     y_true_global = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
@@ -109,12 +109,14 @@ def test_step(args):
         all_y_pred_binary,
         args.hmc_dataset.local_nodes_idx,
         args.hmc_dataset.nodes_idx,
+        args.hmc_dataset.g_t,
+        is_go=args.hmc_dataset.is_go,
     )
     logging.info("Y true")
-    logging.info(y_true_global_original)
+    print(y_true_global_original[0].tolist())
     logging.info("Y pred")
-    logging.info(y_pred_global_binary)
-    return None
+    print(y_pred_global_binary[0].tolist())
+
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],

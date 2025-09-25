@@ -2,7 +2,7 @@ import pickle
 import logging
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
-
+import networkx as nx
 
 logging.basicConfig(level=logging.INFO)
 
@@ -120,7 +120,7 @@ def binarize_labels(dataset_df, args):
 
 
 
-def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=True):
+def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, g_t, is_go=False):
     """
     Converts local-level predictions to global predictions.
 
@@ -133,10 +133,11 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
     Returns:
         np.ndarray: Array of shape [n_samples, n_global_labels] with the corresponding global binary predictions.
     """
-    print("nodes idx")
-    print(nodes_idx)
-    print("local nodes idx")
-    print(local_nodes_idx)
+    # logging.info("nodes idx")
+    # logging.info(nodes_idx)
+    #
+    logging.info("local nodes idx")
+    logging.info(local_nodes_idx)
     n_samples = local_labels[0].shape[0]
     n_global_labels = len(nodes_idx)
     global_preds = np.zeros((n_samples, n_global_labels))
@@ -148,7 +149,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
     # logging.info(f"Local nodes idx: {local_nodes_idx}")
     # logging.info(f"Local nodes reverse: {local_nodes_reverse}")
 
-    logging.info(f"Exemplos: {n_samples}")
+    logging.info("Exemplos: %d " % n_samples)
     # logging.info(f"Shape local_preds: {len(local_labels)}")
     # logging.info(f"Local nodes idx: {local_nodes_reverse}")
 
@@ -172,18 +173,20 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, is_go=
                     )
 
     # logging.info(f"Node names ativados por exemplo: {activated_nodes_by_example[0]}")
-    global_indices = []
-    for node in activated_nodes_by_example[0]:
-        # logging.info(f"Node names ativados: {node}")
-        if "/" in node:
-            node = node.replace("/", ".")
-        global_indices.append(nodes_idx.get(node))
+    # global_indices = []
+    # for node in activated_nodes_by_example[0]:
+    #     # logging.info(f"Node names ativados: {node}")
+    #     if "/" in node:
+    #         node = node.replace("/", ".")
+    #     global_indices.append(nodes_idx.get(node))
+    print("Nodes exemplo 0")
+    print(activated_nodes_by_example[0])
     # Etapa 2: converter node_names para índices globais
     for idx_example, node_names in enumerate(activated_nodes_by_example):
         for node_name in node_names:
             key = node_name.replace("/", ".")
+            global_idx = nodes_idx[key]
             if key in nodes_idx:
-                global_idx = nodes_idx[key]
                 global_preds[idx_example][global_idx] = 1
             else:
                 logging.info(f"[WARN] Node '{key}' não encontrado em nodes_idx")

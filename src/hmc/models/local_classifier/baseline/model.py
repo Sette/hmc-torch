@@ -33,21 +33,20 @@ class BuildClassification(nn.Module):
         input_shape,
         hidden_dims,
         output_size,
-        nb_layers,
         dropout=0.5,
     ):
         super(BuildClassification, self).__init__()
         layers = []
-        current_dim = input_shape
-
+        current_dim = int(input_shape)
+        print(hidden_dims)
         # Itera sobre a lista de dimensões ocultas
         for h_dim in hidden_dims:
-            layers.append(nn.Linear(current_dim, h_dim))
+            layers.append(nn.Linear(current_dim, int(h_dim)))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))
-            current_dim = h_dim  # A saída desta camada é a entrada da próxima
+            current_dim = int(h_dim)  # A saída desta camada é a entrada da próxima
 
-        layers.append(nn.Linear(current_dim, output_size))
+        layers.append(nn.Linear(current_dim, int(output_size)))
         layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
         self.classifier = nn.Sequential(*layers)
@@ -65,6 +64,7 @@ class HMCLocalModel(nn.Module):
         num_layers=None,
         dropout=None,
         active_levels=None,
+        hpo=False,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
@@ -84,16 +84,13 @@ class HMCLocalModel(nn.Module):
         self.dropout = dropout
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
-        if isinstance(levels_size, int):
-            levels_size = {level: levels_size for level in active_levels}
+        if hpo:
+            # levels_size = {level: levels_size for level in active_levels}
+            dropout = {level: dropout for level in active_levels}
+            num_layers = {level: num_layers for level in active_levels}
+            hidden_dims = {level: hidden_dims for level in active_levels}
         else:
             self.max_depth = len(levels_size)
-        if isinstance(hidden_dims, int) or isinstance(hidden_dims, list):
-            hidden_dims = {level: hidden_dims[level] for level in active_levels}
-        if isinstance(num_layers, int):
-            num_layers = {level: num_layers for level in active_levels}
-        if isinstance(dropout, float):
-            dropout = {level: dropout for level in active_levels}
 
         logging.info(
             "HMCLocalModel: input_size=%s, levels_size=%s, "
@@ -111,7 +108,6 @@ class HMCLocalModel(nn.Module):
                 input_shape=input_size,
                 hidden_dims=hidden_dims[index],
                 output_size=levels_size[index],
-                nb_layers=num_layers[index],
                 dropout=dropout[index],
             )
 

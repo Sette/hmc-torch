@@ -391,6 +391,8 @@ class HMCDatasetManager:
         self.edges_matrix_dict = self.train.edges_matrix_dict
         # self.r = self._matrix_r(self.a)
         # self._matrix_r_local()
+        self.g = self.train.g
+        self.g_t = self.g.reverse()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
