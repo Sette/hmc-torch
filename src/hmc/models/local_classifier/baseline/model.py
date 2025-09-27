@@ -38,7 +38,6 @@ class BuildClassification(nn.Module):
         super(BuildClassification, self).__init__()
         layers = []
         current_dim = int(input_shape)
-        print(hidden_dims)
         # Itera sobre a lista de dimensões ocultas
         for h_dim in hidden_dims:
             layers.append(nn.Linear(current_dim, int(h_dim)))

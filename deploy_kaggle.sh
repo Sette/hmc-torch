@@ -169,5 +169,5 @@ ssh "$REMOTE_HOST" "
         --remote true \
         --dataset_type arff \
         --n_trials 30 \
-        --dataset cellcycle_GO  \
+        --dataset all  \
     "
