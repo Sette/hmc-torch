@@ -208,7 +208,7 @@ def get_parser():
     parser.add_argument(
         "--patience",
         type=int,
-        default=15,
+        default=10,
         metavar="PATIENCE",
         required=False,
         help="Number of epochs with no improvement \
@@ -218,7 +218,7 @@ def get_parser():
     parser.add_argument(
         "--patience_f1",
         type=int,
-        default=25,
+        default=20,
         metavar="PATIENCE_F1",
         required=False,
         help="Number of epochs with no improvement \
