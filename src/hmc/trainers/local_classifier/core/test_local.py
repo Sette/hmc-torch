@@ -3,6 +3,7 @@ import logging
 import os
 import torch
 from sklearn.metrics import (
+    average_precision_score,
     precision_recall_fscore_support,
 )
 
@@ -163,10 +164,19 @@ def test_step(args):
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
+    avgscore = average_precision_score(
+        y_true_global_original[:, args.hmc_dataset.to_eval],
+        y_pred_global_binary[:, args.hmc_dataset.to_eval],
+        average="micro",
+    )
+
+    print("Average precision score: %.4f" % avgscore)
+
     local_test_score["global"] = {
         "precision": score[0],
         "recall": score[1],
         "f1score": score[2],
+        "avgscore": avgscore,
     }
 
     local_test_score["metadata"] = {

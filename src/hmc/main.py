@@ -330,6 +330,7 @@ def main():
         test_path = os.path.join(args.results_path, "test_dataset.pt")
 
         read_data = True
+        is_global = args.method == "global" or args.method == "global_baseline"
 
         # Se já existir, carrega. Se não, cria e salva
         if (
@@ -344,7 +345,7 @@ def main():
                 device=args.device,
                 dataset_path=args.dataset_path,
                 dataset_type=args.dataset_type,
-                is_global=False,
+                is_global=is_global,
                 read_data=read_data,
                 use_sample=args.use_sample,
             )
@@ -357,7 +358,7 @@ def main():
                 device=args.device,
                 dataset_path=args.dataset_path,
                 dataset_type=args.dataset_type,
-                is_global=False,
+                is_global=is_global,
                 read_data=read_data,
                 use_sample=args.use_sample,
             )
