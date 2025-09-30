@@ -8,7 +8,6 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constrained.train_global import train_global
-from hmc.trainers.local_classifier.core.test_local import test_step
 
 from hmc.utils.dir import create_job_id
 from hmc.utils.dir import create_dir
@@ -78,6 +77,10 @@ def get_train_methods(x):
             return {
                 "model": HMCLocalModel,
                 "test_step": test_step_core,
+            }
+        case "global":
+            return {
+                "model": ConstrainedHMCLocalModel,
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
@@ -449,35 +452,36 @@ def main():
 
             logging.info(best_params)
         else:
-            args.lr_values = [float(x) for x in args.lr_values]
-            args.dropout_values = [float(x) for x in args.dropout_values]
-            # args.hidden_dims = [int(x) for x in args.hidden_dims]
-            args.num_layers_values = [int(x) for x in args.num_layers_values]
-            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+            if args.lr_values:
+                args.lr_values = [float(x) for x in args.lr_values]
+                args.dropout_values = [float(x) for x in args.dropout_values]
+                # args.hidden_dims = [int(x) for x in args.hidden_dims]
+                args.num_layers_values = [int(x) for x in args.num_layers_values]
+                args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
-            # Ensure all hyperparameter lists have the same length as 'max_depth'
-            assert_hyperparameter_lengths(
-                args,
-                args.lr_values,
-                args.dropout_values,
-                args.hidden_dims,
-                args.num_layers_values,
-                args.weight_decay_values,
-            )
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_dims": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropout": args.dropout_values,
-                "active_levels": args.active_levels,
-            }
+                # Ensure all hyperparameter lists have the same length as 'max_depth'
+                assert_hyperparameter_lengths(
+                    args,
+                    args.lr_values,
+                    args.dropout_values,
+                    args.hidden_dims,
+                    args.num_layers_values,
+                    args.weight_decay_values,
+                )
+                params = {
+                    "levels_size": args.hmc_dataset.levels_size,
+                    "input_size": args.input_dims[args.data],
+                    "hidden_dims": args.hidden_dims,
+                    "num_layers": args.num_layers_values,
+                    "dropout": args.dropout_values,
+                    "active_levels": args.active_levels,
+                }
 
-            if args.method == "local_constrained":
-                params["all_matrix_r"] = args.hmc_dataset.all_matrix_r
+                if args.method == "local_constrained":
+                    params["all_matrix_r"] = args.hmc_dataset.all_matrix_r
 
-            args.model = args.train_methods["model"](**params)
-            logging.info(args.model)
+                args.model = args.train_methods["model"](**params)
+                logging.info(args.model)
 
         match args.method:
             case "local" | "local_constrained" | "local_mask":

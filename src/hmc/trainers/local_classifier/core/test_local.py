@@ -73,49 +73,62 @@ def test_step(args):
         level: {"f1score": None, "precision": None, "recall": None}
         for _, level in enumerate(args.active_levels)
     }
-    all_y_pred_binary = []
-    all_y_pred = []
     thresholds = np.linspace(0.1, 0.9, 17)
 
-    best_thresholds = {level: 0 for _, level in enumerate(args.active_levels)}
-    best_scores = {level: {'precision': 0, 'recall': 0, 'f1score': 0} for _, level in enumerate(args.active_levels)}
+    best_thresholds = {level: 0.6 for _, level in enumerate(args.active_levels)}
+    # best_scores = {level: {'precision': 0, 'recall': 0, 'f1score': 0} for _, level in enumerate(args.active_levels)}
+    # logging.info("Evaluating %d active levels...", len(args.active_levels))
+    # for level in args.active_levels:
+    #     for t in thresholds:
+    #         y_pred = local_outputs[level].to("cpu").numpy()
+    #         y_pred_binary = y_pred > t
+    #
+    #         # all_y_pred_binary.append(y_pred_binary)
+    #         # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
+    #
+    #         score = precision_recall_fscore_support(
+    #             local_inputs[level], y_pred_binary, average="micro", zero_division=0,
+    #         )
+    #
+    #         precision = score[0]
+    #         recall = score[1]
+    #         f1_score = score[2]
+    #
+    #         if precision > best_scores[level]['precision']:
+    #             best_thresholds[level] = t
+    #             best_scores[level] = {
+    #                 "precision": precision,
+    #                 "recall": recall,
+    #                 "f1score": f1_score,
+    #             }
+    #
+    # print("Best thresholds per level:")
+    # for idx in args.active_levels:
+    #     print(
+    #         f"Level {idx}: threshold={best_thresholds[idx]:.2f}, "
+    #     )
+
+    all_y_pred_binary = []
+    all_y_pred = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
-    for level in args.active_levels:
-        best_y_pred = []
-        for t in thresholds:
-            y_pred = local_outputs[level].to("cpu").numpy()
-            all_y_pred.append(y_pred)
-            y_pred_binary = y_pred > t
-
-            # all_y_pred_binary.append(y_pred_binary)
-            # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
-
-            score = precision_recall_fscore_support(
-                local_inputs[level], y_pred_binary, average="micro", zero_division=0,
-            )
-
-            precision = score[0]
-            recall = score[1]
-            f1_score = score[2]
-
-            if f1_score > best_scores[level]['f1score']:
-                best_thresholds[level] = t
-                best_scores[level] = {
-                    "precision": precision,
-                    "recall": recall,
-                    "f1score": f1_score,
-                }
-                best_y_pred = y_pred_binary
-        all_y_pred_binary.append(best_y_pred)
-
-    print("Best thresholds per level:")
     for idx in args.active_levels:
-        print(
-            f"Level {idx}: threshold={best_thresholds[idx]:.2f}, "
-            f"F1={best_scores[idx]['f1score']:.4f}, "
-            f"Precision={best_scores[idx]['precision']:.4f}, "
-            f"Recall={best_scores[idx]['recall']:.4f}"
+        y_pred = local_outputs[idx].to("cpu").numpy()
+        all_y_pred.append(y_pred)
+        y_pred_binary = y_pred > best_thresholds[idx]
+
+        all_y_pred_binary.append(y_pred_binary)
+
+        score = precision_recall_fscore_support(
+            local_inputs[idx], y_pred_binary, average="micro", zero_division=0,
         )
+
+        # score = average_precision_score(
+        #     local_inputs[idx], y_pred_binary, average="micro"
+        # )
+        local_test_score[idx]["precision"] = score[0]  # Precision
+        local_test_score[idx]["recall"] = score[1]  # Recall
+        local_test_score[idx]["f1score"] = score[2]  # F1-score
+
     # Save the trained model
     # torch.save(
     #     args.model.state_dict(),

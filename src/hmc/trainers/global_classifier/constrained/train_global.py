@@ -72,12 +72,12 @@ def train_global(dataset_name, args):
     # Compute matrix of ancestors R
     # Given n classes, R is an (n x n) matrix where R_ij = 1 \
     # if class i is descendant of class j
-    R = np.zeros(hmc_dataset.A.shape)
+    R = np.zeros(hmc_dataset.a.shape)
     np.fill_diagonal(R, 1)
     g = nx.DiGraph(
-        hmc_dataset.A
+        hmc_dataset.a
     )  # train.A is the matrix where the direct connections are stored
-    for i in range(len(hmc_dataset.A)):
+    for i in range(len(hmc_dataset.a)):
         # here we need to use the function nx.descendants() \
         # because in the directed graph the edges have source \
         # from the descendant and point towards the ancestor
