@@ -164,7 +164,7 @@ ssh "$REMOTE_HOST" "
         --dataset_path /kaggle/input/gene-ontology-original \
         --output_path  /kaggle/working/results \
         --method local \
-        --epochs_to_evaluate 1 \
+        --epochs_to_evaluate 10 \
         --hpo true \
         --remote true \
         --dataset_type arff \

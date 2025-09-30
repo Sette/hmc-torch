@@ -5,11 +5,7 @@ export CUDA_LAUNCH_BLOCKING=1
 
 # Lista de datasets
 
-# DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
-
-DATASETS="spo_FUN"
-
-# DATASETS="seq_FUN"
+DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
 
 
 DATASET_PATH="./data"
@@ -124,7 +120,7 @@ cmd="python -m hmc.main \
 
 if [ "$DATASET" = "all" ]; then
     for dataset_local in $DATASETS; do
-        HIDDEN_DIMS=$(yq '.datasets_params.'"$dataset_local"'.hidden_dims[]' config.yaml | xargs)
+        HIDDEN_DIMS=$(yq -j '.datasets_params.'"$dataset_local"'.hidden_dims' config.yaml | jq -c .)
         LR_VALUES=$(yq '.datasets_params.'"$dataset_local"'.lr_values[]' config.yaml | xargs)
         DROPOUT_VALUES=$(yq '.datasets_params.'"$dataset_local"'.dropout_values[]' config.yaml | xargs)
         NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$dataset_local"'.num_layers_values[]' config.yaml | xargs)
