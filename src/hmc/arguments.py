@@ -66,6 +66,17 @@ def get_parser():
         help="n_trials for hpo.",
     )
 
+    parser.add_argument(
+        "--best_theshold",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="BEST_THESHOLD",
+        required=False,
+        help="Enable or disable to use find the best thesholds. \
+                        Use 'true' to enable and 'false' to disable.",
+    )
+
     # Training parameters
     parser.add_argument(
         "--batch_size",
