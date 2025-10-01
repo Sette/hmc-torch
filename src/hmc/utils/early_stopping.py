@@ -13,7 +13,7 @@ def check_metrics(metric, best_metric, metric_type="loss"):
             return True
         else:
             return False
-    elif metric_type == "f1-score":
+    elif metric_type == "score":
         if metric > best_metric:
             return True
         else:
@@ -54,7 +54,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
             is_better_metric = check_metrics(
                 metric,
                 best_metric,
-                metric_type="f1-score",
+                metric_type="score",
             )
 
             logging.info(
