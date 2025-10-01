@@ -288,6 +288,11 @@ def main():
     else:
         logging.info(f"Using Job ID: {args.job_id}")
 
+    if args.best_theshold == "true":
+        args.best_theshold = True
+    else:
+        args.best_theshold = False
+
     if args.use_sample == "true":
         args.use_sample = True
     else:
@@ -484,26 +489,26 @@ def main():
                 args.model = args.train_methods["model"](**params)
                 logging.info(args.model)
 
-        match args.method:
-            case "local" | "local_constrained" | "local_mask":
-                logging.info("Local method selected")
-                args.train_methods["train_step"](args)
-                args.train_methods["test_step"](args)
-                # train(args)
-            case "global" | "global_baseline":
-                logging.info("Global method selected")
-                train_global(dataset_name, args)
-            case "local_test":
+            match args.method:
+                case "local" | "local_constrained" | "local_mask":
+                    logging.info("Local method selected")
+                    args.train_methods["train_step"](args)
+                    args.train_methods["test_step"](args)
+                    # train(args)
+                case "global" | "global_baseline":
+                    logging.info("Global method selected")
+                    train_global(dataset_name, args)
+                case "local_test":
 
-                logging.info("Test local method selected")
+                    logging.info("Test local method selected")
 
-                args.results_path = (
-                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-                )
+                    args.results_path = (
+                        f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+                    )
 
-                args.train_methods["test_step"](args)
-            case _:  # Default case (like 'default' in other languages
-                print("Invalid option")
+                    args.train_methods["test_step"](args)
+                case _:  # Default case (like 'default' in other languages
+                    print("Invalid option")
 
 
 if __name__ == "__main__":
