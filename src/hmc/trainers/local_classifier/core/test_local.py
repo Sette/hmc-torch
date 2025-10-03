@@ -85,6 +85,7 @@ def test_step(args):
         logging.info("Evaluating %d active levels...", len(args.active_levels))
         for level in args.active_levels:
             y_pred = local_outputs[level].to("cpu").numpy()
+            y_true = local_inputs[level].to("cpu").int().numpy()
             for actual_threshold in thresholds:
                 y_pred_binary = y_pred > actual_threshold
 
@@ -92,12 +93,12 @@ def test_step(args):
                 # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
                 score = precision_recall_fscore_support(
-                    local_inputs[level], y_pred_binary, average="micro", zero_division=0,
+                    y_true, y_pred_binary, average="micro", zero_division=0,
                 )
 
                 avg_score = average_precision_score(
-                    local_inputs[level],
-                    y_pred_binary,
+                    y_true,
+                    y_pred,
                     average="micro",
                 )
 
@@ -122,7 +123,6 @@ def test_step(args):
     else:
         best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
 
-    all_y_pred_binary = []
     all_y_pred = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
@@ -130,7 +130,6 @@ def test_step(args):
         all_y_pred.append(y_pred)
         y_pred_binary = y_pred > best_thresholds[idx]
 
-        all_y_pred_binary.append(y_pred_binary)
 
         score = precision_recall_fscore_support(
             local_inputs[idx], y_pred_binary, average="micro", zero_division=0,
@@ -138,7 +137,7 @@ def test_step(args):
 
         avg_score = average_precision_score(
             local_inputs[idx],
-            y_pred_binary,
+            y_pred,
             average="micro",
         )
 
@@ -161,12 +160,10 @@ def test_step(args):
     # Concat global targets
     y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
 
-    y_pred_global_binary = local_to_global_predictions(
-        all_y_pred_binary,
+    y_pred_global, y_pred_global_binary = local_to_global_predictions(
+        all_y_pred,
         args.hmc_dataset.local_nodes_idx,
         args.hmc_dataset.nodes_idx,
-        args.hmc_dataset.g_t,
-        is_go=args.hmc_dataset.is_go,
     )
     # logging.info("Y true")
     # print(y_true_global_original[0].tolist())
@@ -186,13 +183,13 @@ def test_step(args):
     )
 
     print("pred:")
-    print(y_pred_global_binary)
+    print(y_pred_global)
     print("true:")
     print(y_true_global_original)
 
     avg_score = average_precision_score(
         y_true_global_original[:, args.hmc_dataset.to_eval],
-        y_pred_global_binary[:, args.hmc_dataset.to_eval],
+        y_pred_global[:, args.hmc_dataset.to_eval],
         average="micro",
     )
 
