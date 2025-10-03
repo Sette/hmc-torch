@@ -6,6 +6,8 @@ from hmc.trainers.local_classifier.core.valid_local import valid_step
 from hmc.utils.labels import (
     show_global_loss,
     show_local_losses,
+    hierarchy_regularization,
+    apply_hierarchy_consistency,
 )
 
 from hmc.utils.job import (
@@ -121,13 +123,20 @@ def train_step(args):
 
             total_loss = 0.0
             # Se ainda estamos no warm-up, só treine o nível 0
-            if epoch <= args.n_warmup_epochs:
+            if epoch < args.n_warmup_epochs:
                 level = 0
                 output = outputs[level].double()
                 target = targets[level].double()
                 loss = args.criterions[level](output, target)
                 local_train_losses[level] += loss
             else:
+                # hard consistency
+                outputs = apply_hierarchy_consistency(
+                    outputs,
+                    args.hmc_dataset.g,
+                    args.device,
+                    args.hmc_dataset.local_nodes_idx,
+                )
                 for level in args.active_levels:
                     if args.level_active[level]:
                         loss = calculate_local_loss(
@@ -138,6 +147,10 @@ def train_step(args):
                         )
                         local_train_losses[level] += loss.item()
                         total_loss += loss
+
+                # adicionar regularização soft
+                reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
+                total_loss += args.lambda_h * reg_loss
 
                 total_loss.backward()
                 for optimizer in args.optimizers:
