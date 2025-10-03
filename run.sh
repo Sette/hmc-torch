@@ -168,16 +168,16 @@ else
     fi
 
     if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
-            cmd+=" \
-                --lr_values ${LR_VALUES[@]} \
-                --dropout_values ${DROPOUT_VALUES[@]} \
-                --hidden_dims ${HIDDEN_DIMS[@]} \
-                --num_layers_values ${NUM_LAYERS_VALUES[@]} \
-                --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
+        cmd+=" \
+            --lr_values ${LR_VALUES[@]} \
+            --dropout_values ${DROPOUT_VALUES[@]} \
+            --hidden_dims ${HIDDEN_DIMS[@]} \
+            --num_layers_values ${NUM_LAYERS_VALUES[@]} \
+            --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
     fi
 
     TRAIN_PID=$!
-    echo "Running: $cmd"
+    echo $cmd
     $cmd
 
     trap "kill $TRAIN_PID" SIGINT SIGTERM
