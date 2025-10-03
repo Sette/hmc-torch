@@ -1,7 +1,7 @@
 import logging
 import os
 import torch
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
 from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
@@ -91,15 +91,15 @@ def valid_step(args):
 
                         # *** Para métricas e concatenação ***
                         # Se quiser outputs binários para avaliação:
-                        binary_outputs = (outputs[level] > threshold).float()
+                        # binary_outputs = (outputs[level] > threshold).float()
 
                         # Acumulação de outputs e targets para métricas
                         if i == 0:  # Primeira iteração: inicia tensor
-                            local_outputs[level] = binary_outputs
+                            local_outputs[level] = outputs[level]
                             local_inputs[level] = targets[level]
                         else:  # Nas seguintes, empilha ao longo do batch
                             local_outputs[level] = torch.cat(
-                                (local_outputs[level], binary_outputs),
+                                (local_outputs[level], outputs[level]),
                                 dim=0,
                             )
                             local_inputs[level] = torch.cat(
@@ -111,24 +111,33 @@ def valid_step(args):
         active_levels = [0]
     else:
         active_levels = args.active_levels
-    for idx in active_levels:
-        if args.level_active[idx]:
-            y_pred = local_outputs[idx].to("cpu").int().numpy()
-            y_true = local_inputs[idx].to("cpu").int().numpy()
+    for level in active_levels:
+        if args.level_active[level]:
+            y_pred = local_outputs[level].to("cpu").numpy()
+            y_true = local_inputs[level].to("cpu").int().numpy()
+            y_pred_binary = y_pred > threshold
 
             score = precision_recall_fscore_support(
-                y_true, y_pred, average="micro", zero_division=0
+                y_true, y_pred_binary, average="micro", zero_division=0
             )
+
+            avg_score = average_precision_score(
+                y_true,
+                y_pred,
+                average="micro",
+            )
+
             # local_val_score[idx] = score
             logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
-                idx,
+                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
+                level,
                 score[0],
                 score[1],
                 score[2],
+                avg_score,
             )
 
-            args.local_val_score[idx] = score[2]
+            args.local_val_score[level] = avg_score
 
     
 
