@@ -73,13 +73,16 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()
                     for branch in h.split(","):
-                        terms = branch.split("/")
+
+                        branch = branch.replace("/", ".")
+
+                        terms = branch.split(".")
                         all_terms.append(branch)
                         if is_go:
                             g.add_edge(terms[1], terms[0])
                         else:
                             level = branch.count(
-                                "/"
+                                "."
                             )  # Count the number of '.' to determine the level
                             levels[level].append(branch)
                             if len(terms) == 1:
@@ -194,15 +197,15 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                                     local_nodes_idx[depth].get(ancestor)
                                 ] = 1
                     else:
-
-                        depth = t.count("/") + 1
+                        
+                        depth = y_node.count(".") + 1
 
                         assert depth is not None
 
                         for index in range(depth, 0, -1):
-                            local_terms = t.split("/")[:index]
-                            local_label = "/".join(local_terms)
-                            local_depth = local_label.count("/")
+                            local_terms = y_node.split(".")[:index]
+                            local_label = ".".join(local_terms)
+                            local_depth = local_label.count(".")
 
                             y_local_[local_depth][
                                 local_nodes_idx.get(local_depth).get(local_label)

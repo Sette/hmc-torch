@@ -23,7 +23,7 @@ REMOTE="false"
 N_TRIALS=30
 JOB_ID="false"
 USE_SAMPLE="false"
-SAVE_TORCH_DATASET="true"
+SAVE_TORCH_DATASET="false"
 
 
 export PYTHONPATH=src
