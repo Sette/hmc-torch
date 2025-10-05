@@ -84,10 +84,10 @@ def train_step(args):
 
     args.model.train()
 
-    if args.model_regularization == "mask" or args.model_regularization == "soft":
-        args.R = args.hmc_dataset.R.to(args.device)
-        args.R = args.R.squeeze(0)
-        print(args.R.shape)
+    if args.model_regularization == "soft":
+        args.n_warmup_epochs = 100
+        args.r = args.hmc_dataset.r.to(args.device)
+        print(args.r.shape)
         args.class_indices_per_level = {
             lvl: torch.tensor(
                 [
@@ -98,8 +98,11 @@ def train_step(args):
             )
             for lvl in args.hmc_dataset.levels.keys()
         }
-    # defina quantas épocas quer pré-treinar o nível 0
-    args.n_warmup_epochs = 0
+        
+        
+    else:
+        # defina quantas épocas quer pré-treinar o nível 0
+        args.n_warmup_epochs = 0
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
@@ -133,24 +136,21 @@ def train_step(args):
                 # hard consistency
                 outputs = apply_hierarchy_consistency(
                     outputs,
-                    args.hmc_dataset.g,
-                    args.device,
-                    args.hmc_dataset.local_nodes_idx,
+                    args,
                 )
                 for level in args.active_levels:
                     if args.level_active[level]:
                         loss = calculate_local_loss(
-                            outputs,
-                            targets,
-                            args,
-                            level,
+                            outputs[level],
+                            targets[level],
+                            args.criterions[level],
                         )
                         local_train_losses[level] += loss.item()
                         total_loss += loss
 
                 # adicionar regularização soft
-                reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
-                total_loss += args.lambda_h * reg_loss
+                # reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
+                # total_loss += args.lambda_h * reg_loss
 
                 total_loss.backward()
                 for optimizer in args.optimizers:

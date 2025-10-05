@@ -1,9 +1,10 @@
 import pickle
 import logging
 import numpy as np
+import networkx as nx
 from sklearn.preprocessing import MultiLabelBinarizer
 import torch
-
+from tqdm import tqdm
 logging.basicConfig(level=logging.INFO)
 
 def get_structure(genres_id, df_genres):
@@ -228,68 +229,81 @@ def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
         local_labels.append(lvl_preds)
     return local_labels
 
-
-def apply_hierarchy_consistency(outputs, g, device, local_nodes_idx):
+def apply_hierarchy_consistency(outputs, args):
     """
-    Apply hard hierarchy consistency to model outputs using a hierarchy graph g.
+    Apply hard hierarchy consistency to model outputs using an ancestral correlation matrix.
+
+    This function ensures that predictions across hierarchical levels remain consistent:
+    a child class can only be active if at least one of its ancestor classes was active 
+    in the previous level.
 
     Args:
-    outputs (dict): Dictionary of tensors, one tensor per level (already with sigmoid applied
-                    if the model includes it). Each tensor should have shape [n_samples, n_classes_at_level].
-    g (networkx.DiGraph): Directed graph where nodes are tuples (level, class_idx) and edges represent
-                          hierarchical relationships.
-    device (torch.device): The device tensors are or should be moved to for computation.
+        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy level index 
+            to a tensor of predictions for that level. Each tensor has shape 
+            [n_samples, n_classes_at_level]. These predictions may already have sigmoid 
+            applied, depending on the model configuration.
+        args: Object containing the following attributes:
+            - hmc_dataset: Dataset object containing:
+                • levels (dict): level index → metadata
+                • sorted_levels (list): list of level indices sorted by depth
+                • local_nodes_reverse (dict): mapping {level: {local_idx: node_name}}
+                • nodes_idx (dict): mapping {node_name: global_idx}
+            - r (torch.Tensor): Ancestral correlation matrix of shape [1, N, N] or [N, N],
+              where r[i, j] = 1 if class i is a child (descendant) of class j.
+            - device (torch.device): Target device for computation.
+            - level_active (list[bool]): Flags indicating whether each level is active.
+            - max_depth (int): Maximum depth of the hierarchy.
 
     Returns:
-    list of torch.Tensor: Adjusted outputs such that child classes do not contradict parent classes.
+        dict[int, torch.Tensor]:
+            Dictionary mapping each level index to a tensor of adjusted predictions,
+            ensuring hierarchical consistency. Each tensor has the same shape as the 
+            original outputs[level], and is placed on args.device.
     """
-    new_outputs = []
+    new_outputs = {}
+    global_idxs = [[] for _ in range(args.max_depth)]
+    r = args.r.squeeze(0).to(args.device)
 
-    # Cria um mapeamento reverso de índice local para nome do nó para facilitar a busca
-    sorted_levels = sorted(local_nodes_idx.keys())
-    local_nodes_reverse = {
-        level: {v: k for k, v in local_nodes_idx[level].items()}
-        for level in sorted_levels
-    }
+    for level_index, level in enumerate(args.hmc_dataset.sorted_levels):
+        level_preds = outputs[level_index].to(args.device)
+        new_preds = []
 
-    for level_index, level in enumerate(sorted_levels):
-        level_preds = outputs[level_index].to("cpu")
-        if level == 0:
-            new_outputs.append(level_preds)  # root has no parent, pass through directly
-            continue
+        if not args.level_active[level_index]:
+            new_preds = level_preds
+        else:
+            for idx_example, sample_pred in enumerate(level_preds):
+                active_indices = torch.nonzero(sample_pred > 0, as_tuple=True)[0]
+                if level != 0:
+                    mask = torch.zeros_like(sample_pred, device=args.device)
+                else:
+                    mask = sample_pred.clone()
 
-        print(level_preds)  # Debug output to trace values, can be removed in production
-        mask = torch.ones_like(level_preds, device=device)
+                for local_idx in active_indices:
+                    node_name = args.hmc_dataset.local_nodes_reverse[level].get(local_idx)
+                    if not node_name:
+                        continue
 
-        for idx_example, sample_scores in enumerate(level_preds):
-            non_zero_indices = np.where(sample_scores > 0)[0]
+                    key = node_name.replace("/", ".")
+                    global_idx = args.hmc_dataset.nodes_idx.get(key)
+                    has_parent = False
 
-            for local_idx in non_zero_indices:
-                node_name = local_nodes_reverse[level].get(local_idx)
-                if not node_name:
-                    continue
+                    if level == 0:
+                        global_idxs[level].append(global_idx)
+                    else:
+                        parent_ids = global_idxs[level - 1]
+                        # Check if current node has at least one ancestor active
+                        if torch.any(r[global_idx, parent_ids] == 1):
+                            has_parent = True
 
-                key = node_name.replace("/", ".")
-                print("nó analisado")
-                print(key)
+                        if has_parent:
+                            global_idxs[level].append(global_idx)
+                            mask[local_idx] = sample_pred[local_idx]
 
-                parents = [p for p in g.predecessors(key)]
+                new_preds.append(mask)
 
-                print(parents)
-                if parents:
-                    # Gather the corresponding output values from the parent nodes
-                    parent_vals = [outputs[(p_level)][:, p_idx] for p_level, p_idx in parents]
+            new_preds = torch.stack(new_preds, dim=0)
 
-                    # Compute the maximum of the parent node values.
-                    # This enforces that a child can be active only if at least one parent is active.
-                    valid_parent = torch.stack(parent_vals).max(0).values
-
-                    # Update the mask based on parent values
-                    mask[:, key] = valid_parent
-
-        # Apply the mask: Child class activations are limited by the max of the parent activations
-        adjusted_output = outputs[level_index] * mask
-        new_outputs.append(adjusted_output)
+        new_outputs[level] = new_preds.to(args.device)
 
     return new_outputs
 

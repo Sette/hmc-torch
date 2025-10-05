@@ -73,19 +73,22 @@ def valid_step(args):
 
             # Se ainda estamos no warm-up, só treine o nível 0
             if args.epoch <= args.n_warmup_epochs:
-                index = 0
-                output = outputs[index].double()
-                target = targets[index].double()
-                loss = args.criterions[index](output, target)
-                args.local_val_losses[index] += loss.item()
+                level = 0
+                loss = calculate_local_loss(
+                            outputs[level],
+                            targets[level],
+                            args.criterions[level],
+                        )
+                local_outputs[level] = outputs[level]
+                local_inputs[level] = targets[level]
+                args.local_val_losses[level] += loss.item()
             else:
                 for level in args.active_levels:
                     if args.level_active[level]:
                         loss = calculate_local_loss(
-                            outputs,
-                            targets,
-                            args,
-                            level,
+                            outputs[level],
+                            targets[level],
+                            args.criterions[level],
                         )
                         args.local_val_losses[level] += loss.item()
 
@@ -112,6 +115,7 @@ def valid_step(args):
     else:
         active_levels = args.active_levels
     for level in active_levels:
+        print(level)
         if args.level_active[level]:
             y_pred = local_outputs[level].to("cpu").numpy()
             y_true = local_inputs[level].to("cpu").int().numpy()

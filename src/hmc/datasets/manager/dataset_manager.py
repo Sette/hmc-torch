@@ -389,7 +389,7 @@ class HMCDatasetManager:
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go, use_sample=self.use_sample)
         self.a = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
-        # self.r = self._matrix_r(self.a)
+        self.r = self._matrix_r(self.a)
         # self._matrix_r_local()
         self.g = self.train.g
         self.g_t = self.g.reverse()
@@ -397,6 +397,12 @@ class HMCDatasetManager:
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
         self.local_nodes_idx = self.train.local_nodes_idx
+        # Cria um mapeamento reverso de índice local para nome do nó para facilitar a busca
+        self.sorted_levels = sorted(self.local_nodes_idx.keys())
+        self.local_nodes_reverse = {
+            level: {v: k for k, v in self.local_nodes_idx[level].items()}
+            for level in self.sorted_levels
+        }
         self.max_depth = self.train.max_depth
         self.levels = self.train.levels
         self.levels_size = self.train.levels_size

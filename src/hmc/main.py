@@ -315,7 +315,7 @@ def main():
         if args.method == "local_constrained":
             logging.info("Using constrained local model")
 
-        args.model_regularization = None
+        args.model_regularization = "soft"
 
         # Load train, val and test set
 
