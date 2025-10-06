@@ -115,12 +115,11 @@ def train_step(args):
 
         for inputs, targets, _ in args.train_loader:
 
-            inputs, targets = inputs.to(args.device), [
-                target.to(args.device) for target in targets
-            ]
+            inputs = inputs.to(args.device)
+            
+            targets = [target.to(args.device) for target in targets]
             outputs = args.model(inputs.float())
-
-            # Zerar os gradientes antes de cada batch
+            
             for optimizer in args.optimizers:
                 optimizer.zero_grad()
 

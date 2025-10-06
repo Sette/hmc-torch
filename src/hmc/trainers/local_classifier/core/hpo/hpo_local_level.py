@@ -156,7 +156,18 @@ def optimize_hyperparameters(args):
         # 3. Use um laço para sugerir a dimensão de CADA camada
         for i in range(num_layers):
             # O nome do parâmetro agora inclui o índice da camada (ex: 'hidden_dim_level_0_layer_0')
-            dim = trial.suggest_int("hidden_dim_level_%s_layer_%s" % (level, i), args.input_size, args.input_size*3, log=True)
+            if i == 0:
+                dim = trial.suggest_int(
+                    "hidden_dim_level_%s_layer_%s" % (level, i), 
+                    args.input_size, 
+                    args.input_size*3, 
+                    log=True) 
+            else:
+                dim = trial.suggest_int(
+                    "hidden_dim_level_%s_layer_%s" % (level, i), 
+                    args.levels_size[level], 
+                    args.levels_size[level]*3, 
+                    log=True)
             hidden_dims.append(dim)
 
         args.current_level = [level]
@@ -350,7 +361,7 @@ def val_optimizer(args, level):
     args.local_val_losses = [0.0] * args.max_depth
 
     # Get local scores
-    threshold = 0.5
+    threshold = 0.2
 
     with torch.no_grad():
         total_loss = 0.0  # <-- inicializa aqui, fora do loop
