@@ -150,6 +150,14 @@ def get_parser():
         help="Method type to use.",
     )
 
+    parser.add_argument(
+        "--n_warmup_epochs",
+        type=int,
+        default=0,
+        required=False,
+        metavar="N_WARMUP_EPOCHS",
+    )
+
     # Hyperparameter Optimization (HPO) parameters
     parser.add_argument(
         "--hpo",

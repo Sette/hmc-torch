@@ -6,7 +6,6 @@ from hmc.trainers.local_classifier.core.valid_local import valid_step
 from hmc.utils.labels import (
     show_global_loss,
     show_local_losses,
-    hierarchy_regularization,
     apply_hierarchy_consistency,
 )
 
@@ -85,7 +84,7 @@ def train_step(args):
     args.model.train()
 
     if args.model_regularization == "soft":
-        args.n_warmup_epochs = 100
+        args.n_warmup_epochs = 150
         args.r = args.hmc_dataset.r.to(args.device)
         print(args.r.shape)
         args.class_indices_per_level = {
@@ -98,11 +97,7 @@ def train_step(args):
             )
             for lvl in args.hmc_dataset.levels.keys()
         }
-        
-        
-    else:
-        # defina quantas épocas quer pré-treinar o nível 0
-        args.n_warmup_epochs = 0
+
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
@@ -116,10 +111,10 @@ def train_step(args):
         for inputs, targets, _ in args.train_loader:
 
             inputs = inputs.to(args.device)
-            
+
             targets = [target.to(args.device) for target in targets]
             outputs = args.model(inputs.float())
-            
+
             for optimizer in args.optimizers:
                 optimizer.zero_grad()
 
@@ -130,7 +125,8 @@ def train_step(args):
                 output = outputs[level].double()
                 target = targets[level].double()
                 loss = args.criterions[level](output, target)
-                local_train_losses[level] += loss
+                total_loss += loss
+                local_train_losses[level] += loss.item()
             else:
                 # hard consistency
                 outputs = apply_hierarchy_consistency(

@@ -3,11 +3,14 @@ import os
 import torch
 from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
-from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
 from hmc.utils.early_stopping import (
     check_early_stopping_normalized,
+)
+
+from hmc.utils.labels import (
+    apply_hierarchy_consistency,
 )
 
 
@@ -43,7 +46,6 @@ def valid_step(args):
 
     args.model.eval()
 
-
     args.result_path = "%s/train/%s-%s/%s" % (
         args.output_path,
         args.method,
@@ -75,14 +77,19 @@ def valid_step(args):
             if args.epoch <= args.n_warmup_epochs:
                 level = 0
                 loss = calculate_local_loss(
-                            outputs[level],
-                            targets[level],
-                            args.criterions[level],
-                        )
+                    outputs[level],
+                    targets[level],
+                    args.criterions[level],
+                )
                 local_outputs[level] = outputs[level]
                 local_inputs[level] = targets[level]
                 args.local_val_losses[level] += loss.item()
             else:
+                # hard consistency
+                outputs = apply_hierarchy_consistency(
+                    outputs,
+                    args,
+                )
                 for level in args.active_levels:
                     if args.level_active[level]:
                         loss = calculate_local_loss(
@@ -115,7 +122,6 @@ def valid_step(args):
     else:
         active_levels = args.active_levels
     for level in active_levels:
-        print(level)
         if args.level_active[level]:
             y_pred = local_outputs[level].to("cpu").numpy()
             y_true = local_inputs[level].to("cpu").int().numpy()
@@ -142,8 +148,6 @@ def valid_step(args):
             )
 
             args.local_val_score[level] = avg_score
-
-    
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses

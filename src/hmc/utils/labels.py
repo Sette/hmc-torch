@@ -5,7 +5,9 @@ import networkx as nx
 from sklearn.preprocessing import MultiLabelBinarizer
 import torch
 from tqdm import tqdm
+
 logging.basicConfig(level=logging.INFO)
+
 
 def get_structure(genres_id, df_genres):
     """
@@ -120,7 +122,9 @@ def binarize_labels(dataset_df, args):
     return tracks_df
 
 
-def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, threshold=0.6):
+def local_to_global_predictions(
+    local_labels, local_nodes_idx, nodes_idx, threshold=0.6
+):
     """
     Converte previsões de nível local para vetores globais de scores e predições binárias.
 
@@ -191,6 +195,7 @@ def local_to_global_predictions(local_labels, local_nodes_idx, nodes_idx, thresh
 
     return global_scores, global_binary_preds
 
+
 def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
     """
     Parâmetros:
@@ -229,18 +234,19 @@ def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
         local_labels.append(lvl_preds)
     return local_labels
 
+
 def apply_hierarchy_consistency(outputs, args):
     """
     Apply hard hierarchy consistency to model outputs using an ancestral correlation matrix.
 
     This function ensures that predictions across hierarchical levels remain consistent:
-    a child class can only be active if at least one of its ancestor classes was active 
+    a child class can only be active if at least one of its ancestor classes was active
     in the previous level.
 
     Args:
-        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy level index 
-            to a tensor of predictions for that level. Each tensor has shape 
-            [n_samples, n_classes_at_level]. These predictions may already have sigmoid 
+        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy level index
+            to a tensor of predictions for that level. Each tensor has shape
+            [n_samples, n_classes_at_level]. These predictions may already have sigmoid
             applied, depending on the model configuration.
         args: Object containing the following attributes:
             - hmc_dataset: Dataset object containing:
@@ -257,10 +263,11 @@ def apply_hierarchy_consistency(outputs, args):
     Returns:
         dict[int, torch.Tensor]:
             Dictionary mapping each level index to a tensor of adjusted predictions,
-            ensuring hierarchical consistency. Each tensor has the same shape as the 
+            ensuring hierarchical consistency. Each tensor has the same shape as the
             original outputs[level], and is placed on args.device.
     """
     new_outputs = {}
+    threshold = 0.2
     global_idxs = [[] for _ in range(args.max_depth)]
     r = args.r.squeeze(0).to(args.device)
 
@@ -271,15 +278,27 @@ def apply_hierarchy_consistency(outputs, args):
         if not args.level_active[level_index]:
             new_preds = level_preds
         else:
-            for idx_example, sample_pred in enumerate(level_preds):
-                active_indices = torch.nonzero(sample_pred > 0, as_tuple=True)[0]
-                if level != 0:
-                    mask = torch.zeros_like(sample_pred, device=args.device)
+            for sample_pred in level_preds:
+
+                if level == 0:
+                    mask = torch.ones_like(
+                        sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
+                    )
+                    threshold = 0.5
+                    print(sample_pred)
                 else:
-                    mask = sample_pred.clone()
+                    mask = torch.zeros_like(
+                        sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
+                    )
+                sample_pred_binary = (sample_pred >= threshold).int()
+                active_indices = torch.nonzero(sample_pred_binary, as_tuple=True)[0]
+                if level == 0:
+                    print(f"Active nodes: {len(active_indices)}")
 
                 for local_idx in active_indices:
-                    node_name = args.hmc_dataset.local_nodes_reverse[level].get(local_idx)
+                    node_name = args.hmc_dataset.local_nodes_reverse[level].get(
+                        local_idx
+                    )
                     if not node_name:
                         continue
 
@@ -290,22 +309,28 @@ def apply_hierarchy_consistency(outputs, args):
                     if level == 0:
                         global_idxs[level].append(global_idx)
                     else:
-                        parent_ids = global_idxs[level - 1]
+                        parent_ids = global_idxs[0]
                         # Check if current node has at least one ancestor active
                         if torch.any(r[global_idx, parent_ids] == 1):
                             has_parent = True
 
                         if has_parent:
                             global_idxs[level].append(global_idx)
-                            mask[local_idx] = sample_pred[local_idx]
+                            mask[local_idx] = 1
+                print(f"Level {level} - Active nodes: {len(global_idxs[level])}")
 
-                new_preds.append(mask)
+                # print(mask)
+                result = sample_pred * mask
+                # print(result)
+
+                new_preds.append(result)
 
             new_preds = torch.stack(new_preds, dim=0)
 
         new_outputs[level] = new_preds.to(args.device)
 
     return new_outputs
+
 
 def hierarchy_regularization(outputs, g):
     """
