@@ -84,7 +84,7 @@ def train_step(args):
     args.model.train()
 
     if args.model_regularization == "soft":
-        args.n_warmup_epochs = 150
+        args.n_warmup_epochs = 300
         args.r = args.hmc_dataset.r.to(args.device)
         print(args.r.shape)
         args.class_indices_per_level = {
@@ -119,6 +119,7 @@ def train_step(args):
                 optimizer.zero_grad()
 
             total_loss = 0.0
+
             # Se ainda estamos no warm-up, só treine o nível 0
             if epoch < args.n_warmup_epochs:
                 level = 0
@@ -126,7 +127,7 @@ def train_step(args):
                 target = targets[level].double()
                 loss = args.criterions[level](output, target)
                 total_loss += loss
-                local_train_losses[level] += loss.item()
+                local_train_losses[level] += loss
             else:
                 # hard consistency
                 outputs = apply_hierarchy_consistency(
@@ -140,32 +141,32 @@ def train_step(args):
                             targets[level],
                             args.criterions[level],
                         )
-                        local_train_losses[level] += loss.item()
+                        local_train_losses[level] += loss
                         total_loss += loss
 
                 # adicionar regularização soft
                 # reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
                 # total_loss += args.lambda_h * reg_loss
 
-                total_loss.backward()
+            total_loss.backward()
+            if epoch < args.n_warmup_epochs:
+                args.optimizers[0].step()
+            else:
                 for optimizer in args.optimizers:
                     optimizer.step()
 
         if epoch <= args.n_warmup_epochs:
             level = 0
-            global_train_loss = local_train_losses[level] / len(args.train_loader)
-
+            local_train_losses[level] = local_train_losses[level].item() / len(
+                args.train_loader
+            )
         else:
             local_train_losses = [
-                loss / len(args.train_loader) for loss in local_train_losses
+                loss.item() / len(args.train_loader) for loss in local_train_losses
             ]
-            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-            global_train_loss = (
-                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
-            )
+
         logging.info("Epoch %d/%d", epoch, args.epochs)
         show_local_losses(local_train_losses, dataset="Train")
-        show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
             valid_step(args)

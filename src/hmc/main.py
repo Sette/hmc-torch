@@ -502,9 +502,7 @@ def main():
 
                     logging.info("Test local method selected")
 
-                    args.results_path = (
-                        f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-                    )
+                    args.results_path = f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
 
                     args.train_methods["test_step"](args)
                 case _:  # Default case (like 'default' in other languages
