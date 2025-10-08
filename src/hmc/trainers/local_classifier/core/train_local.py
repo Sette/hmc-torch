@@ -6,7 +6,7 @@ from hmc.trainers.local_classifier.core.valid_local import valid_step
 from hmc.utils.labels import (
     show_global_loss,
     show_local_losses,
-    apply_hierarchy_consistency,
+    get_probs_ancestral_descendent,
 )
 
 from hmc.utils.job import (
@@ -84,8 +84,15 @@ def train_step(args):
     args.model.train()
 
     if args.model_regularization == "soft":
-        args.n_warmup_epochs = 300
+        args.n_warmup_epochs = 50
         args.r = args.hmc_dataset.r.to(args.device)
+        args.level_active = [False] * len(args.level_active)
+        args.level_active[0] = True
+        next_level = 1
+        logging.info(
+            "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+        )
+        #
         print(args.r.shape)
         args.class_indices_per_level = {
             lvl: torch.tensor(
@@ -101,7 +108,6 @@ def train_step(args):
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
-        args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         logging.info(
             "Level active: %s",
@@ -109,9 +115,7 @@ def train_step(args):
         )
 
         for inputs, targets, _ in args.train_loader:
-
             inputs = inputs.to(args.device)
-
             targets = [target.to(args.device) for target in targets]
             outputs = args.model(inputs.float())
 
@@ -119,51 +123,72 @@ def train_step(args):
                 optimizer.zero_grad()
 
             total_loss = 0.0
+            lambda_consistencia = (
+                args.lambda_consistencia
+                if hasattr(args, "lambda_consistencia")
+                else 1.0
+            )
 
-            # Se ainda estamos no warm-up, só treine o nível 0
-            if epoch < args.n_warmup_epochs:
-                level = 0
-                output = outputs[level].double()
-                target = targets[level].double()
-                loss = args.criterions[level](output, target)
-                total_loss += loss
-                local_train_losses[level] += loss
-            else:
-                # hard consistency
-                outputs = apply_hierarchy_consistency(
-                    outputs,
-                    args,
-                )
-                for level in args.active_levels:
-                    if args.level_active[level]:
-                        loss = calculate_local_loss(
-                            outputs[level],
-                            targets[level],
-                            args.criterions[level],
-                        )
-                        local_train_losses[level] += loss
-                        total_loss += loss
+            for level in args.active_levels:
+                if args.level_active[level]:
+                    loss = calculate_local_loss(
+                        outputs[level],
+                        targets[level],
+                        args.criterions[level],
+                    )
+                    local_train_losses[level] += loss.item()
+                    total_loss += loss
+
+                    # Penalização de inconsistência: só se não for o primeiro nível!
+                    if level > 0:  # tem ancestral!
+                        prev_level = args.active_levels[level - 1]
+                        if args.level_active[prev_level]:
+                            # Índices globais
+                            idx_ancestrais = torch.as_tensor(
+                                args.hmc_dataset.level_class_indices[prev_level],
+                                dtype=torch.long,
+                                device=args.device,
+                            )
+                            idx_filhos = torch.as_tensor(
+                                args.hmc_dataset.level_class_indices[level],
+                                dtype=torch.long,
+                                device=args.device,
+                            )
+                            # Matriz de relação entre níveis
+                            R = args.r.squeeze(0).to(args.device)
+                            R_sub = R[idx_ancestrais][
+                                :, idx_filhos
+                            ]  # [n_ancestrais, n_descendentes]
+
+                            # Probabilidades (ajuste se sua rede retorna logits)
+                            probs_ancestrais = outputs[prev_level]
+                            probs_filhos = outputs[level]
+
+                            prob_ancestral, prob_descendente = (
+                                get_probs_ancestral_descendent(
+                                    probs_ancestrais, probs_filhos, R_sub
+                                )
+                            )
+                            consistency_penalty = torch.clamp(
+                                prob_descendente - prob_ancestral, min=0
+                            )
+                            total_loss += (
+                                lambda_consistencia * consistency_penalty.mean()
+                            )
 
                 # adicionar regularização soft
                 # reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
                 # total_loss += args.lambda_h * reg_loss
 
             total_loss.backward()
-            if epoch < args.n_warmup_epochs:
-                args.optimizers[0].step()
-            else:
-                for optimizer in args.optimizers:
+
+            for level, optimizer in enumerate(args.optimizers):
+                if args.level_active[level]:
                     optimizer.step()
 
-        if epoch <= args.n_warmup_epochs:
-            level = 0
-            local_train_losses[level] = local_train_losses[level].item() / len(
-                args.train_loader
-            )
-        else:
-            local_train_losses = [
-                loss.item() / len(args.train_loader) for loss in local_train_losses
-            ]
+        for level, local_train_loss in enumerate(local_train_losses):
+            if args.level_active[level]:
+                local_train_losses[level] = local_train_loss / len(args.train_loader)
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
         show_local_losses(local_train_losses, dataset="Train")
@@ -174,4 +199,11 @@ def train_step(args):
                 logging.info("All levels have triggered early stopping.")
                 args.total_time = end_timer(start)
                 break
+
+        if epoch % args.n_warmup_epochs == 0 and args.model_regularization == "soft":
+            if next_level < args.max_depth:
+                args.level_active[next_level] = True
+                logging.info("Activating level %d", next_level)
+                next_level += 1
+                args.n_warmup_epochs += 100
     args.total_time = end_timer(start)

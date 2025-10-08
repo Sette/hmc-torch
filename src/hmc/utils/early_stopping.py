@@ -35,7 +35,6 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 logging.info("Level %d: initialized best model", level)
                 if save_model and bypass_best_model:
-                    # Salvar em disco
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
                         args.model.levels[str(level)].state_dict(),
@@ -45,10 +44,9 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     )
                     logging.info("best model updated and saved for Level %d", level)
 
-
             loss = round(args.local_val_losses[level], 4)
             best_loss = args.best_val_loss[level]
-            metric = round(args.local_val_score[level], 4)
+            metric = round(args.local_val_scores[level], 4)
             best_metric = args.best_val_score[level]
 
             is_better_metric = check_metrics(
@@ -109,13 +107,13 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             if is_better_metric:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_score[level] = round(args.local_val_score[level], 4)
+                args.best_val_score[level] = round(args.local_val_scores[level], 4)
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 args.patience_counters_f1[level] = 0
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)",
                     level,
-                    round(args.local_val_score[level], 4),
+                    round(args.local_val_scores[level], 4),
                 )
                 if save_model:
                     # Salvar em disco

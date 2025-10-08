@@ -40,14 +40,15 @@ class HMCDatasetManager:
 
     """
 
-    def __init__(self,
-                 dataset,
-                 dataset_type="arff",
-                 device="cpu",
-                 is_global=False,
-                 read_data=True,
-                 use_sample=False,
-                 ):
+    def __init__(
+        self,
+        dataset,
+        dataset_type="arff",
+        device="cpu",
+        is_global=False,
+        read_data=True,
+        use_sample=False,
+    ):
         # Extract dataset paths
         self.test, self.train, self.valid, self.to_eval, self.max_depth, self.r = (
             None,
@@ -384,9 +385,15 @@ class HMCDatasetManager:
             - Sets attributes: train, valid, test, A, edges_matrix_dict, R, all_matrix_r,
               to_eval, nodes, nodes_idx, local_nodes_idx, max_depth, levels, levels_size.
         """
-        self.train = HMCDatasetArff(self.train_file, is_go=self.is_go, use_sample=self.use_sample)
-        self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go, use_sample=self.use_sample)
-        self.test = HMCDatasetArff(self.test_file, is_go=self.is_go, use_sample=self.use_sample)
+        self.train = HMCDatasetArff(
+            self.train_file, is_go=self.is_go, use_sample=self.use_sample
+        )
+        self.valid = HMCDatasetArff(
+            self.valid_file, is_go=self.is_go, use_sample=self.use_sample
+        )
+        self.test = HMCDatasetArff(
+            self.test_file, is_go=self.is_go, use_sample=self.use_sample
+        )
         self.a = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
         self.r = self._matrix_r(self.a)
@@ -403,6 +410,10 @@ class HMCDatasetManager:
             level: {v: k for k, v in self.local_nodes_idx[level].items()}
             for level in self.sorted_levels
         }
+        self.level_class_indices = {}
+        for level, nodes_in_level in self.local_nodes_idx.items():
+            indices = [self.nodes_idx[node] for node in nodes_in_level]
+            self.level_class_indices[level] = indices
         self.max_depth = self.train.max_depth
         self.levels = self.train.levels
         self.levels_size = self.train.levels_size

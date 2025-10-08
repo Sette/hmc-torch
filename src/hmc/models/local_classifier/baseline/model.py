@@ -63,18 +63,17 @@ class HMCLocalModel(nn.Module):
         num_layers=None,
         dropout=None,
         active_levels=None,
-        hpo=False,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
-            print("input_size is None, error in HMCLocalClassificationModel")
+            logging.info("input_size is None, error in HMCLocalClassificationModel")
             raise ValueError("input_size is None")
         if not levels_size:
-            print("levels_size is None, error in HMCLocalClassificationModel")
+            logging.info("levels_size is None, error in HMCLocalClassificationModel")
             raise ValueError("levels_size is None")
         if active_levels is None:
-            print("active_levels is not valid, error in HMCLocalClassificationModel")
-            raise ValueError("active_levels is not valid")
+            active_levels = list(range(len(levels_size)))
+            logging.info("active_levels is None, using all levels: %s", active_levels)
 
         self.input_size = input_size
         self.levels_size = levels_size
@@ -83,13 +82,13 @@ class HMCLocalModel(nn.Module):
         self.dropout = dropout
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
-        if hpo:
-            # levels_size = {level: levels_size for level in active_levels}
-            dropout = {level: dropout for level in active_levels}
-            num_layers = {level: num_layers for level in active_levels}
-            hidden_dims = {level: hidden_dims for level in active_levels}
-        else:
-            self.max_depth = len(levels_size)
+        # if hpo:
+        #     # levels_size = {level: levels_size for level in active_levels}
+        #     dropout = {level: dropout for level in active_levels}
+        #     num_layers = {level: num_layers for level in active_levels}
+        #     hidden_dims = {level: hidden_dims for level in active_levels}
+
+        self.max_depth = len(levels_size)
 
         logging.info(
             "HMCLocalModel: input_size=%s, levels_size=%s, "

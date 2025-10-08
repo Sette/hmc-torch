@@ -17,7 +17,7 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+from hmc.trainers.local_classifier.core.hpo.hpo_local import (
     optimize_hyperparameters,
 )
 

@@ -237,6 +237,82 @@ def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
 
 def apply_hierarchy_consistency(outputs, args):
     """
+    outputs: lista de tensores [batch, n_classes_nivel]
+    args.r: torch.Tensor [n_classes_global, n_classes_global]
+    args.hmc_dataset.level_class_indices: dict nivel → lista de índices globais das classes do nível
+    """
+    r = args.r.squeeze(0).to(args.device)
+    new_outputs = {}
+    num_levels = len(args.hmc_dataset.sorted_levels)
+    pred_consist = outputs[0].to(args.device)  # nível 0 são raízes, nada para propagar
+
+    new_outputs[args.hmc_dataset.sorted_levels[0]] = pred_consist
+
+    for level_index in range(1, num_levels):
+        level = args.hmc_dataset.sorted_levels[level_index]
+        curr_preds = outputs[level_index].to(args.device)  # [batch, n_filhos]
+        preds_bin = (curr_preds > 0.5).float()
+
+        idx_ancestrais = torch.as_tensor(
+            args.hmc_dataset.level_class_indices[
+                args.hmc_dataset.sorted_levels[level_index - 1]
+            ],
+            dtype=torch.long,
+            device=args.device,
+        )
+        idx_filhos = torch.as_tensor(
+            args.hmc_dataset.level_class_indices[level],
+            dtype=torch.long,
+            device=args.device,
+        )
+
+        # Relação ancestralidade entre nível anterior e atual
+        rel_ancestral = r[idx_ancestrais][
+            :, idx_filhos
+        ]  # shape: [n_ancestrais, n_filhos]
+
+        # [batch, n_ancestrais] * [n_ancestrais, n_filhos] → [batch, n_filhos]
+        # Determina para cada filho se algum ancestral foi ativado naquela amostra
+        ancestral_active = torch.matmul(
+            pred_consist.double(), rel_ancestral
+        )  # [batch, n_filhos]
+
+        # Apenas permite ativação de descendentes com ancestrais ativos
+        # (batched AND lógico entre ancestrais ativos e predição do filho)
+        pred_consist = preds_bin * (ancestral_active > 0).float()
+
+        new_outputs[level] = pred_consist
+
+    return new_outputs
+
+
+def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
+    """
+    probs_nivel_ancestral: Tensor [batch, n_ancestrais]
+    probs_nivel_desc: Tensor [batch, n_descendentes]
+    R: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
+    """
+    # Expande dimensões para broadcast
+    batch = probs_nivel_ancestral.shape[0]
+    n_ancestrais = probs_nivel_ancestral.shape[1]
+    n_desc = probs_nivel_desc.shape[1]
+
+    probs_anc_exp = probs_nivel_ancestral.unsqueeze(2)  # [batch, n_ancestrais, 1]
+    R_exp = R.unsqueeze(0)                              # [1, n_ancestrais, n_descendentes]
+
+    # Para cada descendente j, para cada sample, pegue probs do(s) ancestral(is) i, se houver relação.
+    masked_probs = torch.where(R_exp == 1, probs_anc_exp, float('-inf'))  # [batch, n_ancestrais, n_desc]
+
+    # Máximo ancestral de cada descendente para cada sample
+    prob_ancestral, _ = masked_probs.max(dim=1)
+    prob_ancestral[prob_ancestral == float('-inf')] = 0  # se não houver ancestral assigna 0
+
+    prob_descendente = probs_nivel_desc  # [batch, n_descendentes]
+    return prob_ancestral, prob_descendente
+
+
+def apply_hierarchy_consistency_old(outputs, labels, args):
+    """
     Apply hard hierarchy consistency to model outputs using an ancestral correlation matrix.
 
     This function ensures that predictions across hierarchical levels remain consistent:
@@ -273,27 +349,23 @@ def apply_hierarchy_consistency(outputs, args):
 
     for level_index, level in enumerate(args.hmc_dataset.sorted_levels):
         level_preds = outputs[level_index].to(args.device)
+        level_labels = labels[level_index].to(args.device)
         new_preds = []
 
         if not args.level_active[level_index]:
             new_preds = level_preds
         else:
-            for sample_pred in level_preds:
-
+            for sample_pred, sample_label in zip(level_preds, level_labels):
                 if level == 0:
                     mask = torch.ones_like(
                         sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
                     )
-                    threshold = 0.5
-                    print(sample_pred)
                 else:
                     mask = torch.zeros_like(
                         sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
                     )
-                sample_pred_binary = (sample_pred >= threshold).int()
-                active_indices = torch.nonzero(sample_pred_binary, as_tuple=True)[0]
-                if level == 0:
-                    print(f"Active nodes: {len(active_indices)}")
+
+                active_indices = torch.nonzero(sample_label, as_tuple=True)[0]
 
                 for local_idx in active_indices:
                     node_name = args.hmc_dataset.local_nodes_reverse[level].get(

@@ -10,7 +10,7 @@ from hmc.utils.early_stopping import (
 )
 
 from hmc.utils.labels import (
-    apply_hierarchy_consistency,
+    get_probs_ancestral_descendent,
 )
 
 
@@ -63,7 +63,7 @@ def valid_step(args):
     threshold = 0.2
 
     # Get local scores
-    args.local_val_score = [0.0] * args.max_depth
+    args.local_val_scores = [0.0] * args.max_depth
     args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
@@ -73,55 +73,78 @@ def valid_step(args):
             ]
             outputs = args.model(inputs.float())
 
-            # Se ainda estamos no warm-up, só treine o nível 0
-            if args.epoch <= args.n_warmup_epochs:
-                level = 0
-                loss = calculate_local_loss(
-                    outputs[level],
-                    targets[level],
-                    args.criterions[level],
-                )
-                local_outputs[level] = outputs[level]
-                local_inputs[level] = targets[level]
-                args.local_val_losses[level] += loss.item()
-            else:
-                # hard consistency
-                outputs = apply_hierarchy_consistency(
-                    outputs,
-                    args,
-                )
-                for level in args.active_levels:
-                    if args.level_active[level]:
-                        loss = calculate_local_loss(
-                            outputs[level],
-                            targets[level],
-                            args.criterions[level],
+            total_loss = 0.0
+            lambda_consistencia = (
+                args.lambda_consistencia
+                if hasattr(args, "lambda_consistencia")
+                else 1.0
+            )
+            for level in args.active_levels:
+                if args.level_active[level]:
+                    loss = calculate_local_loss(
+                        outputs[level],
+                        targets[level],
+                        args.criterions[level],
+                    )
+                    args.local_val_losses[level] += loss.item()
+                    total_loss += loss
+
+                    # Penalização de inconsistência: só se não for o primeiro nível!
+                    if level > 0:  # tem ancestral!
+                        prev_level = args.active_levels[level - 1]
+                        if args.level_active[prev_level]:
+                            # Índices globais
+                            idx_ancestrais = torch.as_tensor(
+                                args.hmc_dataset.level_class_indices[prev_level],
+                                dtype=torch.long,
+                                device=args.device,
+                            )
+                            idx_filhos = torch.as_tensor(
+                                args.hmc_dataset.level_class_indices[level],
+                                dtype=torch.long,
+                                device=args.device,
+                            )
+                            # Matriz de relação entre níveis
+                            R = args.r.squeeze(0).to(args.device)
+                            R_sub = R[idx_ancestrais][
+                                :, idx_filhos
+                            ]  # [n_ancestrais, n_descendentes]
+
+                            # Probabilidades (ajuste se sua rede retorna logits)
+                            probs_ancestrais = outputs[prev_level]
+                            probs_filhos = outputs[level]
+
+                            prob_ancestral, prob_descendente = (
+                                get_probs_ancestral_descendent(
+                                    probs_ancestrais, probs_filhos, R_sub
+                                )
+                            )
+                            consistency_penalty = torch.clamp(
+                                prob_descendente - prob_ancestral, min=0
+                            )
+                            total_loss += (
+                                lambda_consistencia * consistency_penalty.mean()
+                            )
+
+                    # *** Para métricas e concatenação ***
+                    # Se quiser outputs binários para avaliação:
+                    # binary_outputs = (outputs[level] > threshold).float()
+
+                    # Acumulação de outputs e targets para métricas
+                    if i == 0:  # Primeira iteração: inicia tensor
+                        local_outputs[level] = outputs[level]
+                        local_inputs[level] = targets[level]
+                    else:  # Nas seguintes, empilha ao longo do batch
+                        local_outputs[level] = torch.cat(
+                            (local_outputs[level], outputs[level]),
+                            dim=0,
                         )
-                        args.local_val_losses[level] += loss.item()
+                        local_inputs[level] = torch.cat(
+                            (local_inputs[level], targets[level]),
+                            dim=0,
+                        )
 
-                        # *** Para métricas e concatenação ***
-                        # Se quiser outputs binários para avaliação:
-                        # binary_outputs = (outputs[level] > threshold).float()
-
-                        # Acumulação de outputs e targets para métricas
-                        if i == 0:  # Primeira iteração: inicia tensor
-                            local_outputs[level] = outputs[level]
-                            local_inputs[level] = targets[level]
-                        else:  # Nas seguintes, empilha ao longo do batch
-                            local_outputs[level] = torch.cat(
-                                (local_outputs[level], outputs[level]),
-                                dim=0,
-                            )
-                            local_inputs[level] = torch.cat(
-                                (local_inputs[level], targets[level]),
-                                dim=0,
-                            )
-
-    if args.epoch <= args.n_warmup_epochs:
-        active_levels = [0]
-    else:
-        active_levels = args.active_levels
-    for level in active_levels:
+    for level in args.active_levels:
         if args.level_active[level]:
             y_pred = local_outputs[level].to("cpu").numpy()
             y_true = local_inputs[level].to("cpu").int().numpy()
@@ -147,10 +170,10 @@ def valid_step(args):
                 avg_score,
             )
 
-            args.local_val_score[level] = avg_score
+            args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping_normalized(args, active_levels)
+    check_early_stopping_normalized(args, args.active_levels)
