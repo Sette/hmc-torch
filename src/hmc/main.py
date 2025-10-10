@@ -37,6 +37,9 @@ from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalMod
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 
 
+from hmc.models.local_classifier.utils.losses import FocalLoss
+
+
 # Set a logger config
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -303,8 +306,21 @@ def main():
     for dataset_name in datasets:
         args.dataset_name = dataset_name
 
-        args.results_path = (
-            f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+        # args.results_path = (
+        #     f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+        # )
+
+        args.results_path = os.path.join(
+            "home",
+            "bruno",
+            "git",
+            "hmc-torch",
+            "data",
+            args.output_path,
+            "train",
+            "local",
+            args.dataset_name,
+            args.job_id,
         )
 
         logging.info(".......................................")
@@ -448,8 +464,12 @@ def main():
         else:
             args.active_levels = [int(x) for x in args.active_levels]
 
-        criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
-        args.criterions = criterions
+        if args.focal_loss == "true":
+            criterions = [
+                FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
+            ]
+        else:
+            args.criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
 
         if args.hpo == "true":
             logging.info("Hyperparameter optimization")
@@ -481,10 +501,24 @@ def main():
                     "num_layers": args.num_layers_values,
                     "dropout": args.dropout_values,
                     "active_levels": args.active_levels,
+                    "results_path": args.results_path,
                 }
 
                 if args.method == "local_constrained":
-                    params["all_matrix_r"] = args.hmc_dataset.all_matrix_r
+
+                    args.class_indices_per_level = {
+                        lvl: torch.tensor(
+                            [
+                                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                                for n in args.hmc_dataset.levels[lvl]
+                            ],
+                            device=args.device,
+                        )
+                        for lvl in args.hmc_dataset.levels.keys()
+                    }
+                    params["device"] = args.device
+                    params["level_class_indices"] = args.hmc_dataset.level_class_indices
+                    params["r"] = args.hmc_dataset.r.to(args.device)
 
                 args.model = args.train_methods["model"](**params)
                 logging.info(args.model)
