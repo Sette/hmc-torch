@@ -151,11 +151,30 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--focal_loss",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="FOCAL_LOSS",
+        required=False,
+        help="Enable or disable Focal Loss. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
         "--n_warmup_epochs",
         type=int,
-        default=0,
+        default=1,
         required=False,
         metavar="N_WARMUP_EPOCHS",
+    )
+
+    parser.add_argument(
+        "--n_warmup_epochs_increment",
+        type=int,
+        default=1,
+        required=False,
+        metavar="N_WARMUP_EPOCHS_INCREMENT",
     )
 
     # Hyperparameter Optimization (HPO) parameters
