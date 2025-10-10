@@ -1,9 +1,12 @@
 import logging
-
+import os
 import torch.nn as nn
 
 
-from hmc.models.local_classifier.constrained.utils import get_constr_out
+from hmc.models.local_classifier.constrained.utils import (
+    get_constr_out,
+    get_constr_out_merge,
+)
 
 
 def transform_predictions(predictions):
@@ -34,23 +37,21 @@ class BuildClassification(nn.Module):
     def __init__(
         self,
         input_shape,
-        hidden_size,
+        hidden_dims,
         output_size,
-        nb_layers,
-        dropout_rate=0.5,
+        dropout=0.5,
     ):
         super(BuildClassification, self).__init__()
         layers = []
-        layers.append(nn.Linear(input_shape, hidden_size))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(dropout_rate))
-
-        for _ in range(nb_layers - 1):  # Add additional hidden layers
-            layers.append(nn.Linear(hidden_size, hidden_size))
+        current_dim = int(input_shape)
+        # Itera sobre a lista de dimensões ocultas
+        for h_dim in hidden_dims:
+            layers.append(nn.Linear(current_dim, int(h_dim)))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout_rate))
+            layers.append(nn.Dropout(dropout))
+            current_dim = int(h_dim)  # A saída desta camada é a entrada da próxima
 
-        layers.append(nn.Linear(hidden_size, output_size))
+        layers.append(nn.Linear(current_dim, int(output_size)))
         layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
         self.classifier = nn.Sequential(*layers)
@@ -64,70 +65,92 @@ class ConstrainedHMCLocalModel(nn.Module):
         self,
         levels_size,
         input_size=None,
-        hidden_size=None,
+        hidden_dims=None,
         num_layers=None,
         dropout=None,
         active_levels=None,
-        all_matrix_r=None,
+        results_path=None,
+        device="cpu",
+        level_class_indices=None,
+        r=None,
     ):
         super(ConstrainedHMCLocalModel, self).__init__()
         if not input_size:
-            print("input_size is None, error in HMCLocalConstrainedModel")
+            logging.info("input_size is None, error in HMCLocalClassificationModel")
             raise ValueError("input_size is None")
         if not levels_size:
-            print("levels_size is None, error in HMCLocalClassificationModel")
+            logging.info("levels_size is None, error in HMCLocalClassificationModel")
             raise ValueError("levels_size is None")
         if active_levels is None:
-            print("active_levels is not valid, error in HMCLocalConstrainedModel")
-            raise ValueError("active_levels is not valid")
+            active_levels = list(range(len(levels_size)))
+            logging.info("active_levels is None, using all levels: %s", active_levels)
 
         self.input_size = input_size
         self.levels_size = levels_size
         self.mum_layers = num_layers
-        self.hidden_size = hidden_size
+        self.hidden_dims = hidden_dims
         self.dropout = dropout
-        self.all_matrix_r = all_matrix_r
+        self.results_path = results_path
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
-        if isinstance(levels_size, int):
-            levels_size = {level: levels_size for level in active_levels}
-        else:
-            self.max_depth = len(levels_size)
-        if isinstance(hidden_size, int):
-            hidden_size = {level: hidden_size for level in active_levels}
-        if isinstance(num_layers, int):
-            num_layers = {level: num_layers for level in active_levels}
-        if isinstance(dropout, float):
-            dropout = {level: dropout for level in active_levels}
+        self.level_active = [True] * len(levels_size)
+        self.device = device
+        self.level_class_indices = level_class_indices
+        self.r = r
+
+        # if hpo:
+        #     # levels_size = {level: levels_size for level in active_levels}
+        #     dropout = {level: dropout for level in active_levels}
+        #     num_layers = {level: num_layers for level in active_levels}
+        #     hidden_dims = {level: hidden_dims for level in active_levels}
+
+        self.max_depth = len(levels_size)
 
         logging.info(
-            "HMCLocalConstrainedModel: input_size=%s, levels_size=%s, "
-            "hidden_size=%s, num_layers=%s, dropout=%s, "
+            "HMCLocalModel: input_size=%s, levels_size=%s, "
+            "hidden_dims=%s, num_layers=%s, dropout=%s, "
             "active_levels=%s",
             input_size,
             levels_size,
-            hidden_size,
+            hidden_dims,
             num_layers,
             dropout,
             active_levels,
         )
         for index in active_levels:
+
             self.levels[str(index)] = BuildClassification(
                 input_shape=input_size,
-                hidden_size=hidden_size[index],
+                hidden_dims=hidden_dims[index],
                 output_size=levels_size[index],
-                nb_layers=num_layers[index],
-                dropout_rate=dropout[index],
+                dropout=dropout[index],
             )
+            if not self.level_active[index]:
+                logging.info("Level %d is not active, skipping model creation", index)
+                model_path = os.path.join(
+                    self.results_path, f"best_model_level_{index}.pth"
+                )
+
+                self.levels[str(index)].load_state_dict(torch.load(model_path))
+                logging.info(
+                    f"Loaded trained model from {model_path} for level {index}"
+                )
 
     def forward(self, x):
         outputs = {}
-        for index, level in self.levels.items():
-            index = int(index)
+        for level_idx, level in self.levels.items():
+            level_idx = int(level_idx)
             local_output = level(x)
-            if index != 0 and not self.training:
-                local_output = get_constr_out(
-                    local_output, self.all_matrix_r[index].to(x.device)
+            if level_idx != 0 and not self.training:
+                # Pega o output dos ancestrais no batch, já calculado
+                # probs_ancestrais = outputs[level_idx - 1].double()
+                local_output = get_constr_out_merge(
+                    outputs=local_output,
+                    active_levels=self.active_levels,
+                    level=level_idx,
+                    device=self.device,
+                    level_class_indices=self.level_class_indices,
+                    r=self.r,
                 )
-            outputs[index] = local_output
+            outputs[level_idx] = local_output
         return outputs

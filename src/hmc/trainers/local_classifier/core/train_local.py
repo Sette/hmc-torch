@@ -83,27 +83,14 @@ def train_step(args):
 
     args.model.train()
 
-    if args.model_regularization == "soft":
-        args.n_warmup_epochs = 50
-        args.r = args.hmc_dataset.r.to(args.device)
-        args.level_active = [False] * len(args.level_active)
-        args.level_active[0] = True
-        next_level = 1
-        logging.info(
-            "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
-        )
-        #
-        print(args.r.shape)
-        args.class_indices_per_level = {
-            lvl: torch.tensor(
-                [
-                    args.hmc_dataset.nodes_idx[n.replace("/", ".")]
-                    for n in args.hmc_dataset.levels[lvl]
-                ],
-                device=args.device,
-            )
-            for lvl in args.hmc_dataset.levels.keys()
-        }
+    args.r = args.hmc_dataset.r.to(args.device)
+    args.level_active = [False] * len(args.level_active)
+    args.level_active[0] = True
+    next_level = 1
+    logging.info(
+        "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+    )
+    #
 
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
@@ -124,61 +111,57 @@ def train_step(args):
 
             total_loss = 0.0
             lambda_consistencia = (
-                args.lambda_consistencia
-                if hasattr(args, "lambda_consistencia")
-                else 1.0
+                lambda_consistencia if hasattr(args, "lambda_consistencia") else 1.0
             )
 
             for level in args.active_levels:
                 if args.level_active[level]:
+                    args.current_level = level
                     loss = calculate_local_loss(
                         outputs[level],
                         targets[level],
-                        args.criterions[level],
+                        args,
                     )
+
                     local_train_losses[level] += loss.item()
                     total_loss += loss
 
-                    # Penalização de inconsistência: só se não for o primeiro nível!
-                    if level > 0:  # tem ancestral!
-                        prev_level = args.active_levels[level - 1]
-                        if args.level_active[prev_level]:
-                            # Índices globais
-                            idx_ancestrais = torch.as_tensor(
-                                args.hmc_dataset.level_class_indices[prev_level],
-                                dtype=torch.long,
-                                device=args.device,
-                            )
-                            idx_filhos = torch.as_tensor(
-                                args.hmc_dataset.level_class_indices[level],
-                                dtype=torch.long,
-                                device=args.device,
-                            )
-                            # Matriz de relação entre níveis
-                            R = args.r.squeeze(0).to(args.device)
-                            R_sub = R[idx_ancestrais][
-                                :, idx_filhos
-                            ]  # [n_ancestrais, n_descendentes]
+                    # # Penalização de inconsistência: só se não for o primeiro nível!
+                    # if level > 0:  # tem ancestral!
+                    #     prev_level = args.active_levels[level - 1]
+                    #     if args.level_active[prev_level]:
+                    #         # Índices globais
+                    #         idx_ancestrais = torch.as_tensor(
+                    #             args.hmc_dataset.level_class_indices[prev_level],
+                    #             dtype=torch.long,
+                    #             device=args.device,
+                    #         )
+                    #         idx_filhos = torch.as_tensor(
+                    #             args.hmc_dataset.level_class_indices[level],
+                    #             dtype=torch.long,
+                    #             device=args.device,
+                    #         )
+                    #         # Matriz de relação entre níveis
+                    #         R = args.r.squeeze(0).to(args.device)
+                    #         R_sub = R[idx_ancestrais][
+                    #             :, idx_filhos
+                    #         ]  # [n_ancestrais, n_descendentes]
 
-                            # Probabilidades (ajuste se sua rede retorna logits)
-                            probs_ancestrais = outputs[prev_level]
-                            probs_filhos = outputs[level]
+                    #         # Probabilidades (ajuste se sua rede retorna logits)
+                    #         probs_ancestrais = outputs[prev_level]
+                    #         probs_filhos = outputs[level]
 
-                            prob_ancestral, prob_descendente = (
-                                get_probs_ancestral_descendent(
-                                    probs_ancestrais, probs_filhos, R_sub
-                                )
-                            )
-                            consistency_penalty = torch.clamp(
-                                prob_descendente - prob_ancestral, min=0
-                            )
-                            total_loss += (
-                                lambda_consistencia * consistency_penalty.mean()
-                            )
-
-                # adicionar regularização soft
-                # reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
-                # total_loss += args.lambda_h * reg_loss
+                    #         prob_ancestral, prob_descendente = (
+                    #             get_probs_ancestral_descendent(
+                    #                 probs_ancestrais, probs_filhos, R_sub
+                    #             )
+                    #         )
+                    #         consistency_penalty = torch.clamp(
+                    #             prob_descendente - prob_ancestral, min=0
+                    #         )
+                    #         total_loss += (
+                    #             lambda_consistencia * consistency_penalty.mean()
+                    #         )
 
             total_loss.backward()
 
@@ -205,5 +188,5 @@ def train_step(args):
                 args.level_active[next_level] = True
                 logging.info("Activating level %d", next_level)
                 next_level += 1
-                args.n_warmup_epochs += 100
+                args.n_warmup_epochs += args.n_warmup_epochs_increment
     args.total_time = end_timer(start)

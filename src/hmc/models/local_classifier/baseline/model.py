@@ -1,6 +1,7 @@
 import logging
-
 import torch.nn as nn
+import torch
+import os
 
 
 def transform_predictions(predictions):
@@ -63,6 +64,7 @@ class HMCLocalModel(nn.Module):
         num_layers=None,
         dropout=None,
         active_levels=None,
+        results_path=None,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
@@ -74,14 +76,19 @@ class HMCLocalModel(nn.Module):
         if active_levels is None:
             active_levels = list(range(len(levels_size)))
             logging.info("active_levels is None, using all levels: %s", active_levels)
+        if not results_path:
+            logging.info("results_path is None, error in HMCLocalClassificationModel")
+            raise ValueError("results_path is None")
 
         self.input_size = input_size
         self.levels_size = levels_size
         self.mum_layers = num_layers
         self.hidden_dims = hidden_dims
         self.dropout = dropout
+        self.results_path = results_path
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
+        self.level_active = [True] * len(levels_size)
         # if hpo:
         #     # levels_size = {level: levels_size for level in active_levels}
         #     dropout = {level: dropout for level in active_levels}
@@ -102,12 +109,23 @@ class HMCLocalModel(nn.Module):
             active_levels,
         )
         for index in active_levels:
+
             self.levels[str(index)] = BuildClassification(
                 input_shape=input_size,
                 hidden_dims=hidden_dims[index],
                 output_size=levels_size[index],
                 dropout=dropout[index],
             )
+            if not self.level_active[index]:
+                logging.info("Level %d is not active, skipping model creation", index)
+                model_path = os.path.join(
+                    self.results_path, f"best_model_level_{index}.pth"
+                )
+
+                self.levels[str(index)].load_state_dict(torch.load(model_path))
+                logging.info(
+                    f"Loaded trained model from {model_path} for level {index}"
+                )
 
     def forward(self, x):
         outputs = {}
