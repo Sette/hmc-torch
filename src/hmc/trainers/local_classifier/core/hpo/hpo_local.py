@@ -284,10 +284,11 @@ def optimize_hyperparameters(args):
 
                 for level in args.active_levels:
                     if args.level_active[level]:
+                        args.current_level = level
                         loss = calculate_local_loss(
                             outputs[level],
                             targets[level],
-                            args.criterions[level],
+                            args,
                         )
                         local_train_losses[level] += loss.item()
                         total_loss += loss
@@ -354,20 +355,33 @@ def optimize_hyperparameters(args):
                     logging.info("All levels have triggered early stopping.")
                     break
 
-                val_score = sum(args.local_val_scores) / len(
-                    [lvl for lvl in args.active_levels if args.level_active[lvl]]
-                )
-                val_loss = sum(args.local_val_losses) / len(
-                    [lvl for lvl in args.active_levels if args.level_active[lvl]]
-                )
+                val_loss = 0.0
+                val_score = 0.0
+                best_val_loss = 0.0
+                best_val_score = 0.0
+                for level in args.active_levels:
+                    if args.level_active[level]:
+                        logging.info(
+                            "Level %d - Best val loss: %f - Best val precision: %f",
+                            level,
+                            args.best_val_loss[level],
+                            args.best_val_score[level],
+                        )
 
-                best_val_loss = sum(args.best_val_loss) / len(
-                    [lvl for lvl in args.active_levels if args.level_active[lvl]]
-                )
+                        val_loss += args.local_val_losses[level]
+                        val_score += args.local_val_scores[level]
+                        best_val_loss += args.best_val_loss[level]
+                        best_val_score += args.best_val_score[level]
+                    else:
+                        val_loss += args.best_val_loss[level]
+                        val_score += args.best_val_score[level]
+                        best_val_loss += args.best_val_loss[level]
+                        best_val_score += args.best_val_score[level]
 
-                best_val_score = sum(args.best_val_score) / len(
-                    [lvl for lvl in args.active_levels if args.level_active[lvl]]
-                )
+                val_score = val_score / len(args.active_levels)
+                val_loss = val_loss / len(args.active_levels)
+                best_val_loss = best_val_loss / len(args.active_levels)
+                best_val_score = best_val_score / len(args.active_levels)
 
                 # Reporta o valor de validação para Optuna
                 trial.report(val_score, step=epoch)
