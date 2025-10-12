@@ -1,3 +1,4 @@
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 import os
 import random
 import sys
@@ -17,7 +18,7 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local import (
+from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
     optimize_hyperparameters,
 )
 
@@ -49,8 +50,6 @@ logger = logging.getLogger(__name__)
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
 
 def get_train_methods(x):
@@ -499,7 +498,7 @@ def main():
                     "input_size": args.input_dims[args.data],
                     "hidden_dims": args.hidden_dims,
                     "num_layers": args.num_layers_values,
-                    "dropout": args.dropout_values,
+                    "dropouts": args.dropout_values,
                     "active_levels": args.active_levels,
                     "results_path": args.results_path,
                 }

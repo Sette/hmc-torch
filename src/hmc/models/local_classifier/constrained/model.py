@@ -67,7 +67,7 @@ class ConstrainedHMCLocalModel(nn.Module):
         input_size=None,
         hidden_dims=None,
         num_layers=None,
-        dropout=None,
+        dropouts=None,
         active_levels=None,
         results_path=None,
         device="cpu",
@@ -89,7 +89,7 @@ class ConstrainedHMCLocalModel(nn.Module):
         self.levels_size = levels_size
         self.mum_layers = num_layers
         self.hidden_dims = hidden_dims
-        self.dropout = dropout
+        self.dropouts = dropouts
         self.results_path = results_path
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
@@ -114,7 +114,7 @@ class ConstrainedHMCLocalModel(nn.Module):
             levels_size,
             hidden_dims,
             num_layers,
-            dropout,
+            dropouts,
             active_levels,
         )
         for index in active_levels:
@@ -123,7 +123,7 @@ class ConstrainedHMCLocalModel(nn.Module):
                 input_shape=input_size,
                 hidden_dims=hidden_dims[index],
                 output_size=levels_size[index],
-                dropout=dropout[index],
+                dropout=dropouts[index],
             )
             if not self.level_active[index]:
                 logging.info("Level %d is not active, skipping model creation", index)

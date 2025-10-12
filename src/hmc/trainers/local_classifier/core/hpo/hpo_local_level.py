@@ -5,6 +5,7 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
 from hmc.utils.job import create_job_id_name
 
 
@@ -146,6 +147,7 @@ def optimize_hyperparameters(args):
 
         logging.info("Tentativa número: %d", trial.number)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
+        dropouts = {level: dropout}
         weight_decay = trial.suggest_float(
             "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
         )
@@ -158,18 +160,18 @@ def optimize_hyperparameters(args):
             # O nome do parâmetro agora inclui o índice da camada (ex: 'hidden_dim_level_0_layer_0')
             if i == 0:
                 dim = trial.suggest_int(
-                    "hidden_dim_level_%s_layer_%s" % (level, i), 
-                    args.input_size, 
-                    args.input_size*3, 
-                    log=True) 
+                    "hidden_dim_level_%s_layer_%s" % (level, i),
+                    args.input_size,
+                    args.input_size*3,
+                    log=True)
             else:
                 dim = trial.suggest_int(
-                    "hidden_dim_level_%s_layer_%s" % (level, i), 
-                    args.levels_size[level], 
-                    args.levels_size[level]*3, 
+                    "hidden_dim_level_%s_layer_%s" % (level, i),
+                    args.levels_size[level],
+                    args.levels_size[level]*3,
                     log=True)
             hidden_dims.append(dim)
-
+        hidden_dims_all = {level: hidden_dims}
         args.current_level = [level]
 
         args.level_active = [
@@ -179,14 +181,17 @@ def optimize_hyperparameters(args):
         params = {
             "levels_size": args.levels_size,
             "input_size": args.input_size,
-            "hidden_dims": hidden_dims,
+            "hidden_dims": hidden_dims_all,
             "num_layers": num_layers,
-            "dropout": dropout,
+            "dropouts": dropouts,
             "active_levels": args.current_level,
-            "hpo": True,
+            "results_path": args.results_path,
         }
 
-        args.model = HMCLocalModel(**params).to(args.device)
+        if args.method == "local_constrained":
+            args.model = ConstrainedHMCLocalModel(**params).to(args.device)
+        else:
+            args.model = HMCLocalModel(**params).to(args.device)
 
         optimizer = torch.optim.Adam(
             args.model.parameters(),
@@ -354,7 +359,7 @@ def val_optimizer(args, level):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    args.local_val_score = {
+    args.local_val_scores = {
         level: None for _, level in enumerate(args.active_levels)
     }
 
@@ -416,7 +421,7 @@ def val_optimizer(args, level):
             avg_score,
         )
 
-        args.local_val_score[level] = avg_score
+        args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
@@ -425,4 +430,4 @@ def val_optimizer(args, level):
 
     check_early_stopping_normalized(args, active_levels=[level], save_model=False)
 
-    return args.local_val_losses[level], args.local_val_score[level]
+    return args.local_val_losses[level], args.local_val_scores[level]
