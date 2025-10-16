@@ -95,6 +95,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
                 if args.patience_counters[level] >= args.early_stopping_patience:
                     args.level_active[level] = False
+                    args.model.level_active[level] = False
                     # args.active_levels.remove(i)
                     logging.info(
                         "🚫 Early stopping triggered for level %d by loss\

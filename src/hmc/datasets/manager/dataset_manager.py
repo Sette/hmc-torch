@@ -19,6 +19,50 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def precalculate_r_sub(r, level_class_indices, level, prev_level, device):
+    """Calcula a submatriz de adjacência para a Constraint Layer."""
+
+    # Índices globais de todas as classes do nível anterior
+    idx_ancestrais_global = level_class_indices[prev_level]
+
+    # Índices globais de todas as classes do nível atual
+    idx_filhos_global = level_class_indices[level]
+
+    # Converte para tensores longos para indexação
+    idx_ancestrais_tensor = torch.as_tensor(
+        idx_ancestrais_global, dtype=torch.long, device=device
+    )
+    idx_filhos_tensor = torch.as_tensor(
+        idx_filhos_global, dtype=torch.long, device=device
+    )
+
+    # Extrai a submatriz de adjacência (N_anterior x N_atual)
+    # R[A, D] -> Matriz de adjacência que mapeia ancestral A para descendente D.
+    R_sub = r[idx_ancestrais_tensor][:, idx_filhos_tensor].float()
+
+    # Garante que as colunas onde um filho não tem pai (apenas se for DAG) não causem problemas,
+    # mas R_sub deve ser uma matriz binária (0 ou 1).
+    return R_sub
+
+
+def calculate_all_r_sub(
+    r,
+    level_class_indices,
+    max_depth,
+    device,
+):
+    """Calcula todas as submatrizes de adjacência para a Constraint Layer."""
+
+    edges_matrix_dict = {}
+    for level in range(1, max_depth):
+        prev_level = level - 1
+        R_sub = precalculate_r_sub(
+            r, level_class_indices, level, prev_level, device=device
+        )
+        edges_matrix_dict[level] = R_sub
+    return edges_matrix_dict
+
+
 class HMCDatasetManager:
     """
     Manages hierarchical multi-label datasets, \
@@ -395,8 +439,10 @@ class HMCDatasetManager:
             self.test_file, is_go=self.is_go, use_sample=self.use_sample
         )
         self.a = self.train.A
-        self.edges_matrix_dict = self.train.edges_matrix_dict
-        self.r = self._matrix_r(self.a)
+
+        # print("Edges matrix dict:", self.edges_matrix_dict)
+        self.r = self._matrix_r(self.a).squeeze(0).to(self.device)
+
         # self._matrix_r_local()
         self.g = self.train.g
         self.g_t = self.g.reverse()
@@ -406,7 +452,7 @@ class HMCDatasetManager:
         self.local_nodes_idx = self.train.local_nodes_idx
         # Cria um mapeamento reverso de índice local para nome do nó para facilitar a busca
         self.sorted_levels = sorted(self.local_nodes_idx.keys())
-        self.local_nodes_reverse = {
+        self.local_nodes_reverse_idx = {
             level: {v: k for k, v in self.local_nodes_idx[level].items()}
             for level in self.sorted_levels
         }
@@ -417,6 +463,12 @@ class HMCDatasetManager:
         self.max_depth = self.train.max_depth
         self.levels = self.train.levels
         self.levels_size = self.train.levels_size
+        self.edges_matrix_dict = calculate_all_r_sub(
+            self.r,
+            self.level_class_indices,
+            self.max_depth,
+            device=self.device,
+        )
 
     def get_datasets(self):
         """

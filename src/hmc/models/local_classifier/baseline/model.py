@@ -116,21 +116,23 @@ class HMCLocalModel(nn.Module):
                 output_size=levels_size[index],
                 dropout=dropouts[index],
             )
-            if not self.level_active[index]:
-                logging.info("Level %d is not active, skipping model creation", index)
-                model_path = os.path.join(
-                    self.results_path, f"best_model_level_{index}.pth"
-                )
-
-                self.levels[str(index)].load_state_dict(torch.load(model_path))
-                logging.info(
-                    f"Loaded trained model from {model_path} for level {index}"
-                )
 
     def forward(self, x):
         outputs = {}
-        for index, level in self.levels.items():
-            index = int(index)
+        for level_idx, level in self.levels.items():
+            level_idx = int(level_idx)
+            if not self.level_active[level_idx]:
+                # logging.info(
+                #     "Level %d is not active, skipping model creation", level_idx
+                # )
+                model_path = os.path.join(
+                    self.results_path, "best_model_level_" + str(level_idx) + ".pth"
+                )
+
+                self.levels[str(level_idx)].load_state_dict(torch.load(model_path))
+                # logging.info(
+                #     "Loaded trained model from %s for level %d", model_path, level_idx
+                # )
             local_output = level(x)
-            outputs[index] = local_output
+            outputs[level_idx] = local_output
         return outputs

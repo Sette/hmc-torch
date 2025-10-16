@@ -1,115 +1,286 @@
 import torch
 
 
-def get_constr_out(
-    outputs, probs_ancestrais, active_levels, level, device, level_class_indices, r
+def precalculate_r_sub(r, level_class_indices, level, prev_level, device):
+    """Calcula a submatriz de adjacência para a Constraint Layer."""
+
+    # Índices globais de todas as classes do nível anterior
+    idx_ancestrais_global = level_class_indices[prev_level]
+
+    # Índices globais de todas as classes do nível atual
+    idx_filhos_global = level_class_indices[level]
+
+    # Converte para tensores longos para indexação
+    idx_ancestrais_tensor = torch.as_tensor(
+        idx_ancestrais_global, dtype=torch.long, device=device
+    )
+    idx_filhos_tensor = torch.as_tensor(
+        idx_filhos_global, dtype=torch.long, device=device
+    )
+
+    # Extrai a submatriz de adjacência (N_anterior x N_atual)
+    # R[A, D] -> Matriz de adjacência que mapeia ancestral A para descendente D.
+    R_sub = r[idx_ancestrais_tensor][:, idx_filhos_tensor].float()
+
+    # Garante que as colunas onde um filho não tem pai (apenas se for DAG) não causem problemas,
+    # mas R_sub deve ser uma matriz binária (0 ou 1).
+    return R_sub
+
+
+def apply_hierarchical_constraint_vectorized_corrected(
+    outputs: torch.Tensor,
+    prev_level_outputs: torch.Tensor,
+    R_sub: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Constraint Layer vetorizada para aplicar P[filho] <= min(P[pais]) em um batch.
+
+    outputs: (batch, N_atual) - Predições do modelo para o nível ATUAL.
+    prev_level_outputs: (batch, N_anterior) - Predições COERENTES do nível ANTERIOR.
+    R_sub: (N_anterior, N_atual) - Matriz de Adjacência (Anterior -> Atual) COMPLETA.
+    """
+
+    # 1. Obter o tipo de dado da entrada (geralmente torch.float32)
+    dtype = prev_level_outputs.dtype
+
+    # 2. Projeção das Probabilidades Teto (Ceiling Probability)
+
+    # Expande prev_level_outputs: (batch, N_anterior) -> (batch, N_anterior, 1)
+    P_ancestral_expanded = prev_level_outputs.unsqueeze(2)
+
+    # Cria um valor muito alto (infinito) com o MESMO DTYPE da entrada.
+    # Usar float('inf') garante que o min() ignore esta posição.
+    high_value = torch.full_like(P_ancestral_expanded, float("inf"), dtype=dtype)
+
+    # A condição (R_sub > 0) retorna o tensor booleano CORRETO.
+    R_sub_bool = R_sub > 0
+
+    # Expande R_sub_bool: (N_anterior, N_atual) -> (1, N_anterior, N_atual) para broadcasting.
+    R_sub_bool_expanded = R_sub_bool.unsqueeze(0)
+
+    # P_mascarado: (batch, N_anterior, N_atual)
+    # torch.where: Se R_sub_bool=True, usamos P_ancestral. Se False, usamos high_value.
+    # Ambos os tensores de valor (P_ancestral_expanded e high_value) têm agora o mesmo dtype.
+    P_mascarado = torch.where(R_sub_bool_expanded, P_ancestral_expanded, high_value)
+
+    # 3. Calcule o TETO (minimo entre todos os pais)
+    # ceiling_probs: (batch, N_atual)
+    ceiling_probs, _ = torch.min(P_mascarado, dim=1)
+
+    # 4. Aplique a Restrição MIN
+    # P_coerente[filho] = min(P_original[filho], ceiling_probs)
+    coherent_outputs = torch.min(outputs, ceiling_probs)
+
+    return coherent_outputs
+
+
+def get_constr_out_layer(
+    outputs,
+    labels,
+    level,
+    device,
+    r,
+    nodes_idx,
+    local_nodes_reverse_idx,
 ):
     """
     outputs: tensor (batch, n_classes_nivel_atual)
-    probs_ancestrais: tensor (batch, n_classes_nivel_ancestral)
     ...
     """
+
     # # Penalização de inconsistência: só se não for o primeiro nível!
     if level > 0:  # tem ancestral!
-        prev_level = active_levels[level - 1]
+        prev_level = level - 1
+        print("labels reverse dict:", local_nodes_reverse_idx[prev_level])
+        print("labels:", labels)
+        print("labels shape:", labels[0].shape)
+
+        probs = []
+        for example__out, example_in, example_in_prev in zip(
+            outputs,
+            labels[level],
+            labels[prev_level],
+        ):
+            print("example_out:", example__out)
+            print("example_int:", example_in)
+
+            idx_ancestrais = (
+                (example_in_prev == 1).nonzero(as_tuple=True)[0].to("cpu").tolist()
+            )
+
+            idx_filhos = (example_in == 1).nonzero(as_tuple=True)[0].to("cpu").tolist()
+
+            example_probs = [
+                value if idx in idx_filhos else 0
+                for idx, value in enumerate(example__out.detach().cpu().numpy())
+            ]
+
+            idx_ancestrais_global = [
+                nodes_idx.get(local_nodes_reverse_idx[prev_level][idx])
+                for idx in idx_ancestrais
+            ]
+
+            idx_filhos_global = [
+                nodes_idx.get(local_nodes_reverse_idx[level][idx]) for idx in idx_filhos
+            ]
+
+            print("idx_ancestrais_global:", idx_ancestrais_global)
+            print("idx_filhos_global:", idx_filhos_global)
+
+            idx_ancestrais = torch.as_tensor(
+                idx_ancestrais_global,
+                dtype=torch.long,
+                device=device,
+            )
+
+            idx_filhos = torch.as_tensor(
+                idx_filhos_global,
+                dtype=torch.long,
+                device=device,
+            )
+
+            # Matriz de relação entre níveis
+            R_sub = r[idx_ancestrais][:, idx_filhos]  # [n_ancestrais, n_descendentes]
+
+            outputs = apply_hierarchical_constraint_vectorized_corrected(
+                outputs=example__out.unsqueeze(0),
+                prev_level_outputs=example_in_prev.unsqueeze(0).float(),
+                R_sub=R_sub,
+            ).squeeze(0)
+
+            # print("R_sub:", R_sub)
+
+            # Probabilidades (ajuste se sua rede retorna logits)
+            print("new example out:", example_probs)
+            probs.append(example_probs)
+
+        return probs
+
+
+def get_constr_out_vectorized(
+    outputs: torch.Tensor,
+    labels: list[
+        torch.Tensor
+    ],  # Deve ser uma lista de tensors, onde labels[level] é o tensor do nível atual
+    level: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """
+    outputs: tensor (batch, n_classes_nivel_atual) - As probabilidades/logits do modelo.
+    labels: list of tensors - A lista de tensors ground truth por nível.
+    level: int - O nível atual.
+    device: torch.device - O dispositivo de execução ('cuda' ou 'cpu').
+
+    Retorna um tensor (batch, n_classes_nivel_atual) com os valores de
+    outputs mantidos onde labels[level] == 1 e zerados onde labels[level] == 0.
+    """
+
+    # Penalização de inconsistência: só se não for o primeiro nível!
+    if level > 0:  # tem ancestral!
+
+        # 1. Obter o tensor de rótulos do nível atual (ground truth)
+        # O tensor de rótulos já está no formato (batch, n_classes_nivel_atual)
+        current_labels = (
+            labels[level].float().to(outputs.device)
+        )  # Garante que seja float para multiplicação
+
+        # 2. Produto Elemento a Elemento (Vectorização)
+        # A multiplicação * elemento a elemento age como uma máscara:
+        # Se label é 1, prob * 1 = prob (mantém).
+        # Se label é 0, prob * 0 = 0 (zera).
+        # Não é necessário usar .detach().cpu().numpy()
+        probs = outputs * current_labels
+
+        # Nota: O tensor 'outputs' já deve estar no 'device' e o 'current_labels'
+        # é movido para o mesmo dispositivo (outputs.device) para a multiplicação.
+
+        return probs.to(device)
+
+    # Se level == 0 (primeiro nível), retorna outputs inalterado
+    return outputs.to(device)
+
+
+def get_constr_out_old(
+    outputs,
+    labels,
+    level,
+    device,
+    r,
+    nodes_idx,
+    local_nodes_reverse_idx,
+):
+    """
+    outputs: tensor (batch, n_cR_sublasses_nivel_atual)
+    ...
+    """
+
+    # # Penalização de inconsistência: só se não for o primeiro nível!
+    if level > 0:  # tem ancestral!
+        prev_level = level - 1
+        print("labels reverse dict:", local_nodes_reverse_idx[prev_level])
+        print("labels:", labels)
+        print("labels shape:", labels[0].shape)
         # Índices globais
-        idx_ancestrais = torch.as_tensor(
-            level_class_indices[prev_level],
-            dtype=torch.long,
-            device=device,
-        )
-        idx_filhos = torch.as_tensor(
-            level_class_indices[level],
-            dtype=torch.long,
-            device=device,
-        )
-        # Matriz de relação entre níveis
-        R_sub = r[idx_ancestrais][:, idx_filhos]  # [n_ancestrais, n_descendentes]
+        # idx_ancestrais = torch.as_tensor(
+        #     level_class_indices[prev_level],
+        #     dtype=torch.long,
+        #     device=device,
+        # )
+        # idx_filhos = torch.as_tensor(
+        #     level_class_indices[level],
+        #     dtype=torch.long,
+        #     device=device,
+        # )
+        probs = []
+        for example__out, example_in in zip(
+            outputs,
+            labels[level],
+        ):
+            print("example_out:", example__out)
+            print("example_int:", example_in)
 
-        # Probabilidades (ajuste se sua rede retorna logits)
+            # idx_ancestrais = (
+            #     (example_in_prev == 1).nonzero(as_tuple=True)[0].to("cpu").tolist()
+            # )
 
-        probs_filhos = outputs
+            idx_filhos = (example_in == 1).nonzero(as_tuple=True)[0].to("cpu").tolist()
 
-        # Calcula as restrições
-        prob_ancestral = torch.matmul(probs_ancestrais, R_sub)  # (batch, n_filhos)
-        outputs_constr = torch.min(probs_filhos, prob_ancestral)
+            example_probs = [
+                value if idx in idx_filhos else 0
+                for idx, value in enumerate(example__out.detach().cpu().numpy())
+            ]
 
-        return outputs_constr
+            # idx_ancestrais_global = [
+            #     nodes_idx.get(local_nodes_reverse_idx[prev_level][idx])
+            #     for idx in idx_ancestrais
+            # ]
 
+            # idx_filhos_global = [
+            #     nodes_idx.get(local_nodes_reverse_idx[level][idx]) for idx in idx_filhos
+            # ]
 
-def get_constr_out_merge(outputs, active_levels, level, device, level_class_indices, r):
-    """
-    Applies hierarchical consistency constraints to the network outputs for a specific level.
+            # print("idx_ancestrais_global:", idx_ancestrais_global)
+            # print("idx_filhos_global:", idx_filhos_global)
 
-    Args:
-        outputs (torch.Tensor): Output tensor from the network for the current level (batch_size, n_current_level_classes).
-        active_levels (list): List of active level indices.
-        level (int): Current hierarchical level index.
-        device (torch.device): Torch device to perform computations on.
-        level_class_indices (dict): Mapping of level indices to their global class indices.
-        r (torch.Tensor): Full hierarchical relationship matrix between all classes.
+            # idx_ancestrais = torch.as_tensor(
+            #     idx_ancestrais_global,
+            #     dtype=torch.long,
+            #     device=device,
+            # )
 
-    Returns:
-        torch.Tensor: Modified output tensor with hierarchical constraints applied (batch_size, n_current_level_classes).
-    """
-    # Apply consistency penalty only if this is not the first level
-    if level > 0:  # has ancestor level
-        prev_level = active_levels[level - 1]
-        # Get global indices for ancestor and current (child) level classes
-        idx_ancestrais = torch.as_tensor(
-            level_class_indices[prev_level],
-            dtype=torch.long,
-            device=device,
-        )
-        idx_filhos = torch.as_tensor(
-            level_class_indices[level],
-            dtype=torch.long,
-            device=device,
-        )
-        # Get the relevant submatrix of hierarchy relations between ancestor and child classes
-        R = r.squeeze(0).to(device)
-        R_sub = R[idx_ancestrais][:, idx_filhos]  # shape: [n_ancestors, n_children]
+            # idx_filhos = torch.as_tensor(
+            #     idx_filhos_global,
+            #     dtype=torch.long,
+            #     device=device,
+            # )
 
-        # Convert outputs to double precision
-        c_out = outputs.double()  # shape: [batch_size, n_children]
-        # Unsqueeze to prepare for broadcasted multiplication:
-        # Changes shape from [batch_size, n_children] to [batch_size, 1, n_children]
-        c_out = c_out.unsqueeze(1)
-        # Expand R_sub to batch dimension for broadcasting: shape: [1, n_ancestors, n_children]
-        R_exp = R_sub.unsqueeze(0)
-        # Compute the contribution of each ancestor to each child prediction:
-        # shape: [batch_size, n_ancestors, n_children]
-        prod = c_out * R_exp
-        # For each child, select the largest value assigned by any ancestor:
-        # Resulting shape: [batch_size, n_children]
-        final_out, _ = torch.max(prod, dim=1)
-        return final_out
+            # # Matriz de relação entre níveis
+            # R_sub = r[idx_ancestrais][:, idx_filhos]  # [n_ancestrais, n_descendentes]
 
+            # print("R_sub:", R_sub)
 
-def get_constr_out_old(x, R):
-    """
-    Given the network output x and a constraint matrix R,
-    returns the modified output according to the hierarchical constraints in R.
-    """
-    # Convert x to double precision
-    c_out = x.double()
+            # Probabilidades (ajuste se sua rede retorna logits)
+            print("new example out:", example_probs)
+            probs.append(example_probs)
 
-    # Add a dimension to c_out: from (N, D) to (N, 1, D)
-    # N: batch size, D: dimensionality of the output
-    c_out = c_out.unsqueeze(1)
-
-    # Expand c_out to match the shape of R:
-    # If R is (C, C), c_out becomes (N, C, C)
-    c_out = c_out.expand(len(x), R.shape[1], R.shape[1])
-
-    # Expand R similarly to (N, C, C)
-    R_batch = R.expand(len(x), R.shape[1], R.shape[1])
-
-    # Element-wise multiplication of R_batch by c_out.
-    # This produces a (N, C, C) tensor.
-    # torch.max(...) is taken along dimension=2, resulting in (N, C).
-    # This extracts the maximum along the last dimension,
-    # effectively applying the hierarchical constraints.
-    final_out, _ = torch.max(R_batch * c_out.double(), dim=2)
-
-    return final_out
+        return probs

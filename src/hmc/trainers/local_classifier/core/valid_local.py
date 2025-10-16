@@ -74,9 +74,9 @@ def valid_step(args):
             outputs = args.model(inputs.float())
 
             total_loss = 0.0
-            lambda_consistencia = (
-                lambda_consistencia if hasattr(args, "lambda_consistencia") else 1.0
-            )
+            # lambda_consistencia = (
+            #     lambda_consistencia if hasattr(args, "lambda_consistencia") else 1.0
+            # )
             for level in args.active_levels:
                 if args.level_active[level]:
                     loss = calculate_local_loss(

@@ -110,9 +110,6 @@ def train_step(args):
                 optimizer.zero_grad()
 
             total_loss = 0.0
-            lambda_consistencia = (
-                lambda_consistencia if hasattr(args, "lambda_consistencia") else 1.0
-            )
 
             for level in args.active_levels:
                 if args.level_active[level]:
@@ -125,43 +122,6 @@ def train_step(args):
 
                     local_train_losses[level] += loss.item()
                     total_loss += loss
-
-                    # # Penalização de inconsistência: só se não for o primeiro nível!
-                    # if level > 0:  # tem ancestral!
-                    #     prev_level = args.active_levels[level - 1]
-                    #     if args.level_active[prev_level]:
-                    #         # Índices globais
-                    #         idx_ancestrais = torch.as_tensor(
-                    #             args.hmc_dataset.level_class_indices[prev_level],
-                    #             dtype=torch.long,
-                    #             device=args.device,
-                    #         )
-                    #         idx_filhos = torch.as_tensor(
-                    #             args.hmc_dataset.level_class_indices[level],
-                    #             dtype=torch.long,
-                    #             device=args.device,
-                    #         )
-                    #         # Matriz de relação entre níveis
-                    #         R = args.r.squeeze(0).to(args.device)
-                    #         R_sub = R[idx_ancestrais][
-                    #             :, idx_filhos
-                    #         ]  # [n_ancestrais, n_descendentes]
-
-                    #         # Probabilidades (ajuste se sua rede retorna logits)
-                    #         probs_ancestrais = outputs[prev_level]
-                    #         probs_filhos = outputs[level]
-
-                    #         prob_ancestral, prob_descendente = (
-                    #             get_probs_ancestral_descendent(
-                    #                 probs_ancestrais, probs_filhos, R_sub
-                    #             )
-                    #         )
-                    #         consistency_penalty = torch.clamp(
-                    #             prob_descendente - prob_ancestral, min=0
-                    #         )
-                    #         total_loss += (
-                    #             lambda_consistencia * consistency_penalty.mean()
-                    #         )
 
             total_loss.backward()
 

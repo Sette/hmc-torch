@@ -1,10 +1,10 @@
-
 import logging
 from collections import defaultdict
 from itertools import chain
 import keras
 import networkx as nx
 import numpy as np
+import torch
 
 from hmc.datasets.datasets.gofun import to_skip
 
@@ -40,7 +40,9 @@ class HMCDatasetArff:
             self.nodes_idx,
             self.local_nodes_idx,
             self.max_depth,
-        ) = parse_arff(arff_file=arff_file, is_go=is_go, read_data=read_data, use_sample=use_sample)
+        ) = parse_arff(
+            arff_file=arff_file, is_go=is_go, read_data=read_data, use_sample=use_sample
+        )
         self.to_eval = [t not in to_skip for t in self.terms]
         if read_data:
             r_, c_ = np.where(np.isnan(self.X))
@@ -103,11 +105,12 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
 
-
                     if is_go:
                         for label in nodes:
                             if label != "root":
-                                level = nx.shortest_path_length(g_t, "root").get(label) - 1
+                                level = (
+                                    nx.shortest_path_length(g_t, "root").get(label) - 1
+                                )
                                 # print(f"Label {label} level {level}")
                                 levels[level].append(label)
 
@@ -173,31 +176,23 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                 count += 1
                 for t in lab.split("@"):
                     y_node = t.replace("/", ".")
-                    y_[
-                        [
-                            nodes_idx.get(a)
-                            for a in nx.ancestors(g_t, y_node)
-                        ]
-                    ] = 1
+                    y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, y_node)]] = 1
                     y_[nodes_idx[y_node]] = 1
 
                     if is_go:
-                        depth = nx.shortest_path_length(g_t, "root").get(
-                            y_node
-                        ) - 1
-                        y_local_[depth][
-                            local_nodes_idx[depth].get(y_node)
-                        ] = 1
+                        depth = nx.shortest_path_length(g_t, "root").get(y_node) - 1
+                        y_local_[depth][local_nodes_idx[depth].get(y_node)] = 1
                         for ancestor in nx.ancestors(g_t, y_node):
                             if ancestor != "root":
-                                depth = nx.shortest_path_length(g_t, "root").get(
-                                    ancestor
-                                ) - 1
+                                depth = (
+                                    nx.shortest_path_length(g_t, "root").get(ancestor)
+                                    - 1
+                                )
                                 y_local_[depth][
                                     local_nodes_idx[depth].get(ancestor)
                                 ] = 1
                     else:
-                        
+
                         depth = y_node.count(".") + 1
 
                         assert depth is not None
@@ -218,13 +213,39 @@ def parse_arff(arff_file, is_go=False, read_data=True, use_sample=False):
                 break
         X = np.array(X)
         Y = np.stack(Y)
+        # Dictionary to store the adjacency matrix by level (N_previous x N_current)
         edges_matrix_dict = {}
-        for idx, level_nodes in enumerate(levels.values()):
-            if idx != 0:
-                level_nodes = [node.replace("/", ".") for node in level_nodes]
-                edges_matrix_dict[idx] = np.array(
-                    nx.to_numpy_array(g, nodelist=level_nodes)
-                )
+        # Assuming 'levels' is ordered (e.g., levels.values() returns L0, L1, L2, ...)
+        level_nodes_list = list(levels.values())
+        for idx, current_level_nodes in enumerate(level_nodes_list):
+            if idx == 0:
+                # Level 0 has no ancestor; the Constraint Layer starts from level 1.
+                continue
+            # 1. Identify Previous Level (Ancestor) and Current Level (Child)
+            prev_level_nodes = level_nodes_list[idx - 1]
+            # 2. Format node names (adjust for your case with 'replace')
+            # The R_sub matrix should contain all nodes from the previous level (rows)
+            # and all nodes from the current level (columns).
+            # Replace '/' with '.' if necessary (this depends on how your graph 'g' is labeled)
+            ancestral_nodelist = [node.replace("/", ".") for node in prev_level_nodes]
+            child_nodelist = [node.replace("/", ".") for node in current_level_nodes]
+            # 3. Build the N_previous x N_current adjacency matrix
+            # row_order (nodelist): defines the ROWS (Ancestors / Previous Level)
+            # column_order: defines the COLUMNS (Children / Current Level)
+            # nx.to_numpy_array will create the matrix A[i, j] where:
+            # A[i, j] = 1 if there is an edge from row_order[i] to column_order[j]
+            R_sub_numpy = nx.to_numpy_array(
+                g,
+                nodelist=ancestral_nodelist
+                + child_nodelist,  # Rows (Previous Level / Ancestors)
+                dtype=np.float32,  # Use float32 for consistency with PyTorch
+            )
+            # NetworkX returns 0 or 1 for edges, which is perfect for a binary mask.
+            # 4. Store the matrix in the dictionary
+            # We store as a PyTorch Tensor to avoid repeated conversion during training.
+            edges_matrix_dict[idx] = torch.from_numpy(R_sub_numpy)
+        # R_sub_matrix_dict[level] now contains the PyTorch Tensor (N_previous x N_current)
+        # Example: R_sub_matrix_dict[1] maps Level 0 -> Level 1
 
         # logger.info(
         #     "Shape of edges matrix: %s",

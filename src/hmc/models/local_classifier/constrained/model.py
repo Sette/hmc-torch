@@ -1,11 +1,10 @@
 import logging
 import os
 import torch.nn as nn
-
+import torch
 
 from hmc.models.local_classifier.constrained.utils import (
-    get_constr_out,
-    get_constr_out_merge,
+    apply_hierarchical_constraint_vectorized_corrected,
 )
 
 
@@ -71,7 +70,9 @@ class ConstrainedHMCLocalModel(nn.Module):
         active_levels=None,
         results_path=None,
         device="cpu",
-        level_class_indices=None,
+        nodes_idx=None,
+        local_nodes_reverse_idx=None,
+        edges_matrix_dict=None,
         r=None,
     ):
         super(ConstrainedHMCLocalModel, self).__init__()
@@ -95,8 +96,10 @@ class ConstrainedHMCLocalModel(nn.Module):
         self.active_levels = active_levels
         self.level_active = [True] * len(levels_size)
         self.device = device
-        self.level_class_indices = level_class_indices
         self.r = r
+        self.nodes_idx = nodes_idx
+        self.local_nodes_reverse_idx = local_nodes_reverse_idx
+        self.edges_matrix_dict = edges_matrix_dict
 
         # if hpo:
         #     # levels_size = {level: levels_size for level in active_levels}
@@ -125,32 +128,38 @@ class ConstrainedHMCLocalModel(nn.Module):
                 output_size=levels_size[index],
                 dropout=dropouts[index],
             )
-            if not self.level_active[index]:
-                logging.info("Level %d is not active, skipping model creation", index)
-                model_path = os.path.join(
-                    self.results_path, f"best_model_level_{index}.pth"
-                )
 
-                self.levels[str(index)].load_state_dict(torch.load(model_path))
-                logging.info(
-                    f"Loaded trained model from {model_path} for level {index}"
-                )
-
-    def forward(self, x):
+    def forward(
+        self,
+        x: torch.Tensor,
+    ):
         outputs = {}
         for level_idx, level in self.levels.items():
             level_idx = int(level_idx)
+            if not self.level_active[level_idx]:
+                # logging.info(
+                #     "Level %d is not active, skipping model creation", level_idx
+                # )
+                model_path = os.path.join(
+                    self.results_path, "best_model_level_" + str(level_idx) + ".pth"
+                )
+
+                self.levels[str(level_idx)].load_state_dict(torch.load(model_path))
+                # logging.info(
+                #     "Loaded trained model from %s for level %d", model_path, level_idx
+                # )
             local_output = level(x)
-            if level_idx != 0 and not self.training:
+            # 1. Obter a Matriz de Mapeamento (pré-calculada)
+
+            if level_idx != 0 and self.training:
+                r_sub_level = self.edges_matrix_dict[level_idx].to(self.device)
+
                 # Pega o output dos ancestrais no batch, já calculado
-                # probs_ancestrais = outputs[level_idx - 1].double()
-                local_output = get_constr_out_merge(
+                probs_ancestors = outputs[level_idx - 1].double()
+                local_output = apply_hierarchical_constraint_vectorized_corrected(
                     outputs=local_output,
-                    active_levels=self.active_levels,
-                    level=level_idx,
-                    device=self.device,
-                    level_class_indices=self.level_class_indices,
-                    r=self.r,
+                    prev_level_outputs=probs_ancestors,
+                    R_sub=r_sub_level,
                 )
             outputs[level_idx] = local_output
         return outputs

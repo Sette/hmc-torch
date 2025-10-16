@@ -18,7 +18,7 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+from hmc.trainers.local_classifier.core.hpo.hpo_local import (
     optimize_hyperparameters,
 )
 
@@ -464,7 +464,7 @@ def main():
             args.active_levels = [int(x) for x in args.active_levels]
 
         if args.focal_loss == "true":
-            criterions = [
+            args.criterions = [
                 FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
             ]
         else:
@@ -516,11 +516,17 @@ def main():
                         for lvl in args.hmc_dataset.levels.keys()
                     }
                     params["device"] = args.device
-                    params["level_class_indices"] = args.hmc_dataset.level_class_indices
+                    params["nodes_idx"] = args.hmc_dataset.nodes_idx
+                    params["local_nodes_reverse_idx"] = (
+                        args.hmc_dataset.local_nodes_reverse_idx
+                    )
                     params["r"] = args.hmc_dataset.r.to(args.device)
+                    params["edges_matrix_dict"] = (
+                        args.hmc_dataset.edges_matrix_dict
+                    )  # Precomputed mapping matrices
 
-                args.model = args.train_methods["model"](**params)
-                logging.info(args.model)
+            args.model = args.train_methods["model"](**params)
+            logging.info(args.model)
 
             match args.method:
                 case "local" | "local_constrained" | "local_mask":
