@@ -18,10 +18,6 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local import (
-    optimize_hyperparameters,
-)
-
 from hmc.trainers.local_classifier.core.test_local import (
     test_step as test_step_core,
 )
@@ -52,7 +48,16 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
-def get_train_methods(x):
+def get_train_methods(x, by_level=True):
+    if by_level:
+        from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+            optimize_hyperparameters,
+        )
+    else:
+        from hmc.trainers.local_classifier.core.hpo.hpo_local import (
+            optimize_hyperparameters,
+        )
+
     match x:
         case "local_constrained":
             return {
@@ -325,7 +330,7 @@ def main():
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
 
-        args.train_methods = get_train_methods(args.method)
+        args.train_methods = get_train_methods(args.method, by_level=True)
 
         if args.method == "local_constrained":
             logging.info("Using constrained local model")
