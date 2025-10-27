@@ -26,48 +26,6 @@ import numpy as np
 import random
 
 
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def check_metrics(metric, best_metric, metric_type="loss"):
-    if metric_type == "loss":
-        if metric < best_metric:
-            return True
-        else:
-            return False
-    elif metric_type == "f1":
-        if metric > best_metric:
-            return True
-        else:
-            return False
-    else:
-        return False
-
-
-def combined_metric(val_loss, val_f1, alpha=0.5):
-    """
-    Combina a loss e o F1 score balanceando os dois.
-    A loss é invertida se necessário.
-
-    Args:
-        val_loss (float): loss de validação
-        val_f1 (float): F1-score de validação
-        alpha (float): peso da loss (entre 0 e 1)
-
-    Returns:
-        float: métrica combinada (quanto MAIOR melhor)
-    """
-    # Normaliza loss para [0,1]
-    norm_loss = 1.0 / (1.0 + val_loss)
-    # norm_loss cresce quando loss tende a zero
-
-    # Combinação linear ponderada
-    return alpha * norm_loss + (1 - alpha) * val_f1
-
 
 def optimize_hyperparameters(args):
     """
@@ -209,11 +167,11 @@ def optimize_hyperparameters(args):
         args.best_model = [None] * args.max_depth
 
         args.early_stopping_patience = args.patience
-        args.early_stopping_patience_f1 = args.patience_f1
+        args.early_stopping_patience_score = args.patience_score
         # if args.early_metric == "f1-score":
         #     args.early_stopping_patience = 20
         args.patience_counters = [0] * args.hmc_dataset.max_depth
-        args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
+        args.patience_counters_score = [0] * args.hmc_dataset.max_depth
 
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
 
@@ -252,8 +210,6 @@ def optimize_hyperparameters(args):
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
                     break
-
-                # metric = combined_metric(val_loss, val_f1, alpha=0.5)
 
                 # Reporta o valor de validação para Optuna
                 trial.report(val_score, step=epoch)

@@ -110,7 +110,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_score[level] = round(args.local_val_scores[level], 4)
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
-                args.patience_counters_f1[level] = 0
+                args.patience_counters_score[level] = 0
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)",
                     level,
@@ -129,14 +129,14 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             else:
                 # Incrementar o contador de paciência
-                args.patience_counters_f1[level] += 1
+                args.patience_counters_score[level] += 1
                 logging.info(
                     "Level %d: no improvement (patience %d/%d)",
                     level,
-                    args.patience_counters_f1[level],
-                    args.early_stopping_patience_f1,
+                    args.patience_counters_score[level],
+                    args.early_stopping_patience_score,
                 )
-                if args.patience_counters_f1[level] >= args.early_stopping_patience_f1:
+                if args.patience_counters_score[level] >= args.early_stopping_patience_score:
                     args.level_active[level] = False
                     args.model.level_active[level] = False
                     # args.active_levels.remove(i)

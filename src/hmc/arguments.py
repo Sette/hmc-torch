@@ -254,10 +254,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--patience_f1",
+        "--patience_score",
         type=int,
         default=15,
-        metavar="PATIENCE_F1",
+        metavar="PATIENCE_SCORE",
         required=False,
         help="Number of epochs with no improvement \
             after which training will be stopped.",
