@@ -4,7 +4,7 @@
 REMOTE_USER="root"
 REMOTE_HOST="Kaggle"
 REMOTE_PATH="/root/git/hmc-torch"
-SCRIPT_TO_RUN="train.sh"  # Nome do script a ser executado remotamente
+SCRIPT_TO_RUN="run.sh"  # Nome do script a ser executado remotamente
 TMUX_SESSION="train_session"  # Nome da sessão tmux
 AUTO_YES=false
 RUN_ONLY=false
@@ -51,7 +51,7 @@ if [ "$RUN_ONLY" = false ]; then
         echo "Executando git clone no servidor..."
         ssh "$REMOTE_HOST" "
             export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-            git clone -b feature/new-early-stopping --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
+            git clone -b feature/hidden-dims --single-branch https://github.com/Sette/hmc-torch.git $REMOTE_PATH &&
             cd $REMOTE_PATH &&
             git config core.sshCommand 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' \
         "
@@ -164,10 +164,10 @@ ssh "$REMOTE_HOST" "
         --dataset_path /kaggle/input/gene-ontology-original \
         --output_path  /kaggle/working/results \
         --method local \
-        --epochs_to_evaluate 1 \
+        --epochs_to_evaluate 10 \
         --hpo true \
         --remote true \
         --dataset_type arff \
         --n_trials 30 \
-        --dataset all \
+        --dataset all  \
     "

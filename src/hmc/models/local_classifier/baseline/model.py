@@ -1,6 +1,7 @@
 import logging
-
 import torch.nn as nn
+import torch
+import os
 
 
 def transform_predictions(predictions):
@@ -31,23 +32,21 @@ class BuildClassification(nn.Module):
     def __init__(
         self,
         input_shape,
-        hidden_size,
+        hidden_dims,
         output_size,
-        nb_layers,
-        dropout_rate=0.5,
+        dropout=0.5,
     ):
         super(BuildClassification, self).__init__()
         layers = []
-        layers.append(nn.Linear(input_shape, hidden_size))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(dropout_rate))
-
-        for _ in range(nb_layers - 1):  # Add additional hidden layers
-            layers.append(nn.Linear(hidden_size, hidden_size))
+        current_dim = int(input_shape)
+        # Itera sobre a lista de dimensões ocultas
+        for h_dim in hidden_dims:
+            layers.append(nn.Linear(current_dim, int(h_dim)))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout_rate))
+            layers.append(nn.Dropout(dropout))
+            current_dim = int(h_dim)  # A saída desta camada é a entrada da próxima
 
-        layers.append(nn.Linear(hidden_size, output_size))
+        layers.append(nn.Linear(current_dim, int(output_size)))
         layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
         self.classifier = nn.Sequential(*layers)
@@ -61,64 +60,79 @@ class HMCLocalModel(nn.Module):
         self,
         levels_size,
         input_size=None,
-        hidden_size=None,
+        hidden_dims=None,
         num_layers=None,
-        dropout=None,
+        dropouts=None,
         active_levels=None,
+        results_path=None,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
-            print("input_size is None, error in HMCLocalClassificationModel")
+            logging.info("input_size is None, error in HMCLocalClassificationModel")
             raise ValueError("input_size is None")
         if not levels_size:
-            print("levels_size is None, error in HMCLocalClassificationModel")
+            logging.info("levels_size is None, error in HMCLocalClassificationModel")
             raise ValueError("levels_size is None")
         if active_levels is None:
-            print("active_levels is not valid, error in HMCLocalClassificationModel")
-            raise ValueError("active_levels is not valid")
+            active_levels = list(range(len(levels_size)))
+            logging.info("active_levels is None, using all levels: %s", active_levels)
+        if not results_path:
+            logging.info("results_path is None, error in HMCLocalClassificationModel")
+            raise ValueError("results_path is None")
 
         self.input_size = input_size
         self.levels_size = levels_size
         self.mum_layers = num_layers
-        self.hidden_size = hidden_size
-        self.dropout = dropout
+        self.hidden_dims = hidden_dims
+        self.dropouts = dropouts
+        self.results_path = results_path
         self.levels = nn.ModuleDict()
         self.active_levels = active_levels
-        if isinstance(levels_size, int):
-            levels_size = {level: levels_size for level in active_levels}
-        else:
-            self.max_depth = len(levels_size)
-        if isinstance(hidden_size, int):
-            hidden_size = {level: hidden_size for level in active_levels}
-        if isinstance(num_layers, int):
-            num_layers = {level: num_layers for level in active_levels}
-        if isinstance(dropout, float):
-            dropout = {level: dropout for level in active_levels}
+        self.level_active = [True] * len(levels_size)
+        # if hpo:
+        #     # levels_size = {level: levels_size for level in active_levels}
+        #     dropout = {level: dropout for level in active_levels}
+        #     num_layers = {level: num_layers for level in active_levels}
+        #     hidden_dims = {level: hidden_dims for level in active_levels}
+
+        self.max_depth = len(levels_size)
 
         logging.info(
             "HMCLocalModel: input_size=%s, levels_size=%s, "
-            "hidden_size=%s, num_layers=%s, dropout=%s, "
+            "hidden_dims=%s, num_layers=%s, dropout=%s, "
             "active_levels=%s",
             input_size,
             levels_size,
-            hidden_size,
+            hidden_dims,
             num_layers,
-            dropout,
+            dropouts,
             active_levels,
         )
         for index in active_levels:
+
             self.levels[str(index)] = BuildClassification(
                 input_shape=input_size,
-                hidden_size=hidden_size[index],
+                hidden_dims=hidden_dims[index],
                 output_size=levels_size[index],
-                nb_layers=num_layers[index],
-                dropout_rate=dropout[index],
+                dropout=dropouts[index],
             )
 
     def forward(self, x):
         outputs = {}
-        for index, level in self.levels.items():
-            index = int(index)
+        for level_idx, level in self.levels.items():
+            level_idx = int(level_idx)
+            if not self.level_active[level_idx]:
+                # logging.info(
+                #     "Level %d is not active, skipping model creation", level_idx
+                # )
+                model_path = os.path.join(
+                    self.results_path, "best_model_level_" + str(level_idx) + ".pth"
+                )
+
+                self.levels[str(level_idx)].load_state_dict(torch.load(model_path))
+                # logging.info(
+                #     "Loaded trained model from %s for level %d", model_path, level_idx
+                # )
             local_output = level(x)
-            outputs[index] = local_output
+            outputs[level_idx] = local_output
         return outputs

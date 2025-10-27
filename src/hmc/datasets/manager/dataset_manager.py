@@ -19,6 +19,50 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def precalculate_r_sub(r, level_class_indices, level, prev_level, device):
+    """Calcula a submatriz de adjacência para a Constraint Layer."""
+
+    # Índices globais de todas as classes do nível anterior
+    idx_ancestrais_global = level_class_indices[prev_level]
+
+    # Índices globais de todas as classes do nível atual
+    idx_filhos_global = level_class_indices[level]
+
+    # Converte para tensores longos para indexação
+    idx_ancestrais_tensor = torch.as_tensor(
+        idx_ancestrais_global, dtype=torch.long, device=device
+    )
+    idx_filhos_tensor = torch.as_tensor(
+        idx_filhos_global, dtype=torch.long, device=device
+    )
+
+    # Extrai a submatriz de adjacência (N_anterior x N_atual)
+    # R[A, D] -> Matriz de adjacência que mapeia ancestral A para descendente D.
+    R_sub = r[idx_ancestrais_tensor][:, idx_filhos_tensor].float()
+
+    # Garante que as colunas onde um filho não tem pai (apenas se for DAG) não causem problemas,
+    # mas R_sub deve ser uma matriz binária (0 ou 1).
+    return R_sub
+
+
+def calculate_all_r_sub(
+    r,
+    level_class_indices,
+    max_depth,
+    device,
+):
+    """Calcula todas as submatrizes de adjacência para a Constraint Layer."""
+
+    edges_matrix_dict = {}
+    for level in range(1, max_depth):
+        prev_level = level - 1
+        R_sub = precalculate_r_sub(
+            r, level_class_indices, level, prev_level, device=device
+        )
+        edges_matrix_dict[level] = R_sub
+    return edges_matrix_dict
+
+
 class HMCDatasetManager:
     """
     Manages hierarchical multi-label datasets, \
@@ -40,12 +84,15 @@ class HMCDatasetManager:
 
     """
 
-    def __init__(self,
-                 dataset,
-                 dataset_type="arff",
-                 device="cpu",
-                 is_global=False,
-                 ):
+    def __init__(
+        self,
+        dataset,
+        dataset_type="arff",
+        device="cpu",
+        is_global=False,
+        read_data=True,
+        use_sample=False,
+    ):
         # Extract dataset paths
         self.test, self.train, self.valid, self.to_eval, self.max_depth, self.r = (
             None,
@@ -90,7 +137,8 @@ class HMCDatasetManager:
         # Initialize attributes
         self.is_global = is_global
         self.device = device
-
+        self.read_data = read_data
+        self.use_sample = use_sample
         # Construct graph path
         self.g = nx.DiGraph()
         # train_csv_name = Path(self.train_file).name
@@ -107,7 +155,7 @@ class HMCDatasetManager:
             # Load hierarchical structure
             self.load_structure_from_json(self.labels_file)
 
-        logger.info("Loading dataset from %s", self.train_file)
+        logger.info("Train file: %s", self.train_file)
 
         if dataset_type == "csv":
             self.load_csv_data()
@@ -266,8 +314,6 @@ class HMCDatasetManager:
             - Uses NetworkX for graph operations.
             - The function expects the graph to have a "root" node for local transformations.
         """
-        y_local_ = []
-        y_ = []
         Y = []
         Y_local = []
         for labels in dataset_labels:
@@ -383,20 +429,46 @@ class HMCDatasetManager:
             - Sets attributes: train, valid, test, A, edges_matrix_dict, R, all_matrix_r,
               to_eval, nodes, nodes_idx, local_nodes_idx, max_depth, levels, levels_size.
         """
-        self.train = HMCDatasetArff(self.train_file, is_go=self.is_go)
-        self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go)
-        self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
+        self.train = HMCDatasetArff(
+            self.train_file, is_go=self.is_go, use_sample=self.use_sample
+        )
+        self.valid = HMCDatasetArff(
+            self.valid_file, is_go=self.is_go, use_sample=self.use_sample
+        )
+        self.test = HMCDatasetArff(
+            self.test_file, is_go=self.is_go, use_sample=self.use_sample
+        )
         self.a = self.train.A
-        self.edges_matrix_dict = self.train.edges_matrix_dict
-        # self.r = self._matrix_r(self.a)
+
+        # print("Edges matrix dict:", self.edges_matrix_dict)
+        self.r = self._matrix_r(self.a).squeeze(0).to(self.device)
+
         # self._matrix_r_local()
+        self.g = self.train.g
+        self.g_t = self.g.reverse()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
         self.local_nodes_idx = self.train.local_nodes_idx
+        # Cria um mapeamento reverso de índice local para nome do nó para facilitar a busca
+        self.sorted_levels = sorted(self.local_nodes_idx.keys())
+        self.local_nodes_reverse_idx = {
+            level: {v: k for k, v in self.local_nodes_idx[level].items()}
+            for level in self.sorted_levels
+        }
+        self.level_class_indices = {}
+        for level, nodes_in_level in self.local_nodes_idx.items():
+            indices = [self.nodes_idx[node] for node in nodes_in_level]
+            self.level_class_indices[level] = indices
         self.max_depth = self.train.max_depth
         self.levels = self.train.levels
         self.levels_size = self.train.levels_size
+        self.edges_matrix_dict = calculate_all_r_sub(
+            self.r,
+            self.level_class_indices,
+            self.max_depth,
+            device=self.device,
+        )
 
     def get_datasets(self):
         """
@@ -412,8 +484,10 @@ def initialize_dataset_experiments(
     name: str,
     device: str = "cpu",
     dataset_path: str = "data/",
-    dataset_type: str ="torch",
+    dataset_type: str = "torch",
     is_global: bool = False,
+    read_data: bool = True,
+    use_sample: bool = False,
 ) -> HMCDatasetManager:
     """
     Initialize and return an HMCDatasetManager for the specified dataset.
@@ -447,4 +521,6 @@ def initialize_dataset_experiments(
         dataset_type=dataset_type,
         device=device,
         is_global=is_global,
+        read_data=read_data,
+        use_sample=use_sample,
     )

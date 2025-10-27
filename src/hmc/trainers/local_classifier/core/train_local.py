@@ -6,6 +6,7 @@ from hmc.trainers.local_classifier.core.valid_local import valid_step
 from hmc.utils.labels import (
     show_global_loss,
     show_local_losses,
+    get_probs_ancestral_descendent,
 )
 
 from hmc.utils.job import (
@@ -56,11 +57,11 @@ def train_step(args):
     args.criterions = [criterion.to(args.device) for criterion in args.criterions]
 
     args.early_stopping_patience = args.patience
-    args.early_stopping_patience_f1 = args.patience_f1
+    args.early_stopping_patience_score = args.patience_score
     # if args.early_metric == "f1-score":
     #     args.early_stopping_patience = 20
     args.patience_counters = [0] * args.hmc_dataset.max_depth
-    args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
+    args.patience_counters_score = [0] * args.hmc_dataset.max_depth
     args.level_active = [level in args.active_levels for level in range(args.max_depth)]
     logging.info("Active levels: %s", args.active_levels)
     logging.info("Level active: %s", args.level_active)
@@ -82,26 +83,18 @@ def train_step(args):
 
     args.model.train()
 
-    if args.model_regularization == "mask" or args.model_regularization == "soft":
-        args.R = args.hmc_dataset.R.to(args.device)
-        args.R = args.R.squeeze(0)
-        print(args.R.shape)
-        args.class_indices_per_level = {
-            lvl: torch.tensor(
-                [
-                    args.hmc_dataset.nodes_idx[n.replace("/", ".")]
-                    for n in args.hmc_dataset.levels[lvl]
-                ],
-                device=args.device,
-            )
-            for lvl in args.hmc_dataset.levels.keys()
-        }
-    # defina quantas épocas quer pré-treinar o nível 0
-    args.n_warmup_epochs = 0
+    args.r = args.hmc_dataset.r.to(args.device)
+    args.level_active = [False] * len(args.level_active)
+    args.level_active[0] = True
+    next_level = 1
+    logging.info(
+        "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+    )
+    #
+
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
-        args.model.train()
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         logging.info(
             "Level active: %s",
@@ -109,55 +102,39 @@ def train_step(args):
         )
 
         for inputs, targets, _ in args.train_loader:
-
-            inputs, targets = inputs.to(args.device), [
-                target.to(args.device) for target in targets
-            ]
+            inputs = inputs.to(args.device)
+            targets = [target.to(args.device) for target in targets]
             outputs = args.model(inputs.float())
 
-            # Zerar os gradientes antes de cada batch
             for optimizer in args.optimizers:
                 optimizer.zero_grad()
 
             total_loss = 0.0
-            # Se ainda estamos no warm-up, só treine o nível 0
-            if epoch <= args.n_warmup_epochs:
-                level = 0
-                output = outputs[level].double()
-                target = targets[level].double()
-                loss = args.criterions[level](output, target)
-                local_train_losses[level] += loss
-            else:
-                for level in args.active_levels:
-                    if args.level_active[level]:
-                        loss = calculate_local_loss(
-                            outputs,
-                            targets,
-                            args,
-                            level,
-                        )
-                        local_train_losses[level] += loss.item()
-                        total_loss += loss
 
-                total_loss.backward()
-                for optimizer in args.optimizers:
+            for level in args.active_levels:
+                if args.level_active[level]:
+                    args.current_level = level
+                    loss = calculate_local_loss(
+                        outputs[level],
+                        targets[level],
+                        args,
+                    )
+
+                    local_train_losses[level] += loss.item()
+                    total_loss += loss
+
+            total_loss.backward()
+
+            for level, optimizer in enumerate(args.optimizers):
+                if args.level_active[level]:
                     optimizer.step()
 
-        if epoch <= args.n_warmup_epochs:
-            level = 0
-            global_train_loss = local_train_losses[level] / len(args.train_loader)
+        for level, local_train_loss in enumerate(local_train_losses):
+            if args.level_active[level]:
+                local_train_losses[level] = local_train_loss / len(args.train_loader)
 
-        else:
-            local_train_losses = [
-                loss / len(args.train_loader) for loss in local_train_losses
-            ]
-            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-            global_train_loss = (
-                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
-            )
         logging.info("Epoch %d/%d", epoch, args.epochs)
         show_local_losses(local_train_losses, dataset="Train")
-        show_global_loss(global_train_loss, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
             valid_step(args)
@@ -165,4 +142,11 @@ def train_step(args):
                 logging.info("All levels have triggered early stopping.")
                 args.total_time = end_timer(start)
                 break
+
+        if epoch % args.n_warmup_epochs == 0 and args.model_regularization == "soft":
+            if next_level < args.max_depth:
+                args.level_active[next_level] = True
+                logging.info("Activating level %d", next_level)
+                next_level += 1
+                args.n_warmup_epochs += args.n_warmup_epochs_increment
     args.total_time = end_timer(start)

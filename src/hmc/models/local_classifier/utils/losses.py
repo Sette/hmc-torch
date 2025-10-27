@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class MaskedBCELoss(nn.Module):
@@ -27,3 +28,23 @@ class MaskedBCELoss(nn.Module):
         else:
             # Retorna uma perda zero se não houver perdas
             return torch.tensor(0.0, requires_grad=True).to(outputs[0].device)
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2.0, alpha=0.25, reduction="mean"):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.binary_cross_entropy(inputs, targets, reduction="none")
+        pt = torch.exp(-BCE_loss)
+        F_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+
+        if self.reduction == "mean":
+            return F_loss.mean()
+        elif self.reduction == "sum":
+            return F_loss.sum()
+        else:
+            return F_loss

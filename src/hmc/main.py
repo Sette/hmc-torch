@@ -1,3 +1,4 @@
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 import os
 import random
 import sys
@@ -17,10 +18,6 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
-    optimize_hyperparameters,
-)
-
 from hmc.trainers.local_classifier.core.test_local import (
     test_step as test_step_core,
 )
@@ -28,12 +25,16 @@ from hmc.trainers.local_classifier.core.test_local import (
 from hmc.trainers.local_classifier.core.train_local import (
     train_step as train_step_core,
 )
+
 # Import necessary modules for constrained training local classifiers
 from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
 
 
 # Import necessary modules for training baseline local classifiers
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
+
+
+from hmc.models.local_classifier.utils.losses import FocalLoss
 
 
 # Set a logger config
@@ -46,10 +47,17 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
+def get_train_methods(x, by_level=True):
+    if by_level:
+        from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+            optimize_hyperparameters,
+        )
+    else:
+        from hmc.trainers.local_classifier.core.hpo.hpo_local import (
+            optimize_hyperparameters,
+        )
 
-def get_train_methods(x):
     match x:
         case "local_constrained":
             return {
@@ -76,6 +84,10 @@ def get_train_methods(x):
             return {
                 "model": HMCLocalModel,
                 "test_step": test_step_core,
+            }
+        case "global":
+            return {
+                "model": ConstrainedHMCLocalModel,
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
@@ -105,8 +117,6 @@ def assert_hyperparameter_lengths(
         print("All hyperparameter lists have the correct length.")
     else:
         print("One or more hyperparameter lists have the wrong length.")
-
-
 
 
 def main():
@@ -284,26 +294,48 @@ def main():
         logging.info(f"Job ID created: {args.job_id}")
     else:
         logging.info(f"Using Job ID: {args.job_id}")
-    
+
+    if args.best_theshold == "true":
+        args.best_theshold = True
+    else:
+        args.best_theshold = False
+
+    if args.use_sample == "true":
+        args.use_sample = True
+    else:
+        args.use_sample = False
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     for dataset_name in datasets:
         args.dataset_name = dataset_name
 
-        args.results_path = (
-                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-                )
+        # args.results_path = (
+        #     f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+        # )
+
+        args.results_path = os.path.join(
+            "home",
+            "bruno",
+            "git",
+            "hmc-torch",
+            "data",
+            args.output_path,
+            "train",
+            "local",
+            args.dataset_name,
+            args.job_id,
+        )
 
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
 
-        args.train_methods = get_train_methods(args.method)
+        args.train_methods = get_train_methods(args.method, by_level=True)
 
         if args.method == "local_constrained":
             logging.info("Using constrained local model")
 
-        args.model_regularization = None
+        args.model_regularization = "soft"
 
         # Load train, val and test set
 
@@ -316,7 +348,6 @@ def main():
         args.data, args.ontology = args.dataset_name.split("_")
 
         create_dir(args.results_path)
-        
 
         # Caminhos
         train_path = os.path.join(args.results_path, "train_dataset.pt")
@@ -324,9 +355,14 @@ def main():
         test_path = os.path.join(args.results_path, "test_dataset.pt")
 
         read_data = True
+        is_global = args.method == "global" or args.method == "global_baseline"
 
         # Se já existir, carrega. Se não, cria e salva
-        if os.path.exists(train_path) and os.path.exists(val_path) and os.path.exists(test_path):
+        if (
+            os.path.exists(train_path)
+            and os.path.exists(val_path)
+            and os.path.exists(test_path)
+        ):
             print("Loading existing datasets...")
             read_data = False
             args.hmc_dataset = initialize_dataset_experiments(
@@ -334,20 +370,22 @@ def main():
                 device=args.device,
                 dataset_path=args.dataset_path,
                 dataset_type=args.dataset_type,
-                is_global=False,
+                is_global=is_global,
                 read_data=read_data,
+                use_sample=args.use_sample,
             )
             train_dataset = torch.load(train_path, weights_only=False)
             val_dataset = torch.load(val_path, weights_only=False)
             test_dataset = torch.load(test_path, weights_only=False)
-        else:          
+        else:
             args.hmc_dataset = initialize_dataset_experiments(
                 args.dataset_name,
                 device=args.device,
                 dataset_path=args.dataset_path,
                 dataset_type=args.dataset_type,
-                is_global=False,
+                is_global=is_global,
                 read_data=read_data,
+                use_sample=args.use_sample,
             )
             data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
 
@@ -384,12 +422,16 @@ def main():
             # Create loaders using local (per-level) y labels
             train_dataset = [
                 (x, y_levels, y)
-                for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
+                for (x, y_levels, y) in zip(
+                    data_train.X, data_train.Y_local, data_train.Y
+                )
             ]
 
             val_dataset = [
                 (x, y_levels, y)
-                for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
+                for (x, y_levels, y) in zip(
+                    data_valid.X, data_valid.Y_local, data_valid.Y
+                )
             ]
 
             test_dataset = [
@@ -397,12 +439,11 @@ def main():
                 for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
             ]
 
-
-            # Save datasets in torch format
-            torch.save(train_dataset, train_path)
-            torch.save(val_dataset, val_path)
-            torch.save(test_dataset, test_path)
-
+            if args.save_torch_dataset:
+                # Save datasets in torch format
+                torch.save(train_dataset, train_path)
+                torch.save(val_dataset, val_path)
+                torch.save(test_dataset, test_path)
 
         train_loader = DataLoader(
             dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -427,8 +468,12 @@ def main():
         else:
             args.active_levels = [int(x) for x in args.active_levels]
 
-        criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
-        args.criterions = criterions
+        if args.focal_loss == "true":
+            args.criterions = [
+                FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
+            ]
+        else:
+            args.criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
 
         if args.hpo == "true":
             logging.info("Hyperparameter optimization")
@@ -437,61 +482,75 @@ def main():
 
             logging.info(best_params)
         else:
-            args.lr_values = [float(x) for x in args.lr_values]
-            args.dropout_values = [float(x) for x in args.dropout_values]
-            args.hidden_dims = [int(x) for x in args.hidden_dims]
-            args.num_layers_values = [int(x) for x in args.num_layers_values]
-            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+            if args.lr_values:
+                args.lr_values = [float(x) for x in args.lr_values]
+                args.dropout_values = [float(x) for x in args.dropout_values]
+                # args.hidden_dims = [int(x) for x in args.hidden_dims]
+                args.num_layers_values = [int(x) for x in args.num_layers_values]
+                args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
-            # Ensure all hyperparameter lists have the same length as 'max_depth'
-            assert_hyperparameter_lengths(
-                args,
-                args.lr_values,
-                args.dropout_values,
-                args.hidden_dims,
-                args.num_layers_values,
-                args.weight_decay_values,
-            )
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_size": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropout": args.dropout_values,
-                "active_levels": args.active_levels,
-            }
+                # Ensure all hyperparameter lists have the same length as 'max_depth'
+                assert_hyperparameter_lengths(
+                    args,
+                    args.lr_values,
+                    args.dropout_values,
+                    args.hidden_dims,
+                    args.num_layers_values,
+                    args.weight_decay_values,
+                )
+                params = {
+                    "levels_size": args.hmc_dataset.levels_size,
+                    "input_size": args.input_dims[args.data],
+                    "hidden_dims": args.hidden_dims,
+                    "num_layers": args.num_layers_values,
+                    "dropouts": args.dropout_values,
+                    "active_levels": args.active_levels,
+                    "results_path": args.results_path,
+                }
 
-            if args.method == "local_constrained":
-                params["all_matrix_r"] = args.hmc_dataset.all_matrix_r
+                if args.method == "local_constrained":
+
+                    args.class_indices_per_level = {
+                        lvl: torch.tensor(
+                            [
+                                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                                for n in args.hmc_dataset.levels[lvl]
+                            ],
+                            device=args.device,
+                        )
+                        for lvl in args.hmc_dataset.levels.keys()
+                    }
+                    params["device"] = args.device
+                    params["nodes_idx"] = args.hmc_dataset.nodes_idx
+                    params["local_nodes_reverse_idx"] = (
+                        args.hmc_dataset.local_nodes_reverse_idx
+                    )
+                    params["r"] = args.hmc_dataset.r.to(args.device)
+                    params["edges_matrix_dict"] = (
+                        args.hmc_dataset.edges_matrix_dict
+                    )  # Precomputed mapping matrices
 
             args.model = args.train_methods["model"](**params)
             logging.info(args.model)
-            # Create the model
-            # model = HMCLocalClassificationModel(levels_size=hmc_dataset.levels_size,
-            #                                     input_size=args.input_dims[data],
-            #                                     hidden_size=args.hidden_dim)
 
-        match args.method:
-            case "local" | "local_constrained" | "local_mask":
-                logging.info("Local method selected")
-                args.train_methods["train_step"](args)
-                args.train_methods["test_step"](args)
-                # train(args)
-            case "global" | "global_baseline":
-                logging.info("Global method selected")
-                train_global(dataset_name, args)
-            case "local_test":
-                from hmc.trainers.local_classifier.core.test_local import test_step
+            match args.method:
+                case "local" | "local_constrained" | "local_mask":
+                    logging.info("Local method selected")
+                    args.train_methods["train_step"](args)
+                    args.train_methods["test_step"](args)
+                    # train(args)
+                case "global" | "global_baseline":
+                    logging.info("Global method selected")
+                    train_global(dataset_name, args)
+                case "local_test":
 
-                logging.info("Test local method selected")
+                    logging.info("Test local method selected")
 
-                args.results_path = (
-                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-                )
+                    args.results_path = f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
 
-                args.train_methods["test_step"](args)
-            case _:  # Default case (like 'default' in other languages
-                print("Invalid option")
+                    args.train_methods["test_step"](args)
+                case _:  # Default case (like 'default' in other languages
+                    print("Invalid option")
 
 
 if __name__ == "__main__":

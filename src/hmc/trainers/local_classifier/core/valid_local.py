@@ -1,13 +1,16 @@
 import logging
 import os
 import torch
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
-from hmc.utils.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
 from hmc.utils.early_stopping import (
     check_early_stopping_normalized,
+)
+
+from hmc.utils.labels import (
+    get_probs_ancestral_descendent,
 )
 
 
@@ -43,7 +46,6 @@ def valid_step(args):
 
     args.model.eval()
 
-
     args.result_path = "%s/train/%s-%s/%s" % (
         args.output_path,
         args.method,
@@ -61,7 +63,7 @@ def valid_step(args):
     threshold = 0.2
 
     # Get local scores
-    args.local_val_score = [0.0] * args.max_depth
+    args.local_val_scores = [0.0] * args.max_depth
     args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
@@ -71,69 +73,60 @@ def valid_step(args):
             ]
             outputs = args.model(inputs.float())
 
-            # Se ainda estamos no warm-up, só treine o nível 0
-            if args.epoch <= args.n_warmup_epochs:
-                index = 0
-                output = outputs[index].double()
-                target = targets[index].double()
-                loss = args.criterions[index](output, target)
-                args.local_val_losses[index] += loss.item()
-            else:
-                for level in args.active_levels:
-                    if args.level_active[level]:
-                        loss = calculate_local_loss(
-                            outputs,
-                            targets,
-                            args,
-                            level,
+            total_loss = 0.0
+            for level in args.active_levels:
+                if args.level_active[level]:
+                    loss = calculate_local_loss(
+                        outputs[level],
+                        targets[level],
+                        args,
+                    )
+                    args.local_val_losses[level] += loss.item()
+                    total_loss += loss
+
+                    if i == 0:  # Primeira iteração: inicia tensor
+                        local_outputs[level] = outputs[level]
+                        local_inputs[level] = targets[level]
+                    else:  # Nas seguintes, empilha ao longo do batch
+                        local_outputs[level] = torch.cat(
+                            (local_outputs[level], outputs[level]),
+                            dim=0,
                         )
-                        args.local_val_losses[level] += loss.item()
+                        local_inputs[level] = torch.cat(
+                            (local_inputs[level], targets[level]),
+                            dim=0,
+                        )
 
-                        # *** Para métricas e concatenação ***
-                        # Se quiser outputs binários para avaliação:
-                        binary_outputs = (outputs[level] > threshold).float()
-
-                        # Acumulação de outputs e targets para métricas
-                        if i == 0:  # Primeira iteração: inicia tensor
-                            local_outputs[level] = binary_outputs
-                            local_inputs[level] = targets[level]
-                        else:  # Nas seguintes, empilha ao longo do batch
-                            local_outputs[level] = torch.cat(
-                                (local_outputs[level], binary_outputs),
-                                dim=0,
-                            )
-                            local_inputs[level] = torch.cat(
-                                (local_inputs[level], targets[level]),
-                                dim=0,
-                            )
-
-    if args.epoch <= args.n_warmup_epochs:
-        active_levels = [0]
-    else:
-        active_levels = args.active_levels
-    for idx in active_levels:
-        if args.level_active[idx]:
-            y_pred = local_outputs[idx].to("cpu").int().numpy()
-            y_true = local_inputs[idx].to("cpu").int().numpy()
+    for level in args.active_levels:
+        if args.level_active[level]:
+            y_pred = local_outputs[level].to("cpu").numpy()
+            y_true = local_inputs[level].to("cpu").int().numpy()
+            y_pred_binary = y_pred > threshold
 
             score = precision_recall_fscore_support(
-                y_true, y_pred, average="micro", zero_division=0
+                y_true, y_pred_binary, average="micro", zero_division=0
             )
+
+            avg_score = average_precision_score(
+                y_true,
+                y_pred,
+                average="micro",
+            )
+
             # local_val_score[idx] = score
             logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
-                idx,
+                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
+                level,
                 score[0],
                 score[1],
                 score[2],
+                avg_score,
             )
 
-            args.local_val_score[idx] = score[2]
-
-    
+            args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
-    check_early_stopping_normalized(args, active_levels)
+    check_early_stopping_normalized(args, args.active_levels)

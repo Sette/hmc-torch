@@ -1,7 +1,9 @@
+import numpy as np
 import logging
 import os
 import torch
 from sklearn.metrics import (
+    average_precision_score,
     precision_recall_fscore_support,
 )
 
@@ -45,7 +47,6 @@ def test_step(args):
             torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"), weights_only=True)
         )
 
-    threshold = 0.2
     y_true_global = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
@@ -73,20 +74,73 @@ def test_step(args):
         level: {"f1score": None, "precision": None, "recall": None}
         for _, level in enumerate(args.active_levels)
     }
-    all_y_pred_binary = []
+
+    # args.best_theshold = False
+
+    if args.best_theshold:
+        logging.info("find best theshold")
+        best_thresholds = {level: None for _, level in enumerate(args.active_levels)}
+        thresholds = np.linspace(0.1, 0.9, 17)
+        best_scores = {level: {'precision': 0, 'recall': 0, 'f1score': 0, 'average_precision_score': 0} for _, level in enumerate(args.active_levels)}
+        logging.info("Evaluating %d active levels...", len(args.active_levels))
+        for level in args.active_levels:
+            y_pred = local_outputs[level].to("cpu").numpy()
+            y_true = local_inputs[level].to("cpu").int().numpy()
+            for actual_threshold in thresholds:
+                y_pred_binary = y_pred > actual_threshold
+
+                # all_y_pred_binary.append(y_pred_binary)
+                # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
+
+                score = precision_recall_fscore_support(
+                    y_true, y_pred_binary, average="micro", zero_division=0,
+                )
+
+                avg_score = average_precision_score(
+                    y_true,
+                    y_pred,
+                    average="micro",
+                )
+
+                precision = score[0]
+                recall = score[1]
+                f1_score = score[2]
+
+                if avg_score > best_scores[level]['average_precision_score']:
+                    best_thresholds[level] = actual_threshold
+                    best_scores[level] = {
+                        "precision": precision,
+                        "recall": recall,
+                        "f1score": f1_score,
+                        "average_precision_score": avg_score,
+                    }
+
+        print("Best thresholds per level:")
+        for idx in args.active_levels:
+            print(
+                f"Level {idx}: threshold={best_thresholds[idx]:.2f}, "
+            )
+    else:
+        best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
+
     all_y_pred = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
     for idx in args.active_levels:
         y_pred = local_outputs[idx].to("cpu").numpy()
         all_y_pred.append(y_pred)
-        y_pred_binary = y_pred > threshold
+        y_pred_binary = y_pred > best_thresholds[idx]
 
-        all_y_pred_binary.append(y_pred_binary)
-        # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
         score = precision_recall_fscore_support(
-            local_inputs[idx], y_pred_binary, average="micro"
+            local_inputs[idx], y_pred_binary, average="micro", zero_division=0,
         )
+
+        avg_score = average_precision_score(
+            local_inputs[idx],
+            y_pred,
+            average="micro",
+        )
+
 
         # score = average_precision_score(
         #     local_inputs[idx], y_pred_binary, average="micro"
@@ -94,6 +148,7 @@ def test_step(args):
         local_test_score[idx]["precision"] = score[0]  # Precision
         local_test_score[idx]["recall"] = score[1]  # Recall
         local_test_score[idx]["f1score"] = score[2]  # F1-score
+        local_test_score[idx]["avg_precision_score"] = avg_score
 
     # Save the trained model
     # torch.save(
@@ -105,15 +160,16 @@ def test_step(args):
     # Concat global targets
     y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
 
-    y_pred_global_binary = local_to_global_predictions(
-        all_y_pred_binary,
+    y_pred_global, y_pred_global_binary = local_to_global_predictions(
+        all_y_pred,
         args.hmc_dataset.local_nodes_idx,
         args.hmc_dataset.nodes_idx,
     )
     # logging.info("Y true")
-    # logging.info(y_true_global_original)
+    # print(y_true_global_original[0].tolist())
     # logging.info("Y pred")
-    # logging.info(y_pred_global_binary)
+    # print(y_pred_global_binary[0].tolist())
+
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],
@@ -126,10 +182,24 @@ def test_step(args):
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
+    print("pred:")
+    print(y_pred_global)
+    print("true:")
+    print(y_true_global_original)
+
+    avg_score = average_precision_score(
+        y_true_global_original[:, args.hmc_dataset.to_eval],
+        y_pred_global[:, args.hmc_dataset.to_eval],
+        average="micro",
+    )
+
+    print("Average precision score: %.4f" % avg_score)
+
     local_test_score["global"] = {
         "precision": score[0],
         "recall": score[1],
         "f1score": score[2],
+        "avgscore": avg_score,
     }
 
     local_test_score["metadata"] = {
@@ -137,7 +207,7 @@ def test_step(args):
         "job_id": args.job_id,
         "method": args.method,
         "epochs_to_evaluate": args.epochs_to_evaluate,
-        "threshold": threshold,
+        "threshold": best_thresholds,
         "batch_size": args.batch_size,
         "max_depth": args.max_depth,
         "epochs": args.epochs,
@@ -149,7 +219,7 @@ def test_step(args):
         "num_layers_values": args.num_layers_values,
         "seed": args.seed,
     }
-    logging.info("Local test score: %s", str(local_test_score))
+    # logging.info("Local test score: %s", str(local_test_score))
 
     save_dict_to_json(
         local_test_score,

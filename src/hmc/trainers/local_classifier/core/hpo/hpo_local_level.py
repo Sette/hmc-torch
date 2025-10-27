@@ -2,9 +2,10 @@ import logging
 import sys
 import optuna
 import torch
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
 from hmc.utils.job import create_job_id_name
 
 
@@ -24,48 +25,6 @@ from hmc.utils.dir import create_dir
 import numpy as np
 import random
 
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def check_metrics(metric, best_metric, metric_type="loss"):
-    if metric_type == "loss":
-        if metric < best_metric:
-            return True
-        else:
-            return False
-    elif metric_type == "f1":
-        if metric > best_metric:
-            return True
-        else:
-            return False
-    else:
-        return False
-
-
-def combined_metric(val_loss, val_f1, alpha=0.5):
-    """
-    Combina a loss e o F1 score balanceando os dois.
-    A loss é invertida se necessário.
-
-    Args:
-        val_loss (float): loss de validação
-        val_f1 (float): F1-score de validação
-        alpha (float): peso da loss (entre 0 e 1)
-
-    Returns:
-        float: métrica combinada (quanto MAIOR melhor)
-    """
-    # Normaliza loss para [0,1]
-    norm_loss = 1.0 / (1.0 + val_loss)
-    # norm_loss cresce quando loss tende a zero
-
-    # Combinação linear ponderada
-    return alpha * norm_loss + (1 - alpha) * val_f1
 
 
 def optimize_hyperparameters(args):
@@ -145,13 +104,32 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, args.input_size, args.input_size*3, log=True)
         dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
-        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
+        dropouts = {level: dropout}
         weight_decay = trial.suggest_float(
             "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
         )
         lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-2, log=True)
+        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 5, log=True)
+        hidden_dims = []
+
+        # 3. Use um laço para sugerir a dimensão de CADA camada
+        for i in range(num_layers):
+            # O nome do parâmetro agora inclui o índice da camada (ex: 'hidden_dim_level_0_layer_0')
+            if i == 0:
+                dim = trial.suggest_int(
+                    "hidden_dim_level_%s_layer_%s" % (level, i),
+                    args.input_size,
+                    args.input_size*3,
+                    log=True)
+            else:
+                dim = trial.suggest_int(
+                    "hidden_dim_level_%s_layer_%s" % (level, i),
+                    args.levels_size[level],
+                    args.levels_size[level]*3,
+                    log=True)
+            hidden_dims.append(dim)
+        hidden_dims_all = {level: hidden_dims}
         args.current_level = [level]
 
         args.level_active = [
@@ -161,13 +139,17 @@ def optimize_hyperparameters(args):
         params = {
             "levels_size": args.levels_size,
             "input_size": args.input_size,
-            "hidden_size": hidden_dim,
+            "hidden_dims": hidden_dims_all,
             "num_layers": num_layers,
-            "dropout": dropout,
+            "dropouts": dropouts,
             "active_levels": args.current_level,
+            "results_path": args.results_path,
         }
 
-        args.model = HMCLocalModel(**params).to(args.device)
+        if args.method == "local_constrained":
+            args.model = ConstrainedHMCLocalModel(**params).to(args.device)
+        else:
+            args.model = HMCLocalModel(**params).to(args.device)
 
         optimizer = torch.optim.Adam(
             args.model.parameters(),
@@ -177,18 +159,19 @@ def optimize_hyperparameters(args):
         args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
-        criterions = [criterion.to(args.device) for criterion in args.criterions]
+        for criterion in args.criterions:
+            criterion.to(args.device)
 
         args.best_val_loss = [float("inf")] * args.max_depth
         args.best_val_score = [0.0] * args.max_depth
         args.best_model = [None] * args.max_depth
 
         args.early_stopping_patience = args.patience
-        args.early_stopping_patience_f1 = args.patience_f1
+        args.early_stopping_patience_score = args.patience_score
         # if args.early_metric == "f1-score":
         #     args.early_stopping_patience = 20
         args.patience_counters = [0] * args.hmc_dataset.max_depth
-        args.patience_counters_f1 = [0] * args.hmc_dataset.max_depth
+        args.patience_counters_score = [0] * args.hmc_dataset.max_depth
 
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
 
@@ -222,26 +205,24 @@ def optimize_hyperparameters(args):
 
             if epoch % args.epochs_to_evaluate == 0:
                 args.epoch = epoch
-                val_loss, val_f1 = val_optimizer(args, level)
+                val_loss, val_score = val_optimizer(args, level)
 
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
                     break
 
-                # metric = combined_metric(val_loss, val_f1, alpha=0.5)
-
                 # Reporta o valor de validação para Optuna
-                trial.report(val_f1, step=epoch)
+                trial.report(val_score, step=epoch)
 
                 logging.info(
-                    "Trial %d Local validation loss: %f F1: %f",
+                    "Trial %d Local validation loss: %f AVG Score: %f",
                     trial.number,
                     val_loss,
-                    val_f1,
+                    val_score,
                 )
 
                 logging.info(
-                    "Local best validation loss: %f F1: %f",
+                    "Local best validation loss: %f AVG precision: %f",
                     args.best_val_loss[level],
                     args.best_val_score[level],
                 )
@@ -249,7 +230,7 @@ def optimize_hyperparameters(args):
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return val_f1
+        return val_score
 
     best_params_per_level = {}
 
@@ -275,10 +256,19 @@ def optimize_hyperparameters(args):
         )
 
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
+
+        num_layers = study.best_params[f"num_layers_level_{level}"]
+
+        # Reconstrói a lista de dimensões
+        hidden_dims = [
+            study.best_params[f"hidden_dim_level_{level}_layer_{i}"]
+            for i in range(num_layers)
+        ]
+
         level_parameters = {
-            "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
+            "hidden_dims": hidden_dims,
             "dropout": study.best_params[f"dropout_level_{level}"],
-            "num_layers": study.best_params[f"num_layers_level_{level}"],
+            "num_layers": num_layers,
             "weight_decay": study.best_params[f"weight_decay_level_{level}"],
             "lr": study.best_params[f"lr_level_{level}"],
         }
@@ -325,7 +315,7 @@ def val_optimizer(args, level):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    args.local_val_score = {
+    args.local_val_scores = {
         level: None for _, level in enumerate(args.active_levels)
     }
 
@@ -370,16 +360,24 @@ def val_optimizer(args, level):
         score = precision_recall_fscore_support(
             y_true, y_pred, average="micro", zero_division=0
         )
+
+        avg_score = average_precision_score(
+            y_true,
+            y_pred,
+            average="micro",
+        )
+
         # local_val_score[idx] = score
         logging.info(
-            "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
+            "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
             level,
             score[0],
             score[1],
             score[2],
+            avg_score,
         )
 
-        args.local_val_score[level] = score[2]
+        args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
@@ -388,4 +386,4 @@ def val_optimizer(args, level):
 
     check_early_stopping_normalized(args, active_levels=[level], save_model=False)
 
-    return args.local_val_losses[level], args.local_val_score[level]
+    return args.local_val_losses[level], args.local_val_scores[level]

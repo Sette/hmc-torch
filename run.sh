@@ -5,19 +5,15 @@ export CUDA_LAUNCH_BLOCKING=1
 
 # Lista de datasets
 
-# DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
-
-DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN spo_FUN"
-
-# DATASETS="seq_FUN"
+DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
 
 
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"
 DEVICE="cpu"
-EPOCHS=2000
-EPOCHS_TO_EVALUATE=10
+EPOCHS=4000
+EPOCHS_TO_EVALUATE=1
 OUTPUT_PATH="results"
 METHOD="local"
 SEED=0
@@ -25,7 +21,9 @@ DATASET_TYPE="arff"
 HPO="false"
 REMOTE="false"
 N_TRIALS=30
-
+JOB_ID="false"
+USE_SAMPLE="false"
+SAVE_TORCH_DATASET="false"
 
 
 export PYTHONPATH=src
@@ -38,7 +36,10 @@ usage() {
     echo "Usage: $0 [options]"
     echo ""
     echo "Available options:"
+    echo "  --job_id <type>           Job id  (default: $JOB_ID)" 
     echo "  --dataset <name>          Dataset name (default: $DATASET)"
+    echo "  --use_sample <yes/no>     Use just a smple of data  (default: $USE_SAMPLE)"
+    echo "  --save_torch_dataset <yes/no> Save torch dataset (default: $SAVE_TORCH_DATASET)"
     echo "  --dataset_path <path>     Dataset path (default: $DATASET_PATH)"
     echo "  --seed <num>              Random seed (default: $SEED)"
     echo "  --dataset_type <type>     Dataset type (default: $DATASET_TYPE)"
@@ -67,7 +68,10 @@ usage() {
 # Processamento dos argumentos
 while [ "$#" -gt 0 ]; do
     case $1 in
+        --job_id) JOB_ID="$2"; shift ;;
         --dataset) DATASET="$2"; shift ;;
+        --use_sample) USE_SAMPLE="$2"; shift ;;
+        --save_torch_dataset) SAVE_TORCH_DATASET="$2"; shift ;;
         --dataset_path) DATASET_PATH="$2"; shift ;;
         --seed) SEED="$2"; shift ;;
         --dataset_type) DATASET_TYPE="$2"; shift ;;
@@ -96,7 +100,10 @@ done
 
 
 cmd="python -m hmc.main \
+                --job_id $JOB_ID \
                 --dataset_path $DATASET_PATH \
+                --use_sample $USE_SAMPLE \
+                --save_torch_dataset $SAVE_TORCH_DATASET \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
                 --non_lin $NON_LIN \
@@ -113,7 +120,7 @@ cmd="python -m hmc.main \
 
 if [ "$DATASET" = "all" ]; then
     for dataset_local in $DATASETS; do
-        HIDDEN_DIMS=$(yq '.datasets_params.'"$dataset_local"'.hidden_dims[]' config.yaml | xargs)
+        HIDDEN_DIMS=$(yq -j '.datasets_params.'"$dataset_local"'.hidden_dims' config.yaml | jq -c .)
         LR_VALUES=$(yq '.datasets_params.'"$dataset_local"'.lr_values[]' config.yaml | xargs)
         DROPOUT_VALUES=$(yq '.datasets_params.'"$dataset_local"'.dropout_values[]' config.yaml | xargs)
         NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$dataset_local"'.num_layers_values[]' config.yaml | xargs)
@@ -146,7 +153,7 @@ if [ "$DATASET" = "all" ]; then
     done
 else
     echo "Using specific dataset: $DATASET"
-    HIDDEN_DIMS=$(yq '.datasets_params.'"$DATASET"'.hidden_dims[]' config.yaml | xargs)
+    HIDDEN_DIMS=$(yq -j '.datasets_params.'"$DATASET"'.hidden_dims' config.yaml | jq -c .)
     LR_VALUES=$(yq '.datasets_params.'"$DATASET"'.lr_values[]' config.yaml | xargs)
     DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET"'.dropout_values[]' config.yaml | xargs)
     NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET"'.num_layers_values[]' config.yaml | xargs)
@@ -161,16 +168,16 @@ else
     fi
 
     if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
-            cmd+=" \
-                --lr_values ${LR_VALUES[@]} \
-                --dropout_values ${DROPOUT_VALUES[@]} \
-                --hidden_dims ${HIDDEN_DIMS[@]} \
-                --num_layers_values ${NUM_LAYERS_VALUES[@]} \
-                --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
+        cmd+=" \
+            --lr_values ${LR_VALUES[@]} \
+            --dropout_values ${DROPOUT_VALUES[@]} \
+            --hidden_dims ${HIDDEN_DIMS[@]} \
+            --num_layers_values ${NUM_LAYERS_VALUES[@]} \
+            --weight_decay_values ${WEIGHT_DECAY_VALUES[@]}"
     fi
 
     TRAIN_PID=$!
-    echo "Running: $cmd"
+    echo $cmd
     $cmd
 
     trap "kill $TRAIN_PID" SIGINT SIGTERM

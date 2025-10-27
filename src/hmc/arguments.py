@@ -1,4 +1,5 @@
 import argparse
+import json
 
 
 def get_parser():
@@ -23,6 +24,28 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use_sample",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use a sample of data (for tests). \
+                Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--save_torch_dataset",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use save torch dataset. \
+                    Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
         "--dataset_path",
         type=str,
         required=True,
@@ -41,6 +64,17 @@ def get_parser():
         type=int,
         required=False,
         help="n_trials for hpo.",
+    )
+
+    parser.add_argument(
+        "--best_theshold",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="BEST_THESHOLD",
+        required=False,
+        help="Enable or disable to use find the best thesholds. \
+                        Use 'true' to enable and 'false' to disable.",
     )
 
     # Training parameters
@@ -116,6 +150,33 @@ def get_parser():
         help="Method type to use.",
     )
 
+    parser.add_argument(
+        "--focal_loss",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="FOCAL_LOSS",
+        required=False,
+        help="Enable or disable Focal Loss. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--n_warmup_epochs",
+        type=int,
+        default=1,
+        required=False,
+        metavar="N_WARMUP_EPOCHS",
+    )
+
+    parser.add_argument(
+        "--n_warmup_epochs_increment",
+        type=int,
+        default=0,
+        required=False,
+        metavar="N_WARMUP_EPOCHS_INCREMENT",
+    )
+
     # Hyperparameter Optimization (HPO) parameters
     parser.add_argument(
         "--hpo",
@@ -157,12 +218,11 @@ def get_parser():
     )
     parser.add_argument(
         "--hidden_dims",
-        type=int,
-        nargs="+",
+        type=json.loads,  # aceita JSON (ex.: '[[128,64],[256]]')
         required=False,
         metavar="HIDDEN_DIMS",
-        help="List of values for the number"
-        " of hidden neurons (used when HPO is disabled).",
+        help="List (or list of lists) of hidden neurons. "
+        "Can be passed as JSON when HPO is enabled (e.g. '[[128,64],[256]]').",
     )
     parser.add_argument(
         "--num_layers_values",
@@ -194,10 +254,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--patience_f1",
+        "--patience_score",
         type=int,
         default=15,
-        metavar="PATIENCE_F1",
+        metavar="PATIENCE_SCORE",
         required=False,
         help="Number of epochs with no improvement \
             after which training will be stopped.",

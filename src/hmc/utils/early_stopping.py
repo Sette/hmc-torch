@@ -13,7 +13,7 @@ def check_metrics(metric, best_metric, metric_type="loss"):
             return True
         else:
             return False
-    elif metric_type == "f1-score":
+    elif metric_type == "score":
         if metric > best_metric:
             return True
         else:
@@ -28,14 +28,13 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
     Args:
         args: An object containing all necessary arguments and attributes.
     """
-    bypass_best_model_only = False
+    bypass_best_model = args.use_sample
     for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 logging.info("Level %d: initialized best model", level)
-                if save_model and bypass_best_model_only:
-                    # Salvar em disco
+                if save_model and bypass_best_model:
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
                         args.model.levels[str(level)].state_dict(),
@@ -45,16 +44,15 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     )
                     logging.info("best model updated and saved for Level %d", level)
 
-
             loss = round(args.local_val_losses[level], 4)
             best_loss = args.best_val_loss[level]
-            metric = round(args.local_val_score[level], 4)
+            metric = round(args.local_val_scores[level], 4)
             best_metric = args.best_val_score[level]
 
             is_better_metric = check_metrics(
                 metric,
                 best_metric,
-                metric_type="f1-score",
+                metric_type="score",
             )
 
             logging.info(
@@ -97,6 +95,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
                 if args.patience_counters[level] >= args.early_stopping_patience:
                     args.level_active[level] = False
+                    args.model.level_active[level] = False
                     # args.active_levels.remove(i)
                     logging.info(
                         "🚫 Early stopping triggered for level %d by loss\
@@ -109,13 +108,13 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             if is_better_metric:
                 # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_score[level] = round(args.local_val_score[level], 4)
+                args.best_val_score[level] = round(args.local_val_scores[level], 4)
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
-                args.patience_counters_f1[level] = 0
+                args.patience_counters_score[level] = 0
                 logging.info(
                     "Level %d: improved (F1 score=%.4f)",
                     level,
-                    round(args.local_val_score[level], 4),
+                    round(args.local_val_scores[level], 4),
                 )
                 if save_model:
                     # Salvar em disco
@@ -130,15 +129,16 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
 
             else:
                 # Incrementar o contador de paciência
-                args.patience_counters_f1[level] += 1
+                args.patience_counters_score[level] += 1
                 logging.info(
                     "Level %d: no improvement (patience %d/%d)",
                     level,
-                    args.patience_counters_f1[level],
-                    args.early_stopping_patience_f1,
+                    args.patience_counters_score[level],
+                    args.early_stopping_patience_score,
                 )
-                if args.patience_counters_f1[level] >= args.early_stopping_patience_f1:
+                if args.patience_counters_score[level] >= args.early_stopping_patience_score:
                     args.level_active[level] = False
+                    args.model.level_active[level] = False
                     # args.active_levels.remove(i)
                     logging.info(
                         "🚫 Early stopping triggered for level %d by loss\
