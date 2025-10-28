@@ -164,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--n_warmup_epochs",
         type=int,
-        default=1,
+        default=50,
         required=False,
         metavar="N_WARMUP_EPOCHS",
     )
@@ -172,7 +172,7 @@ def get_parser():
     parser.add_argument(
         "--n_warmup_epochs_increment",
         type=int,
-        default=0,
+        default=10,
         required=False,
         metavar="N_WARMUP_EPOCHS_INCREMENT",
     )
