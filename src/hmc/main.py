@@ -330,7 +330,7 @@ def main():
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
 
-        args.train_methods = get_train_methods(args.method, by_level=True)
+        args.train_methods = get_train_methods(args.method, by_level=False)
 
         if args.method == "local_constrained":
             logging.info("Using constrained local model")

@@ -319,15 +319,14 @@ def optimize_hyperparameters(args):
                         val_score += args.best_val_score[level]
                         best_val_loss += args.best_val_loss[level]
                         best_val_score += args.best_val_score[level]
-
-                val_score = val_score / args.max_depth
+                if next_level > args.max_depth:
+                    val_score = val_score / args.max_depth
+                else:
+                    val_score = val_score / (next_level)
                 val_loss = val_loss / args.max_depth
                 best_val_loss = best_val_loss / args.max_depth
                 best_val_score = best_val_score / args.max_depth
-
-                # Reporta o valor de validação para Optuna
-                trial.report(val_score, step=epoch)
-
+                
                 logging.info(
                     "Trial %d Local validation loss: %f AVG Score: %f",
                     trial.number,
@@ -340,10 +339,14 @@ def optimize_hyperparameters(args):
                     best_val_loss,
                     best_val_score,
                 )
+                
+                if next_level > args.max_depth:
+                    # Reporta o valor de validação para Optuna
+                    trial.report(val_score, step=epoch)
 
-                # Early stopping (pruning)
-                if trial.should_prune():
-                    raise optuna.TrialPruned()
+                    # Early stopping (pruning)
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
 
             if epoch % args.n_warmup_epochs == 0:
                 if next_level < args.max_depth:
