@@ -47,6 +47,13 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
+def parse_str_flags(args):
+    """Convert certain string command-line arguments to boolean."""
+    args.best_theshold = args.best_theshold == "true"
+    args.use_sample = args.use_sample == "true"
+    args.hpo_by_level = args.hpo_by_level == "true"
+    return args
+
 
 def get_train_methods(x, by_level=True):
     if by_level:
@@ -289,30 +296,11 @@ def main():
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
-    if args.job_id == "false":
-        args.job_id = create_job_id()
-        logging.info(f"Job ID created: {args.job_id}")
-    else:
-        logging.info(f"Using Job ID: {args.job_id}")
+    args = parse_str_flags(args)
 
-    if args.best_theshold == "true":
-        args.best_theshold = True
-    else:
-        args.best_theshold = False
-
-    if args.use_sample == "true":
-        args.use_sample = True
-    else:
-        args.use_sample = False
-
-    # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     for dataset_name in datasets:
         args.dataset_name = dataset_name
-
-        # args.results_path = (
-        #     f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
-        # )
 
         args.results_path = os.path.join(
             "home",
@@ -330,12 +318,10 @@ def main():
         logging.info(".......................................")
         logging.info("Experiment with %s dataset", args.dataset_name)
 
-        args.train_methods = get_train_methods(args.method, by_level=False)
+        args.train_methods = get_train_methods(args.method, by_level=args.hpo_by_level)
 
         if args.method == "local_constrained":
             logging.info("Using constrained local model")
-
-        args.model_regularization = "soft"
 
         # Load train, val and test set
 
@@ -506,6 +492,7 @@ def main():
                     "dropouts": args.dropout_values,
                     "active_levels": args.active_levels,
                     "results_path": args.results_path,
+                    "resitual": args.model_regularization == "resitual",
                 }
 
                 if args.method == "local_constrained":
