@@ -22,10 +22,6 @@ from hmc.utils.path.output import save_dict_to_json
 
 from hmc.utils.path.dir import create_dir
 
-import numpy as np
-import random
-
-
 
 def optimize_hyperparameters(args):
     """
