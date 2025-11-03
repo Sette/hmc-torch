@@ -104,36 +104,48 @@ def optimize_hyperparameters(args):
         """
 
         logging.info("Tentativa número: %d", trial.number)
-        dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
+        dropout = trial.suggest_float(f"dropout_level_{level}", 0.3, 0.8, log=True)
+        weight_decay = trial.suggest_float(f"weight_decay_level_{level}", 1e-6, 1e-2, log=True)
+        lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
+        num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
         dropouts = {level: dropout}
-        weight_decay = trial.suggest_float(
-            "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
-        )
-        lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-2, log=True)
-        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 5, log=True)
         hidden_dims = []
-
-        # 3. Use um laço para sugerir a dimensão de CADA camada
+        
         for i in range(num_layers):
-            # O nome do parâmetro agora inclui o índice da camada (ex: 'hidden_dim_level_0_layer_0')
+            input_size = args.input_size
+            if args.model_regularization == "resitual" and level > 0:
+                input_size += args.levels_size[level - 1]
             if i == 0:
                 dim = trial.suggest_int(
-                    "hidden_dim_level_%s_layer_%s" % (level, i),
-                    args.input_size,
-                    args.input_size*3,
+                    f"hidden_dim_level_{level}_layer_{i}",
+                    input_size,
+                    input_size*3,
                     log=True)
             else:
                 dim = trial.suggest_int(
-                    "hidden_dim_level_%s_layer_%s" % (level, i),
+                    f"hidden_dim_level_{level}_layer_{i}",
                     args.levels_size[level],
                     args.levels_size[level]*3,
                     log=True)
             hidden_dims.append(dim)
+            
         hidden_dims_all = {level: hidden_dims}
-        args.current_level = [level]
-
+        
+        hpo_levels = [i for i in range(level+1)]
+        
+        print(f"Active levels: {hpo_levels}")
+        
+        for i in hpo_levels:
+            if i != level:
+                num_layers_local = args.best_params_per_level[i]["num_layers"]
+                hidden_dims_all[i] = [
+                    args.best_params_per_level[i]["hidden_dims"][layer]
+                    for layer in range(num_layers_local)
+                ]
+                dropouts[i] = args.best_params_per_level[i]["dropout"]
+        
         args.level_active = [
-            True if i == level else False for i in range(args.max_depth)
+            i == level for i in range(args.max_depth)
         ]
 
         params = {
@@ -142,8 +154,9 @@ def optimize_hyperparameters(args):
             "hidden_dims": hidden_dims_all,
             "num_layers": num_layers,
             "dropouts": dropouts,
-            "active_levels": args.current_level,
+            "active_levels": hpo_levels,
             "results_path": args.results_path,
+            "resitual": args.model_regularization == "resitual",
         }
 
         if args.method == "local_constrained":
@@ -168,8 +181,6 @@ def optimize_hyperparameters(args):
 
         args.early_stopping_patience = args.patience
         args.early_stopping_patience_score = args.patience_score
-        # if args.early_metric == "f1-score":
-        #     args.early_stopping_patience = 20
         args.patience_counters = [0] * args.hmc_dataset.max_depth
         args.patience_counters_score = [0] * args.hmc_dataset.max_depth
 
@@ -232,21 +243,22 @@ def optimize_hyperparameters(args):
                     raise optuna.TrialPruned()
         return val_score
 
-    best_params_per_level = {}
-
     args.job_id = create_job_id_name(prefix="hpo")
 
     args.results_path = (
         f"{args.output_path}/hpo/{args.method}/{args.dataset_name}/{args.job_id}"
     )
+    
+    args.best_params_per_level = {}
 
     args.input_size = args.input_dims[args.data]
 
     create_dir(args.results_path)
-    # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
-    # Cria um sampler com seed fixa
+    
     sampler = optuna.samplers.TPESampler(seed=args.seed)
+    
+    
 
     for level in args.active_levels:
         study = optuna.create_study(direction="maximize", sampler=sampler)
@@ -259,7 +271,6 @@ def optimize_hyperparameters(args):
 
         num_layers = study.best_params[f"num_layers_level_{level}"]
 
-        # Reconstrói a lista de dimensões
         hidden_dims = [
             study.best_params[f"hidden_dim_level_{level}_layer_{i}"]
             for i in range(num_layers)
@@ -273,7 +284,7 @@ def optimize_hyperparameters(args):
             "lr": study.best_params[f"lr_level_{level}"],
         }
 
-        best_params_per_level[level] = level_parameters
+        args.best_params_per_level[level] = level_parameters
 
         save_dict_to_json(
             level_parameters,
@@ -285,11 +296,11 @@ def optimize_hyperparameters(args):
         )
 
     save_dict_to_json(
-        best_params_per_level,
+        args.best_params_per_level,
         f"{args.results_path}/best_params_{args.dataset_name}.json",
     )
 
-    return best_params_per_level
+    return args.best_params_per_level
 
 
 def val_optimizer(args, level):
@@ -339,15 +350,12 @@ def val_optimizer(args, level):
             args.local_val_losses[level] += loss.item()
             total_loss += loss
 
-            # *** Para métricas e concatenação ***
-            # Se quiser outputs binários para avaliação:
             binary_outputs = (output > threshold).float()
 
-            # Acumulação de outputs e targets para métricas
-            if i == 0:  # Primeira iteração: inicia tensor
+            if i == 0:  
                 local_outputs[level] = binary_outputs
                 local_inputs[level] = target
-            else:  # Nas seguintes, empilha ao longo do batch
+            else:
                 local_outputs[level] = torch.cat(
                     (local_outputs[level], binary_outputs), dim=0
                 )
@@ -367,7 +375,6 @@ def val_optimizer(args, level):
             average="micro",
         )
 
-        # local_val_score[idx] = score
         logging.info(
             "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
             level,
@@ -384,6 +391,6 @@ def val_optimizer(args, level):
     ]
     logging.info("Levels to evaluate: %s", args.active_levels)
 
-    check_early_stopping_normalized(args, active_levels=[level], save_model=False)
+    check_early_stopping_normalized(args, active_levels=[level], save_model=True)
 
     return args.local_val_losses[level], args.local_val_scores[level]

@@ -272,10 +272,6 @@ def optimize_hyperparameters(args):
                         local_train_losses[level] += loss.item()
                         total_loss += loss
 
-                    # adicionar regularização soft
-                    # reg_loss = hierarchy_regularization(outputs, args.hmc_dataset.g)
-                    # total_loss += args.lambda_h * reg_loss
-
                 total_loss.backward()
 
                 for level, optimizer in enumerate(args.optimizers):

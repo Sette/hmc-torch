@@ -143,7 +143,7 @@ def train_step(args):
                 args.total_time = end_timer(start)
                 break
 
-        if epoch % args.n_warmup_epochs == 0 and args.model_regularization == "soft":
+        if epoch % args.n_warmup_epochs == 0 and next_level < args.max_depth:
             if next_level < args.max_depth:
                 args.level_active[next_level] = True
                 logging.info("Activating level %d", next_level)
