@@ -15,7 +15,7 @@ from hmc.utils.labels import (
 )
 
 
-from hmc.utils.output import save_dict_to_json
+from hmc.utils.path.output import save_dict_to_json
 
 from hmc.utils.dir import create_dir
 

@@ -3,13 +3,14 @@ import logging
 import torch
 
 from hmc.trainers.local_classifier.core.valid_local import valid_step
-from hmc.utils.labels import (
+
+from hmc.utils.data.labels import (
     show_global_loss,
     show_local_losses,
     get_probs_ancestral_descendent,
 )
 
-from hmc.utils.job import (
+from hmc.utils.train.job import (
     create_job_id_name,
     start_timer,
     end_timer,

@@ -1,7 +1,7 @@
 import os
 
 from hmc.datasets.datasets.gofun import get_dataset_paths
-from hmc.utils.parser import initialize_dataset_arff_tocsv
+from hmc.utils.data.parser import initialize_dataset_arff_tocsv
 
 os.environ["DATA_FOLDER"] = "./"
 

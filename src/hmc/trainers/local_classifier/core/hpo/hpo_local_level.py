@@ -6,21 +6,21 @@ from sklearn.metrics import precision_recall_fscore_support, average_precision_s
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
-from hmc.utils.job import create_job_id_name
+from hmc.utils.train.job import create_job_id_name
 
 
-from hmc.utils.labels import (
+from hmc.utils.data.labels import (
     show_local_losses,
 )
 
-from hmc.utils.early_stopping import (
+from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
 
 
-from hmc.utils.output import save_dict_to_json
+from hmc.utils.path.output import save_dict_to_json
 
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_dir
 
 import numpy as np
 import random

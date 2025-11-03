@@ -10,8 +10,8 @@ import torch
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constrained.train_global import train_global
 
-from hmc.utils.dir import create_job_id
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_job_id
+from hmc.utils.path.dir import create_dir
 
 import torch.nn as nn
 from sklearn import preprocessing

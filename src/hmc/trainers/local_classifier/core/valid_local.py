@@ -5,13 +5,12 @@ from sklearn.metrics import precision_recall_fscore_support, average_precision_s
 
 from hmc.trainers.losses import calculate_local_loss
 
-from hmc.utils.early_stopping import (
+from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
 
-from hmc.utils.labels import (
-    get_probs_ancestral_descendent,
-)
+from hmc.utils.data.labels import get_probs_ancestral_descendent
+
 
 
 def valid_step(args):

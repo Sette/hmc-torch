@@ -9,12 +9,12 @@ from hmc.models.global_classifier.constrained.model import (
     ConstrainedModel,
     get_constr_out,
 )
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_dir
 
-from hmc.utils.job import create_job_id_name
-from hmc.utils.output import save_dict_to_json
+from hmc.utils.train.job import create_job_id_name
+from hmc.utils.path.output import save_dict_to_json
 
-from hmc.utils.labels import global_to_local_predictions
+from hmc.utils.data.labels import global_to_local_predictions
 
 
 def train_global(dataset_name, args):
