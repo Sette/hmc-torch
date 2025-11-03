@@ -1,31 +1,7 @@
 import logging
+import os
 import torch.nn as nn
 import torch
-import os
-
-
-def transform_predictions(predictions):
-    transformed = []
-    # Loop through each index to form examples with the first element from each level
-    for i in range(len(predictions[0])):  # Iterate over the number of examples
-        example = []
-        for level in predictions:  # Iterate over the levels
-            example.append(level[i])  # Get the first element from each level at index i
-        transformed.append(example)
-
-    return transformed
-
-
-class ExpandOutputClassification(nn.Module):
-    def __init__(self, input_shape=512, output_shape=512):
-        super().__init__()
-        self.dense = nn.Linear(input_shape, output_shape)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.dense(x)
-        x = self.relu(x)
-        return x
 
 
 class BuildClassification(nn.Module):
@@ -65,6 +41,7 @@ class HMCLocalModel(nn.Module):
         dropouts=None,
         active_levels=None,
         results_path=None,
+        resitual=False,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
@@ -79,7 +56,7 @@ class HMCLocalModel(nn.Module):
         if not results_path:
             logging.info("results_path is None, error in HMCLocalClassificationModel")
             raise ValueError("results_path is None")
-
+        self.resitual = resitual
         self.input_size = input_size
         self.levels_size = levels_size
         self.mum_layers = num_layers
@@ -87,14 +64,10 @@ class HMCLocalModel(nn.Module):
         self.dropouts = dropouts
         self.results_path = results_path
         self.levels = nn.ModuleDict()
+        self.output_norms = nn.ModuleDict() 
         self.active_levels = active_levels
         self.level_active = [True] * len(levels_size)
-        # if hpo:
-        #     # levels_size = {level: levels_size for level in active_levels}
-        #     dropout = {level: dropout for level in active_levels}
-        #     num_layers = {level: num_layers for level in active_levels}
-        #     hidden_dims = {level: hidden_dims for level in active_levels}
-
+        
         self.max_depth = len(levels_size)
 
         logging.info(
@@ -109,16 +82,24 @@ class HMCLocalModel(nn.Module):
             active_levels,
         )
         for index in active_levels:
-
-            self.levels[str(index)] = BuildClassification(
-                input_shape=input_size,
-                hidden_dims=hidden_dims[index],
-                output_size=levels_size[index],
-                dropout=dropouts[index],
-            )
+            if not self.resitual or index == 0:
+                self.levels[str(index)] = BuildClassification(
+                    input_shape=input_size,
+                    hidden_dims=hidden_dims[index],
+                    output_size=levels_size[index],
+                    dropout=dropouts[index],
+                )
+            else:
+                self.levels[str(index)] = BuildClassification(
+                    input_shape=input_size+levels_size[index - 1],
+                    hidden_dims=hidden_dims[index],
+                    output_size=levels_size[index],
+                    dropout=dropouts[index],
+                )
 
     def forward(self, x):
         outputs = {}
+        current_input = x
         for level_idx, level in self.levels.items():
             level_idx = int(level_idx)
             if not self.level_active[level_idx]:
@@ -133,6 +114,18 @@ class HMCLocalModel(nn.Module):
                 # logging.info(
                 #     "Loaded trained model from %s for level %d", model_path, level_idx
                 # )
-            local_output = level(x)
+            if self.resitual and level_idx > 0:
+                previous_output = outputs[level_idx - 1]
+                previous_output_norm = previous_output > 0.2
+
+                # print(f"\nLevel {level_idx}:")
+                # print(f"x original shape: {x.shape}")
+                # print(f"previous_output shape: {previous_output.shape}")
+                # print(f"previous_output_norm shape: {previous_output_norm.shape}")
+                    
+                current_input = torch.cat((x, previous_output_norm), dim=1)
+                # print(f"  concatenated shape: {current_input.shape}")
+            local_output = level(current_input)
             outputs[level_idx] = local_output
+            # print(f"  output shape: {local_output.shape}")
         return outputs

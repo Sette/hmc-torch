@@ -74,6 +74,7 @@ class ConstrainedHMCLocalModel(nn.Module):
         local_nodes_reverse_idx=None,
         edges_matrix_dict=None,
         r=None,
+        resitual=False,
     ):
         super(ConstrainedHMCLocalModel, self).__init__()
         if not input_size:
