@@ -164,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--n_warmup_epochs",
         type=int,
-        default=50,
+        default=200,
         required=False,
         metavar="N_WARMUP_EPOCHS",
     )
@@ -172,7 +172,7 @@ def get_parser():
     parser.add_argument(
         "--n_warmup_epochs_increment",
         type=int,
-        default=10,
+        default=200,
         required=False,
         metavar="N_WARMUP_EPOCHS_INCREMENT",
     )
@@ -187,6 +187,28 @@ def get_parser():
         required=False,
         help="Enable or disable Hyperparameter Optimization (HPO). \
             Use 'true' to enable and 'false' to disable.",
+    )
+    
+    parser.add_argument(
+        "--hpo_by_level",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="HPO_BY_LEVEL",
+        required=False,
+        help="Enable or disable HPO by level. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+    
+    parser.add_argument(
+        "--model_regularization",
+        type=str,
+        default="false",
+        choices=["resitual", "soft", "false"],
+        metavar="MODEL_REGULARIZATION",
+        required=False,
+        help="Select or disable model regularization. \
+            Use 'resitual' or 'soft' to enable and 'false' to disable.",
     )
 
     parser.add_argument(

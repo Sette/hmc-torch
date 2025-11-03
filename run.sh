@@ -24,6 +24,7 @@ N_TRIALS=30
 JOB_ID="false"
 USE_SAMPLE="false"
 SAVE_TORCH_DATASET="false"
+MODEL_REGULARIZATION="false"
 
 
 export PYTHONPATH=src
@@ -60,6 +61,7 @@ usage() {
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --remote <yes/no>         Execute on remote server (default: $REMOTE)"
     echo "  --active_levels <num>     Number of active levels"
+    echo "  --model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
     echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
     echo "  --help                    Display this message and exit"
     exit 0
@@ -91,6 +93,7 @@ while [ "$#" -gt 0 ]; do
         --remote) REMOTE="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
+        --model_regularization) MODEL_REGULARIZATION="$2"; shift ;;
         --help) usage ;;
         *) echo "Invalid option: $1"; usage ;;
     esac
@@ -114,6 +117,7 @@ cmd="python -m hmc.main \
                 --method $METHOD \
                 --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
                 --hpo $HPO \
+                --model_regularization $MODEL_REGULARIZATION \
                 --n_trials $N_TRIALS" \
 
 
