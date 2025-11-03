@@ -6,8 +6,6 @@ export CUDA_LAUNCH_BLOCKING=1
 # Lista de datasets
 
 DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN seq_FUN spo_FUN"
-
-
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"
@@ -25,8 +23,9 @@ JOB_ID="false"
 USE_SAMPLE="false"
 SAVE_TORCH_DATASET="false"
 MODEL_REGULARIZATION="false"
-
-
+N_WARMUP_EPOCHS=200
+N_WARMUP_EPOCHS_INCREMENT=200
+DATASET_NAME="seq_FUN"
 export PYTHONPATH=src
 export DATASET_PATH
 export OUTPUT_PATH
@@ -38,7 +37,7 @@ usage() {
     echo ""
     echo "Available options:"
     echo "  --job_id <type>           Job id  (default: $JOB_ID)" 
-    echo "  --dataset <name>          Dataset name (default: $DATASET)"
+    echo "  --dataset_name <name>     Dataset name (default: $DATASET_NAME)"
     echo "  --use_sample <yes/no>     Use just a smple of data  (default: $USE_SAMPLE)"
     echo "  --save_torch_dataset <yes/no> Save torch dataset (default: $SAVE_TORCH_DATASET)"
     echo "  --dataset_path <path>     Dataset path (default: $DATASET_PATH)"
@@ -62,6 +61,8 @@ usage() {
     echo "  --remote <yes/no>         Execute on remote server (default: $REMOTE)"
     echo "  --active_levels <num>     Number of active levels"
     echo "  --model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
+    echo "  --n_warmup_epochs <num>   Number of warmup epochs (default: $N_WARMUP_EPOCHS)"
+    echo "  --n_warmup_epochs_increment <num> Increment of warmup epochs (default: $N_WARMUP_EPOCHS_INCREMENT)"
     echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
     echo "  --help                    Display this message and exit"
     exit 0
@@ -71,7 +72,7 @@ usage() {
 while [ "$#" -gt 0 ]; do
     case $1 in
         --job_id) JOB_ID="$2"; shift ;;
-        --dataset) DATASET="$2"; shift ;;
+        --dataset_name) DATASET_NAME="$2"; shift ;;
         --use_sample) USE_SAMPLE="$2"; shift ;;
         --save_torch_dataset) SAVE_TORCH_DATASET="$2"; shift ;;
         --dataset_path) DATASET_PATH="$2"; shift ;;
@@ -94,6 +95,8 @@ while [ "$#" -gt 0 ]; do
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --model_regularization) MODEL_REGULARIZATION="$2"; shift ;;
+        --n_warmup_epochs) N_WARMUP_EPOCHS="$2"; shift ;;
+        --n_warmup_epochs_increment) N_WARMUP_EPOCHS_INCREMENT="$2"; shift ;;
         --help) usage ;;
         *) echo "Invalid option: $1"; usage ;;
     esac
@@ -117,9 +120,10 @@ cmd="python -m hmc.main \
                 --method $METHOD \
                 --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
                 --hpo $HPO \
+                --n_warmup_epochs $N_WARMUP_EPOCHS \
+                --n_warmup_epochs_increment $N_WARMUP_EPOCHS_INCREMENT \
                 --model_regularization $MODEL_REGULARIZATION \
                 --n_trials $N_TRIALS" \
-
 
 
 if [ "$DATASET" = "all" ]; then
@@ -130,7 +134,7 @@ if [ "$DATASET" = "all" ]; then
         NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$dataset_local"'.num_layers_values[]' config.yaml | xargs)
         WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$dataset_local"'.weight_decay_values[]' config.yaml | xargs)
 
-        echo "Using dataset: $dataset_local"
+        echo "Using dataset_name: $dataset_local"
         echo "Using hidden dimensions: $HIDDEN_DIMS"
         cmd_dataset=$cmd
         if [ "$ACTIVE_LEVELS" ]; then
@@ -148,7 +152,7 @@ if [ "$DATASET" = "all" ]; then
 
         echo "Starting experiment for dataset: $dataset_local"
         TRAIN_PID=$!
-        cmd_dataset+=" --datasets $dataset_local"
+        cmd_dataset+=" --dataset_name $dataset_local"
         echo "Running: $cmd_dataset"
         $cmd_dataset
         trap "kill $TRAIN_PID" SIGINT SIGTERM
@@ -156,16 +160,16 @@ if [ "$DATASET" = "all" ]; then
 
     done
 else
-    echo "Using specific dataset: $DATASET"
-    HIDDEN_DIMS=$(yq -j '.datasets_params.'"$DATASET"'.hidden_dims' config.yaml | jq -c .)
-    LR_VALUES=$(yq '.datasets_params.'"$DATASET"'.lr_values[]' config.yaml | xargs)
-    DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET"'.dropout_values[]' config.yaml | xargs)
-    NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET"'.num_layers_values[]' config.yaml | xargs)
-    WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET"'.weight_decay_values[]' config.yaml | xargs)
+    echo "Using specific dataset_name: $DATASET_NAME"
+    HIDDEN_DIMS=$(yq -j '.datasets_params.'"$DATASET_NAME"'.hidden_dims' config.yaml | jq -c .)
+    LR_VALUES=$(yq '.datasets_params.'"$DATASET_NAME"'.lr_values[]' config.yaml | xargs)
+    DROPOUT_VALUES=$(yq '.datasets_params.'"$DATASET_NAME"'.dropout_values[]' config.yaml | xargs)
+    NUM_LAYERS_VALUES=$(yq '.datasets_params.'"$DATASET_NAME"'.num_layers_values[]' config.yaml | xargs)
+    WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET_NAME"'.weight_decay_values[]' config.yaml | xargs)
 
     echo "Using hidden dimensions: $HIDDEN_DIMS"
 
-    cmd="$cmd --datasets $DATASET"
+    cmd="$cmd --dataset_name $DATASET_NAME"
 
     if [ "$ACTIVE_LEVELS" ]; then
         cmd+=" --active_levels $ACTIVE_LEVELS"

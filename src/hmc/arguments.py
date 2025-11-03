@@ -14,13 +14,13 @@ def get_parser():
         help="Job id for trainer job.",
     )
 
-    # Dataset parameters
+    # Dataset name
     parser.add_argument(
-        "--datasets",
+        "--dataset_name",
         type=str,
-        nargs="+",
-        default=["seq_GO", "derisi_GO", "gasch1_GO", "cellcycle_FUN"],
-        help="List with dataset names.",
+        required=False,
+        default=None,
+        help="Dataset name to be used.",
     )
 
     parser.add_argument(

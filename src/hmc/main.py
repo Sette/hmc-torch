@@ -133,31 +133,6 @@ def main():
 
     # Insert her a logic to use all datasets with arguments
 
-    if "all" in args.datasets:
-        datasets = [
-            "cellcycle_GO",
-            "derisi_GO",
-            "eisen_GO",
-            "expr_GO",
-            "gasch1_GO",
-            "gasch2_GO",
-            "seq_GO",
-            "spo_GO",
-            "cellcycle_FUN",
-            "derisi_FUN",
-            "eisen_FUN",
-            "expr_FUN",
-            "gasch1_FUN",
-            "gasch2_FUN",
-            "seq_FUN",
-            "spo_FUN",
-        ]
-    else:
-        if len(args.datasets) > 1:
-            datasets = [str(dataset) for dataset in args.datasets]
-        else:
-            datasets = args.datasets
-
     # Dictionaries with number of features and number of labels for each dataset
     args.input_dims = {
         "diatoms": 371,
@@ -298,246 +273,242 @@ def main():
 
     args = parse_str_flags(args)
 
+    args.results_path = os.path.join(
+        "home",
+        "bruno",
+        "git",
+        "hmc-torch",
+        "data",
+        args.output_path,
+        "train",
+        "local",
+        args.dataset_name,
+        args.job_id,
+    )
 
-    for dataset_name in datasets:
-        args.dataset_name = dataset_name
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset", args.dataset_name)
 
-        args.results_path = os.path.join(
-            "home",
-            "bruno",
-            "git",
-            "hmc-torch",
-            "data",
-            args.output_path,
-            "train",
-            "local",
+    args.train_methods = get_train_methods(args.method, by_level=args.hpo_by_level)
+
+    if args.method == "local_constrained":
+        logging.info("Using constrained local model")
+
+    # Load train, val and test set
+
+    if not torch.cuda.is_available():
+        print("CUDA não está disponível. Usando CPU.")
+        args.device = torch.device("cpu")
+    else:
+        args.device = torch.device(args.device)
+
+    args.data, args.ontology = args.dataset_name.split("_")
+
+    create_dir(args.results_path)
+
+    # Caminhos
+    train_path = os.path.join(args.results_path, "train_dataset.pt")
+    val_path = os.path.join(args.results_path, "val_dataset.pt")
+    test_path = os.path.join(args.results_path, "test_dataset.pt")
+
+    read_data = True
+    is_global = args.method == "global" or args.method == "global_baseline"
+
+    # Se já existir, carrega. Se não, cria e salva
+    if (
+        os.path.exists(train_path)
+        and os.path.exists(val_path)
+        and os.path.exists(test_path)
+    ):
+        print("Loading existing datasets...")
+        read_data = False
+        args.hmc_dataset = initialize_dataset_experiments(
             args.dataset_name,
-            args.job_id,
+            device=args.device,
+            dataset_path=args.dataset_path,
+            dataset_type=args.dataset_type,
+            is_global=is_global,
+            read_data=read_data,
+            use_sample=args.use_sample,
+        )
+        train_dataset = torch.load(train_path, weights_only=False)
+        val_dataset = torch.load(val_path, weights_only=False)
+        test_dataset = torch.load(test_path, weights_only=False)
+    else:
+        args.hmc_dataset = initialize_dataset_experiments(
+            args.dataset_name,
+            device=args.device,
+            dataset_path=args.dataset_path,
+            dataset_type=args.dataset_type,
+            is_global=is_global,
+            read_data=read_data,
+            use_sample=args.use_sample,
+        )
+        data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+
+        scaler = preprocessing.StandardScaler().fit(
+            np.concatenate((data_train.X, data_valid.X))
+        )
+        imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
+            np.concatenate((data_train.X, data_valid.X))
+        )
+        data_valid.X = (
+            torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
+            .clone()
+            .detach()
+            .to(args.device)
+        )
+        data_train.X = (
+            torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
+            .clone()
+            .detach()
+            .to(args.device)
         )
 
-        logging.info(".......................................")
-        logging.info("Experiment with %s dataset", args.dataset_name)
-
-        args.train_methods = get_train_methods(args.method, by_level=args.hpo_by_level)
-
-        if args.method == "local_constrained":
-            logging.info("Using constrained local model")
-
-        # Load train, val and test set
-
-        if not torch.cuda.is_available():
-            print("CUDA não está disponível. Usando CPU.")
-            args.device = torch.device("cpu")
-        else:
-            args.device = torch.device(args.device)
-
-        args.data, args.ontology = args.dataset_name.split("_")
-
-        create_dir(args.results_path)
-
-        # Caminhos
-        train_path = os.path.join(args.results_path, "train_dataset.pt")
-        val_path = os.path.join(args.results_path, "val_dataset.pt")
-        test_path = os.path.join(args.results_path, "test_dataset.pt")
-
-        read_data = True
-        is_global = args.method == "global" or args.method == "global_baseline"
-
-        # Se já existir, carrega. Se não, cria e salva
-        if (
-            os.path.exists(train_path)
-            and os.path.exists(val_path)
-            and os.path.exists(test_path)
-        ):
-            print("Loading existing datasets...")
-            read_data = False
-            args.hmc_dataset = initialize_dataset_experiments(
-                args.dataset_name,
-                device=args.device,
-                dataset_path=args.dataset_path,
-                dataset_type=args.dataset_type,
-                is_global=is_global,
-                read_data=read_data,
-                use_sample=args.use_sample,
-            )
-            train_dataset = torch.load(train_path, weights_only=False)
-            val_dataset = torch.load(val_path, weights_only=False)
-            test_dataset = torch.load(test_path, weights_only=False)
-        else:
-            args.hmc_dataset = initialize_dataset_experiments(
-                args.dataset_name,
-                device=args.device,
-                dataset_path=args.dataset_path,
-                dataset_type=args.dataset_type,
-                is_global=is_global,
-                read_data=read_data,
-                use_sample=args.use_sample,
-            )
-            data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
-
-            scaler = preprocessing.StandardScaler().fit(
-                np.concatenate((data_train.X, data_valid.X))
-            )
-            imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-                np.concatenate((data_train.X, data_valid.X))
-            )
-            data_valid.X = (
-                torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
-                .clone()
-                .detach()
-                .to(args.device)
-            )
-            data_train.X = (
-                torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
-                .clone()
-                .detach()
-                .to(args.device)
-            )
-
-            data_test.X = (
-                torch.as_tensor(scaler.transform(imp_mean.transform(data_test.X)))
-                .clone()
-                .detach()
-                .to(args.device)
-            )
-
-            data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
-            data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
-            data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
-
-            # Create loaders using local (per-level) y labels
-            train_dataset = [
-                (x, y_levels, y)
-                for (x, y_levels, y) in zip(
-                    data_train.X, data_train.Y_local, data_train.Y
-                )
-            ]
-
-            val_dataset = [
-                (x, y_levels, y)
-                for (x, y_levels, y) in zip(
-                    data_valid.X, data_valid.Y_local, data_valid.Y
-                )
-            ]
-
-            test_dataset = [
-                (x, y_levels, y)
-                for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
-            ]
-
-            if args.save_torch_dataset:
-                # Save datasets in torch format
-                torch.save(train_dataset, train_path)
-                torch.save(val_dataset, val_path)
-                torch.save(test_dataset, test_path)
-
-        train_loader = DataLoader(
-            dataset=train_dataset, batch_size=args.batch_size, shuffle=True
+        data_test.X = (
+            torch.as_tensor(scaler.transform(imp_mean.transform(data_test.X)))
+            .clone()
+            .detach()
+            .to(args.device)
         )
-        test_loader = DataLoader(
-            dataset=test_dataset, batch_size=args.batch_size, shuffle=False
-        )
-        val_loader = DataLoader(
-            dataset=val_dataset, batch_size=args.batch_size, shuffle=False
-        )
-        args.train_loader = train_loader
-        args.val_loader = val_loader
-        args.test_loader = test_loader
-        args.levels_size = args.hmc_dataset.levels_size
-        args.input_dim = args.input_dims[args.data]
-        args.max_depth = args.hmc_dataset.max_depth
-        args.to_eval = args.hmc_dataset.to_eval
-        args.constrained = True
-        logging.info("Active levels before processing: %s", args.active_levels)
-        if args.active_levels is None:
-            args.active_levels = list(range(args.max_depth))
-        else:
-            args.active_levels = [int(x) for x in args.active_levels]
 
-        if args.focal_loss == "true":
-            args.criterions = [
-                FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
-            ]
-        else:
-            args.criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
+        data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
+        data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
+        data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
 
-        if args.hpo == "true":
-            logging.info("Hyperparameter optimization")
-            # args.n_trials = 30
-            best_params = args.train_methods["optimize_hyperparameters"](args=args)
+        # Create loaders using local (per-level) y labels
+        train_dataset = [
+            (x, y_levels, y)
+            for (x, y_levels, y) in zip(
+                data_train.X, data_train.Y_local, data_train.Y
+            )
+        ]
 
-            logging.info(best_params)
-        else:
-            if args.lr_values:
-                args.lr_values = [float(x) for x in args.lr_values]
-                args.dropout_values = [float(x) for x in args.dropout_values]
-                # args.hidden_dims = [int(x) for x in args.hidden_dims]
-                args.num_layers_values = [int(x) for x in args.num_layers_values]
-                args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+        val_dataset = [
+            (x, y_levels, y)
+            for (x, y_levels, y) in zip(
+                data_valid.X, data_valid.Y_local, data_valid.Y
+            )
+        ]
 
-                # Ensure all hyperparameter lists have the same length as 'max_depth'
-                assert_hyperparameter_lengths(
-                    args,
-                    args.lr_values,
-                    args.dropout_values,
-                    args.hidden_dims,
-                    args.num_layers_values,
-                    args.weight_decay_values,
-                )
-                params = {
-                    "levels_size": args.hmc_dataset.levels_size,
-                    "input_size": args.input_dims[args.data],
-                    "hidden_dims": args.hidden_dims,
-                    "num_layers": args.num_layers_values,
-                    "dropouts": args.dropout_values,
-                    "active_levels": args.active_levels,
-                    "results_path": args.results_path,
-                    "resitual": args.model_regularization == "resitual",
-                }
+        test_dataset = [
+            (x, y_levels, y)
+            for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
+        ]
 
-                if args.method == "local_constrained":
+        if args.save_torch_dataset:
+            # Save datasets in torch format
+            torch.save(train_dataset, train_path)
+            torch.save(val_dataset, val_path)
+            torch.save(test_dataset, test_path)
 
-                    args.class_indices_per_level = {
-                        lvl: torch.tensor(
-                            [
-                                args.hmc_dataset.nodes_idx[n.replace("/", ".")]
-                                for n in args.hmc_dataset.levels[lvl]
-                            ],
-                            device=args.device,
-                        )
-                        for lvl in args.hmc_dataset.levels.keys()
-                    }
-                    params["device"] = args.device
-                    params["nodes_idx"] = args.hmc_dataset.nodes_idx
-                    params["local_nodes_reverse_idx"] = (
-                        args.hmc_dataset.local_nodes_reverse_idx
+    train_loader = DataLoader(
+        dataset=train_dataset, batch_size=args.batch_size, shuffle=True
+    )
+    test_loader = DataLoader(
+        dataset=test_dataset, batch_size=args.batch_size, shuffle=False
+    )
+    val_loader = DataLoader(
+        dataset=val_dataset, batch_size=args.batch_size, shuffle=False
+    )
+    args.train_loader = train_loader
+    args.val_loader = val_loader
+    args.test_loader = test_loader
+    args.levels_size = args.hmc_dataset.levels_size
+    args.input_dim = args.input_dims[args.data]
+    args.max_depth = args.hmc_dataset.max_depth
+    args.to_eval = args.hmc_dataset.to_eval
+    args.constrained = True
+    logging.info("Active levels before processing: %s", args.active_levels)
+    if args.active_levels is None:
+        args.active_levels = list(range(args.max_depth))
+    else:
+        args.active_levels = [int(x) for x in args.active_levels]
+
+    if args.focal_loss == "true":
+        args.criterions = [
+            FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
+        ]
+    else:
+        args.criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
+
+    if args.hpo == "true":
+        logging.info("Hyperparameter optimization")
+        # args.n_trials = 30
+        best_params = args.train_methods["optimize_hyperparameters"](args=args)
+
+        logging.info(best_params)
+    else:
+        if args.lr_values:
+            args.lr_values = [float(x) for x in args.lr_values]
+            args.dropout_values = [float(x) for x in args.dropout_values]
+            # args.hidden_dims = [int(x) for x in args.hidden_dims]
+            args.num_layers_values = [int(x) for x in args.num_layers_values]
+            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+
+            # Ensure all hyperparameter lists have the same length as 'max_depth'
+            assert_hyperparameter_lengths(
+                args,
+                args.lr_values,
+                args.dropout_values,
+                args.hidden_dims,
+                args.num_layers_values,
+                args.weight_decay_values,
+            )
+            params = {
+                "levels_size": args.hmc_dataset.levels_size,
+                "input_size": args.input_dims[args.data],
+                "hidden_dims": args.hidden_dims,
+                "num_layers": args.num_layers_values,
+                "dropouts": args.dropout_values,
+                "active_levels": args.active_levels,
+                "results_path": args.results_path,
+                "resitual": args.model_regularization == "resitual",
+            }
+
+            if args.method == "local_constrained":
+
+                args.class_indices_per_level = {
+                    lvl: torch.tensor(
+                        [
+                            args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                            for n in args.hmc_dataset.levels[lvl]
+                        ],
+                        device=args.device,
                     )
-                    params["r"] = args.hmc_dataset.r.to(args.device)
-                    params["edges_matrix_dict"] = (
-                        args.hmc_dataset.edges_matrix_dict
-                    )  # Precomputed mapping matrices
+                    for lvl in args.hmc_dataset.levels.keys()
+                }
+                params["device"] = args.device
+                params["nodes_idx"] = args.hmc_dataset.nodes_idx
+                params["local_nodes_reverse_idx"] = (
+                    args.hmc_dataset.local_nodes_reverse_idx
+                )
+                params["r"] = args.hmc_dataset.r.to(args.device)
+                params["edges_matrix_dict"] = (
+                    args.hmc_dataset.edges_matrix_dict
+                )  # Precomputed mapping matrices
 
-            args.model = args.train_methods["model"](**params)
-            logging.info(args.model)
+        args.model = args.train_methods["model"](**params)
+        logging.info(args.model)
 
-            match args.method:
-                case "local" | "local_constrained" | "local_mask":
-                    logging.info("Local method selected")
-                    args.train_methods["train_step"](args)
-                    args.train_methods["test_step"](args)
-                    # train(args)
-                case "global" | "global_baseline":
-                    logging.info("Global method selected")
-                    train_global(dataset_name, args)
-                case "local_test":
+        match args.method:
+            case "local" | "local_constrained" | "local_mask":
+                logging.info("Local method selected")
+                args.train_methods["train_step"](args)
+                args.train_methods["test_step"](args)
+                # train(args)
+            case "global" | "global_baseline":
+                logging.info("Global method selected")
+                train_global(args.dataset_name, args)
+            case "local_test":
 
-                    logging.info("Test local method selected")
+                logging.info("Test local method selected")
 
-                    args.results_path = f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+                args.results_path = f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
 
-                    args.train_methods["test_step"](args)
-                case _:  # Default case (like 'default' in other languages
-                    print("Invalid option")
+                args.train_methods["test_step"](args)
+            case _:  # Default case (like 'default' in other languages
+                print("Invalid option")
 
 
 if __name__ == "__main__":
