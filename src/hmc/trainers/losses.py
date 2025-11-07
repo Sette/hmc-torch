@@ -87,9 +87,8 @@ def get_constr_out_vectorized_hard(
 
 
 def _calculate_local_loss(output, target, criterion, regularization=None, level=0):
-
     if regularization == "soft":
-        output = get_constr_out_vectorized(
+        output = get_constr_out_vectorized_hierarchical(
             output,
             target,
             level=level,
