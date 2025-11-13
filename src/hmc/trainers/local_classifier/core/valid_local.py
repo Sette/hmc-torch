@@ -12,7 +12,6 @@ from hmc.utils.train.early_stopping import (
 from hmc.utils.data.labels import get_probs_ancestral_descendent
 
 
-
 def valid_step(args):
     """
     Performs a validation step for a hierarchical multi-level classifier model.

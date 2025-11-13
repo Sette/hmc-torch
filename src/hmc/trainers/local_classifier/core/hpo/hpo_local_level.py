@@ -106,7 +106,7 @@ def optimize_hyperparameters(args):
         num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
         dropouts = {level: dropout}
         hidden_dims = []
-        
+
         for i in range(num_layers):
             input_size = args.input_size
             if args.model_regularization == "resitual" and level > 0:
@@ -115,22 +115,24 @@ def optimize_hyperparameters(args):
                 dim = trial.suggest_int(
                     f"hidden_dim_level_{level}_layer_{i}",
                     input_size,
-                    input_size*3,
-                    log=True)
+                    input_size * 3,
+                    log=True,
+                )
             else:
                 dim = trial.suggest_int(
                     f"hidden_dim_level_{level}_layer_{i}",
                     args.levels_size[level],
-                    args.levels_size[level]*3,
-                    log=True)
+                    args.levels_size[level] * 3,
+                    log=True,
+                )
             hidden_dims.append(dim)
-            
+
         hidden_dims_all = {level: hidden_dims}
-        
-        hpo_levels = [i for i in range(level+1)]
-        
+
+        hpo_levels = [i for i in range(level + 1)]
+
         print(f"Active levels: {hpo_levels}")
-        
+
         for i in hpo_levels:
             if i != level:
                 num_layers_local = args.best_params_per_level[i]["num_layers"]
@@ -139,10 +141,8 @@ def optimize_hyperparameters(args):
                     for layer in range(num_layers_local)
                 ]
                 dropouts[i] = args.best_params_per_level[i]["dropout"]
-        
-        args.level_active = [
-            i == level for i in range(args.max_depth)
-        ]
+
+        args.level_active = [i == level for i in range(args.max_depth)]
 
         params = {
             "levels_size": args.levels_size,
@@ -244,17 +244,15 @@ def optimize_hyperparameters(args):
     args.results_path = (
         f"{args.output_path}/hpo/{args.method}/{args.dataset_name}/{args.job_id}"
     )
-    
+
     args.best_params_per_level = {}
 
     args.input_size = args.input_dims[args.data]
 
     create_dir(args.results_path)
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
-    
+
     sampler = optuna.samplers.TPESampler(seed=args.seed)
-    
-    
 
     for level in args.active_levels:
         study = optuna.create_study(direction="maximize", sampler=sampler)
@@ -322,9 +320,7 @@ def val_optimizer(args, level):
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
-    args.local_val_scores = {
-        level: None for _, level in enumerate(args.active_levels)
-    }
+    args.local_val_scores = {level: None for _, level in enumerate(args.active_levels)}
 
     args.local_val_losses = [0.0] * args.max_depth
 
@@ -348,7 +344,7 @@ def val_optimizer(args, level):
 
             binary_outputs = (output > threshold).float()
 
-            if i == 0:  
+            if i == 0:
                 local_outputs[level] = binary_outputs
                 local_inputs[level] = target
             else:

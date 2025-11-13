@@ -188,7 +188,7 @@ def get_parser():
         help="Enable or disable Hyperparameter Optimization (HPO). \
             Use 'true' to enable and 'false' to disable.",
     )
-    
+
     parser.add_argument(
         "--hpo_by_level",
         type=str,
@@ -199,7 +199,7 @@ def get_parser():
         help="Enable or disable HPO by level. \
             Use 'true' to enable and 'false' to disable.",
     )
-    
+
     parser.add_argument(
         "--model_regularization",
         type=str,
@@ -288,7 +288,7 @@ def get_parser():
     parser.add_argument(
         "--epochs_to_evaluate",
         type=int,
-        default=10,
+        default=20,
         metavar="EPOCHS_TO_EVALUATE",
         required=False,
         help="Number of epochs to evaluate the \
