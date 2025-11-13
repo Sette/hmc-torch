@@ -188,8 +188,8 @@ else
     echo $cmd
     $cmd
 
-    trap "kill $TRAIN_PID" SIGINT SIGTERM
     wait
+    trap "kill $TRAIN_PID" SIGINT SIGTERM
 
     echo "All experiments completed!"
 
