@@ -162,6 +162,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--warmup",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="WARMUP",
+        required=False,
+        help="Enable or disable learning rate warmup. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
         "--n_warmup_epochs",
         type=int,
         default=200,
@@ -204,11 +215,11 @@ def get_parser():
         "--model_regularization",
         type=str,
         default="false",
-        choices=["resitual", "soft", "false"],
+        choices=["residual", "soft", "false"],
         metavar="MODEL_REGULARIZATION",
         required=False,
         help="Select or disable model regularization. \
-            Use 'resitual' or 'soft' to enable and 'false' to disable.",
+            Use 'residual' or 'soft' to enable and 'false' to disable.",
     )
 
     parser.add_argument(
