@@ -17,14 +17,14 @@ METHOD="local"
 SEED=0
 DATASET_TYPE="arff"
 HPO="false"
-REMOTE="false"
 N_TRIALS=30
 JOB_ID="false"
 USE_SAMPLE="false"
 SAVE_TORCH_DATASET="false"
 MODEL_REGULARIZATION="false"
-N_WARMUP_EPOCHS=20
-N_WARMUP_EPOCHS_INCREMENT=20
+WARM_UP="false"
+N_WARMUP_EPOCHS=50
+N_WARMUP_EPOCHS_INCREMENT=50
 DATASET_NAME="seq_FUN"
 export PYTHONPATH=src
 export DATASET_PATH
@@ -58,9 +58,9 @@ usage() {
     echo "  --n_trials <num>          Numer of HPO trials (default: $N_TRIALS)"
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
-    echo "  --remote <yes/no>         Execute on remote server (default: $REMOTE)"
     echo "  --active_levels <num>     Number of active levels"
     echo "  --model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
+    echo "  --warmup <true/false>     Enable learning rate warmup (default: $WARM_UP)"
     echo "  --n_warmup_epochs <num>   Number of warmup epochs (default: $N_WARMUP_EPOCHS)"
     echo "  --n_warmup_epochs_increment <num> Increment of warmup epochs (default: $N_WARMUP_EPOCHS_INCREMENT)"
     echo "  --epochs_to_evaluate <num> Number of epochs to evaluate"
@@ -91,10 +91,10 @@ while [ "$#" -gt 0 ]; do
         --n_trials) N_TRIALS="$2"; shift ;;
         --method) METHOD="$2"; shift ;;
         --hpo) HPO="$2"; shift ;;
-        --remote) REMOTE="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --model_regularization) MODEL_REGULARIZATION="$2"; shift ;;
+        --warmup) WARM_UP="$2"; shift ;;
         --n_warmup_epochs) N_WARMUP_EPOCHS="$2"; shift ;;
         --n_warmup_epochs_increment) N_WARMUP_EPOCHS_INCREMENT="$2"; shift ;;
         --help) usage ;;
@@ -120,6 +120,7 @@ cmd="python -m hmc.main \
                 --method $METHOD \
                 --epochs_to_evaluate $EPOCHS_TO_EVALUATE \
                 --hpo $HPO \
+                --warmup $WARM_UP \
                 --n_warmup_epochs $N_WARMUP_EPOCHS \
                 --n_warmup_epochs_increment $N_WARMUP_EPOCHS_INCREMENT \
                 --model_regularization $MODEL_REGULARIZATION \
