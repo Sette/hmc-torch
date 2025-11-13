@@ -16,7 +16,7 @@ from hmc.utils.train.job import (
     end_timer,
 )
 
-from hmc.trainers.losses import calculate_local_loss
+from hmc.utils.train.losses import calculate_local_loss
 
 
 def train_step(args):

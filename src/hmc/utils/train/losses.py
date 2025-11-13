@@ -1,27 +1,29 @@
 import torch
 
+
 def get_constr_out_vectorized_hierarchical(
     outputs: torch.Tensor,
     labels: list[torch.Tensor],
     level: int,
     device: torch.device,
-    epsilon: float = 0.1  # fator de suavização (label smoothing)
+    epsilon: float = 0.1,  # fator de suavização (label smoothing)
 ) -> torch.Tensor:
     if level > 0:
         current_labels = labels[level].float().to(outputs.device)
-        
+
         # Label smoothing hierárquico
         # Redistribui epsilon da massa apenas para classes válidas no nível
         valid_classes_per_sample = current_labels.sum(dim=1, keepdim=True)
-        
+
         # Criar distribuição suavizada
-        smooth_labels = current_labels * (1 - epsilon) + \
-            (current_labels * epsilon / valid_classes_per_sample)
-        
+        smooth_labels = current_labels * (1 - epsilon) + (
+            current_labels * epsilon / valid_classes_per_sample
+        )
+
         probs = outputs * smooth_labels
-        
+
         return probs.to(device)
-    
+
     return outputs.to(device)
 
 
@@ -30,21 +32,24 @@ def get_constr_out_vectorized(
     labels: list[torch.Tensor],
     level: int,
     device: torch.device,
-    penalty_strength: float = 5.0  # controla a força da penalização
+    penalty_strength: float = 5.0,  # controla a força da penalização
 ) -> torch.Tensor:
     if level > 0:
         current_labels = labels[level].float().to(outputs.device)
-        
+
         # Penalização exponencial suave
         # Onde label=1: mantém o valor
         # Onde label=0: aplica exp(-penalty_strength) que é próximo a 0 mas não exatamente 0
         penalty_tensor = torch.tensor(penalty_strength, device=outputs.device)
-        penalty_mask = current_labels + (1 - current_labels) * torch.exp(-penalty_tensor)
+        penalty_mask = current_labels + (1 - current_labels) * torch.exp(
+            -penalty_tensor
+        )
         probs = outputs * penalty_mask
-        
+
         return probs.to(device)
-    
+
     return outputs.to(device)
+
 
 def get_constr_out_vectorized_hard(
     outputs: torch.Tensor,
@@ -112,11 +117,11 @@ def calculate_local_loss(output, target, args):
     """
 
     loss = _calculate_local_loss(
-        output, 
-        target, 
-        args.criterions[args.current_level], 
+        output,
+        target,
+        args.criterions[args.current_level],
         regularization=args.model_regularization,
         level=args.current_level,
-        )
+    )
 
     return loss

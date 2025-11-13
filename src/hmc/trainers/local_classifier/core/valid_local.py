@@ -3,7 +3,7 @@ import os
 import torch
 from sklearn.metrics import precision_recall_fscore_support, average_precision_score
 
-from hmc.trainers.losses import calculate_local_loss
+from hmc.utils.train.losses import calculate_local_loss
 
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
