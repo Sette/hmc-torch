@@ -10,8 +10,8 @@ import torch
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constrained.train_global import train_global
 
-from hmc.utils.path.dir import create_job_id
 from hmc.utils.path.dir import create_dir
+from hmc.utils.train.job import parse_str_flags
 
 import torch.nn as nn
 from sklearn import preprocessing
@@ -46,13 +46,6 @@ logger = logging.getLogger(__name__)
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-
-def parse_str_flags(args):
-    """Convert certain string command-line arguments to boolean."""
-    args.best_theshold = args.best_theshold == "true"
-    args.use_sample = args.use_sample == "true"
-    args.hpo_by_level = args.hpo_by_level == "true"
-    return args
 
 
 def get_train_methods(x, by_level=True):
@@ -306,7 +299,7 @@ def main():
 
     create_dir(args.results_path)
 
-    # Caminhos
+    # path
     train_path = os.path.join(args.results_path, "train_dataset.pt")
     val_path = os.path.join(args.results_path, "val_dataset.pt")
     test_path = os.path.join(args.results_path, "test_dataset.pt")
@@ -379,16 +372,12 @@ def main():
         # Create loaders using local (per-level) y labels
         train_dataset = [
             (x, y_levels, y)
-            for (x, y_levels, y) in zip(
-                data_train.X, data_train.Y_local, data_train.Y
-            )
+            for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
         ]
 
         val_dataset = [
             (x, y_levels, y)
-            for (x, y_levels, y) in zip(
-                data_valid.X, data_valid.Y_local, data_valid.Y
-            )
+            for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
         ]
 
         test_dataset = [
@@ -425,14 +414,14 @@ def main():
     else:
         args.active_levels = [int(x) for x in args.active_levels]
 
-    if args.focal_loss == "true":
+    if args.focal_loss:
         args.criterions = [
             FocalLoss(gamma=2.0, alpha=0.25) for _ in args.hmc_dataset.levels_size
         ]
     else:
         args.criterions = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
 
-    if args.hpo == "true":
+    if args.hpo:
         logging.info("Hyperparameter optimization")
         # args.n_trials = 30
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
@@ -463,7 +452,7 @@ def main():
                 "dropouts": args.dropout_values,
                 "active_levels": args.active_levels,
                 "results_path": args.results_path,
-                "resitual": args.model_regularization == "resitual",
+                "residual": args.model_regularization == "residual",
             }
 
             if args.method == "local_constrained":
@@ -504,7 +493,9 @@ def main():
 
                 logging.info("Test local method selected")
 
-                args.results_path = f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+                args.results_path = (
+                    f"{args.output_path}/train/local/{args.dataset_name}/{args.job_id}"
+                )
 
                 args.train_methods["test_step"](args)
             case _:  # Default case (like 'default' in other languages
