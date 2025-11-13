@@ -1,14 +1,28 @@
+"""
+Local classifier training module for hierarchical multi-class classification.
+
+This module provides the core training functionality for HMC (Hierarchical
+Multi-Class) local classifier models. It implements a progressive training
+approach where levels of the hierarchy are activated incrementally during
+the training process, with support for early stopping and validation
+monitoring at each level.
+
+The training process includes:
+- Progressive level activation with warm-up epochs
+- Individual optimizer management for each hierarchy level
+- Per-level loss computation and early stopping
+- Periodic validation evaluation
+- Comprehensive logging and monitoring
+
+Functions:
+    train_step: Main training loop for hierarchical multi-class local classifier.
+"""
+
 import logging
-
 import torch
-
 from hmc.trainers.local_classifier.core.valid_local import valid_step
 
-from hmc.utils.data.labels import (
-    show_global_loss,
-    show_local_losses,
-    get_probs_ancestral_descendent,
-)
+from hmc.utils.data.labels import show_local_losses
 
 from hmc.utils.train.job import (
     create_job_id_name,
@@ -85,13 +99,19 @@ def train_step(args):
     args.model.train()
 
     args.r = args.hmc_dataset.r.to(args.device)
-    args.level_active = [False] * len(args.level_active)
-    args.level_active[0] = True
-    next_level = 1
-    logging.info(
-        "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
-    )
-    #
+    if (
+        args.warmup
+        or args.model_regularization == "soft"
+        or args.model_regularization == "residual"
+    ):
+        args.level_active = [False] * len(args.level_active)
+        args.level_active[0] = True
+        next_level = 1
+        logging.info(
+            "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+        )
+    else:
+        next_level = len(args.active_levels)
 
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
