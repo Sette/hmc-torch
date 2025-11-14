@@ -4,6 +4,27 @@ import torch.nn as nn
 import torch
 
 
+class AttentionBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super(AttentionBlock, self).__init__()
+        self.multihead_attn = nn.MultiheadAttention(
+            embed_dim=embed_dim, num_heads=num_heads, batch_first=True
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        self.ffn = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim * 2),
+            nn.ReLU(),
+            nn.Linear(embed_dim * 2, embed_dim),
+        )
+
+    def forward(self, x):
+        attn_output, _ = self.multihead_attn(x, x, x)
+        x = self.norm(x + attn_output)
+        ffn_output = self.ffn(x)
+        x = self.norm(x + ffn_output)
+        return x
+
+
 class BuildClassification(nn.Module):
     def __init__(
         self,
