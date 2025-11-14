@@ -124,15 +124,24 @@ def get_dataset_paths(dataset_path="./data", dataset_type="arff"):
                 False,
                 os.path.join(
                     dataset_path,
-                    "HMC_data_arff/datasets_FUN/seq_FUN/seq_FUN.train.arff",
+                    "HMC_data_arff",
+                    "datasets_FUN",
+                    "seq_FUN",
+                    "seq_FUN.train.arff",
                 ),
                 os.path.join(
                     dataset_path,
-                    "HMC_data_arff/datasets_FUN/seq_FUN/seq_FUN.valid.arff",
+                    "HMC_data_arff",
+                    "datasets_FUN",
+                    "seq_FUN",
+                    "seq_FUN.valid.arff",
                 ),
                 os.path.join(
                     dataset_path,
-                    "HMC_data_arff/datasets_FUN/seq_FUN/seq_FUN.test.arff",
+                    "HMC_data_arff",
+                    "datasets_FUN",
+                    "seq_FUN",
+                    "seq_FUN.test.arff",
                 ),
             ),
             "spo_FUN": (
