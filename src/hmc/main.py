@@ -50,11 +50,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 def get_train_methods(x, by_level=True):
     if by_level:
-        from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+        from hmc.trainers.local_classifier.hpo.hpo_local_level import (
             optimize_hyperparameters,
         )
     else:
-        from hmc.trainers.local_classifier.core.hpo.hpo_local import (
+        from hmc.trainers.local_classifier.hpo.hpo_local import (
             optimize_hyperparameters,
         )
 
