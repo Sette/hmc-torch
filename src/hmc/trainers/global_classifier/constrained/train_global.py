@@ -14,7 +14,7 @@ from hmc.utils.path.dir import create_dir
 from hmc.utils.train.job import create_job_id_name
 from hmc.utils.path.output import save_dict_to_json
 
-from hmc.utils.data.labels import global_to_local_predictions
+from hmc.utils.dataset.labels import global_to_local_predictions
 
 
 def train_global(dataset_name, args):

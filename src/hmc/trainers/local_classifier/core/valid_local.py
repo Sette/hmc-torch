@@ -9,7 +9,7 @@ from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
 
-from hmc.utils.data.labels import get_probs_ancestral_descendent
+from hmc.utils.dataset.labels import get_probs_ancestral_descendent
 
 
 def valid_step(args):

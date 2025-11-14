@@ -9,7 +9,7 @@ from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalMod
 from hmc.utils.train.job import create_job_id_name
 
 
-from hmc.utils.data.labels import (
+from hmc.utils.dataset.labels import (
     show_local_losses,
 )
 

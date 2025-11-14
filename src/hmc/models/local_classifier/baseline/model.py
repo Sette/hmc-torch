@@ -41,7 +41,7 @@ class HMCLocalModel(nn.Module):
         dropouts=None,
         active_levels=None,
         results_path=None,
-        resitual=False,
+        residual=False,
     ):
         super(HMCLocalModel, self).__init__()
         if not input_size:
@@ -56,7 +56,7 @@ class HMCLocalModel(nn.Module):
         if not results_path:
             logging.info("results_path is None, error in HMCLocalClassificationModel")
             raise ValueError("results_path is None")
-        self.resitual = resitual
+        self.residual = residual
         self.input_size = input_size
         self.levels_size = levels_size
         self.mum_layers = num_layers
@@ -64,10 +64,10 @@ class HMCLocalModel(nn.Module):
         self.dropouts = dropouts
         self.results_path = results_path
         self.levels = nn.ModuleDict()
-        self.output_norms = nn.ModuleDict() 
+        self.output_norms = nn.ModuleDict()
         self.active_levels = active_levels
         self.level_active = [True] * len(levels_size)
-        
+
         self.max_depth = len(levels_size)
 
         logging.info(
@@ -82,7 +82,7 @@ class HMCLocalModel(nn.Module):
             active_levels,
         )
         for index in active_levels:
-            if not self.resitual or index == 0:
+            if not self.residual or index == 0:
                 self.levels[str(index)] = BuildClassification(
                     input_shape=input_size,
                     hidden_dims=hidden_dims[index],
@@ -91,7 +91,7 @@ class HMCLocalModel(nn.Module):
                 )
             else:
                 self.levels[str(index)] = BuildClassification(
-                    input_shape=input_size+levels_size[index - 1],
+                    input_shape=input_size + levels_size[index - 1],
                     hidden_dims=hidden_dims[index],
                     output_size=levels_size[index],
                     dropout=dropouts[index],
@@ -114,7 +114,7 @@ class HMCLocalModel(nn.Module):
                 # logging.info(
                 #     "Loaded trained model from %s for level %d", model_path, level_idx
                 # )
-            if self.resitual and level_idx > 0:
+            if self.residual and level_idx > 0:
                 previous_output = outputs[level_idx - 1]
                 previous_output_norm = previous_output > 0.2
 
@@ -122,7 +122,7 @@ class HMCLocalModel(nn.Module):
                 # print(f"x original shape: {x.shape}")
                 # print(f"previous_output shape: {previous_output.shape}")
                 # print(f"previous_output_norm shape: {previous_output_norm.shape}")
-                    
+
                 current_input = torch.cat((x, previous_output_norm), dim=1)
                 # print(f"  concatenated shape: {current_input.shape}")
             local_output = level(current_input)

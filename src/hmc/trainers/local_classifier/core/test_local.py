@@ -11,7 +11,7 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
-from hmc.utils.data.labels import local_to_global_predictions
+from hmc.utils.dataset.labels import local_to_global_predictions
 
 def test_step(args):
     """
