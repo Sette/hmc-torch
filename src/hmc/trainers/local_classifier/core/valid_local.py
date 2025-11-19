@@ -58,7 +58,7 @@ def valid_step(args):
         level: torch.tensor([]) for _, level in enumerate(args.active_levels)
     }
 
-    threshold = 0.2
+    threshold = 0.5
 
     # Get local scores
     args.local_val_scores = [0.0] * args.max_depth
@@ -102,7 +102,10 @@ def valid_step(args):
             y_pred_binary = y_pred > threshold
 
             score = precision_recall_fscore_support(
-                y_true, y_pred_binary, average="micro", zero_division=0
+                y_true,
+                y_pred_binary,
+                average="micro",
+                zero_division=0,
             )
 
             avg_score = average_precision_score(

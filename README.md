@@ -130,22 +130,10 @@ Before running the training script, ensure it has the necessary execution permis
 chmod +x run.sh
 ```
 
-#### 5.2. Run the Training Script
-You can run the training script with the desired device configuration:
-
-- **For CPU Execution**:
-  ```bash
-  ./run.sh --device cpu
-  ```
-
-- **For GPU Execution**:
-  ```bash
-  ./run.sh --device gpu
-  ```
 
 These commands will initiate the training process using the specified hardware.
 
-#### 5.3. Deploy Locally
+#### 5.2. Deploy Locally
 To deploy the project locally, you only need to run the deployment script, as it automates all the steps outlined above. Ensure the script has execution permissions and specify the desired hardware configuration:
 
 1. Make the script executable:
@@ -165,6 +153,19 @@ To deploy the project locally, you only need to run the deployment script, as it
 
 By following these instructions, the deployment script will handle the setup process, including dependency installation and environment configuration, based on your hardware preferences.
 
+
+#### 5.3. Run the Training Script
+You can run the training script with the desired device configuration:
+
+- **For CPU Execution**:
+  ```bash
+  ./run.sh --device cpu
+  ```
+
+- **For GPU Execution**:
+  ```bash
+  ./run.sh --device gpu
+  ```
 
 ## Commit History
 The project has a total of 8 commits, with the latest updates made on August 25, 2024. Notable commits include:

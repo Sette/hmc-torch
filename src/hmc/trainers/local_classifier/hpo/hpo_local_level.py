@@ -152,7 +152,8 @@ def optimize_hyperparameters(args):
             "dropouts": dropouts,
             "active_levels": hpo_levels,
             "results_path": args.results_path,
-            "resitual": args.model_regularization == "resitual",
+            "residual": args.model_regularization == "residual",
+            "level_model_type": args.level_model_type,
         }
 
         if args.method == "local_constrained":

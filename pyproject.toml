@@ -22,6 +22,7 @@ litmodels = "^0.1.7"
 optuna = "^4.3.0"
 logging = "^0.4.9.6"
 yq = "^3.4.3"
+torch-geometric = "^2.7.0"
 
 
 [[tool.poetry.source]]
