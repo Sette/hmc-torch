@@ -453,6 +453,7 @@ def main():
                 "active_levels": args.active_levels,
                 "results_path": args.results_path,
                 "residual": args.model_regularization == "residual",
+                "level_model_type": args.level_model_type,
             }
 
             if args.method == "local_constrained":

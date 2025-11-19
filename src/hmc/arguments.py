@@ -223,6 +223,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--level_model_type",
+        type=str,
+        default="mlp",
+        choices=["mlp", "attention", "gcn", "gat"],
+        metavar="LEVEL_MODEL_TYPE",
+        required=False,
+        help="Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
+'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network).",
+    )
+
+    parser.add_argument(
         "--active_levels",
         type=int,
         nargs="+",

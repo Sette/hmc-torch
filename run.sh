@@ -22,6 +22,7 @@ JOB_ID="false"
 USE_SAMPLE="false"
 SAVE_TORCH_DATASET="false"
 MODEL_REGULARIZATION="false"
+LEVEL_MODEL_TYPE="mlp"
 WARM_UP="false"
 N_WARMUP_EPOCHS=50
 N_WARMUP_EPOCHS_INCREMENT=50
@@ -60,6 +61,8 @@ usage() {
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"
     echo "  --model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
+    echo "  --level_model_type <type> Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
+        'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network). (default: $LEVEL_MODEL_TYPE)"
     echo "  --warmup <true/false>     Enable learning rate warmup (default: $WARM_UP)"
     echo "  --n_warmup_epochs <num>   Number of warmup epochs (default: $N_WARMUP_EPOCHS)"
     echo "  --n_warmup_epochs_increment <num> Increment of warmup epochs (default: $N_WARMUP_EPOCHS_INCREMENT)"
@@ -94,6 +97,7 @@ while [ "$#" -gt 0 ]; do
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
         --model_regularization) MODEL_REGULARIZATION="$2"; shift ;;
+        --level_model_type) LEVEL_MODEL_TYPE="$2"; shift ;;
         --warmup) WARM_UP="$2"; shift ;;
         --n_warmup_epochs) N_WARMUP_EPOCHS="$2"; shift ;;
         --n_warmup_epochs_increment) N_WARMUP_EPOCHS_INCREMENT="$2"; shift ;;
@@ -124,6 +128,7 @@ cmd="python -m hmc.main \
                 --n_warmup_epochs $N_WARMUP_EPOCHS \
                 --n_warmup_epochs_increment $N_WARMUP_EPOCHS_INCREMENT \
                 --model_regularization $MODEL_REGULARIZATION \
+                --level_model_type $LEVEL_MODEL_TYPE \
                 --n_trials $N_TRIALS" \
 
 
