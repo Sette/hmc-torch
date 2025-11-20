@@ -26,6 +26,12 @@ The project contains the following key files and directories:
   - `README.md`: Provides an overview and instructions for the project.
   - `LICENSE`: Licensing information for the project.
 
+## Recommended: Use UV for Fast & Reliable Dependency Management
+
+We strongly recommend using [UV](https://docs.astral.sh/uv/) to manage Python dependencies, due to its exceptional speed and cross-platform compatibility. UV works seamlessly on all major operating systems—including Linux, Windows (with PowerShell support), and macOS—making setup and package management fast and reliable for every development environment.
+
+For more information and installation steps, visit the [UV documentation](https://docs.astral.sh/uv/).
+
 ## Prerequisites Installation
 
 Before setting up the project, ensure you have the following prerequisites installed and configured:
