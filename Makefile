@@ -1,4 +1,6 @@
 
+VERSION="0.0.8"
+
 install-dependencies:
 	@echo "--> Installing Python dependencies"
 	@pip --disable-pip-version-check install -r requirements.txt
@@ -33,4 +35,4 @@ test:
 
 build:
 	@echo "--> Docker build"
-	docker build -f Dockerfile -t  hmc-torch:0.0.1  .
+	docker build -f Dockerfile -t hmc-torch:$(VERSION) .
