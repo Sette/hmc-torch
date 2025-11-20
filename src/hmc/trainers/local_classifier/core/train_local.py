@@ -19,17 +19,16 @@ Functions:
 """
 
 import logging
+
 import torch
+
 from hmc.trainers.local_classifier.core.valid_local import valid_step
-
 from hmc.utils.dataset.labels import show_local_losses
-
 from hmc.utils.train.job import (
     create_job_id_name,
-    start_timer,
     end_timer,
+    start_timer,
 )
-
 from hmc.utils.train.losses import calculate_local_loss
 
 

@@ -1,17 +1,18 @@
-import numpy as np
 import logging
 import os
+
+import numpy as np
 import torch
 from sklearn.metrics import (
     average_precision_score,
     precision_recall_fscore_support,
 )
 
+from hmc.utils.dataset.labels import local_to_global_predictions
 from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
-from hmc.utils.dataset.labels import local_to_global_predictions
 
 def test_step(args):
     """
@@ -44,7 +45,10 @@ def test_step(args):
 
     for level in args.active_levels:
         args.model.levels[str(level)].load_state_dict(
-            torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"), weights_only=True)
+            torch.load(
+                os.path.join(args.results_path, f"best_model_level_{level}.pth"),
+                weights_only=True,
+            )
         )
 
     y_true_global = []
@@ -81,7 +85,15 @@ def test_step(args):
         logging.info("find best theshold")
         best_thresholds = {level: None for _, level in enumerate(args.active_levels)}
         thresholds = np.linspace(0.1, 0.9, 17)
-        best_scores = {level: {'precision': 0, 'recall': 0, 'f1score': 0, 'average_precision_score': 0} for _, level in enumerate(args.active_levels)}
+        best_scores = {
+            level: {
+                "precision": 0,
+                "recall": 0,
+                "f1score": 0,
+                "average_precision_score": 0,
+            }
+            for _, level in enumerate(args.active_levels)
+        }
         logging.info("Evaluating %d active levels...", len(args.active_levels))
         for level in args.active_levels:
             y_pred = local_outputs[level].to("cpu").numpy()
@@ -93,7 +105,10 @@ def test_step(args):
                 # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
                 score = precision_recall_fscore_support(
-                    y_true, y_pred_binary, average="micro", zero_division=0,
+                    y_true,
+                    y_pred_binary,
+                    average="micro",
+                    zero_division=0,
                 )
 
                 avg_score = average_precision_score(
@@ -106,7 +121,7 @@ def test_step(args):
                 recall = score[1]
                 f1_score = score[2]
 
-                if avg_score > best_scores[level]['average_precision_score']:
+                if avg_score > best_scores[level]["average_precision_score"]:
                     best_thresholds[level] = actual_threshold
                     best_scores[level] = {
                         "precision": precision,
@@ -117,9 +132,7 @@ def test_step(args):
 
         print("Best thresholds per level:")
         for idx in args.active_levels:
-            print(
-                f"Level {idx}: threshold={best_thresholds[idx]:.2f}, "
-            )
+            print(f"Level {idx}: threshold={best_thresholds[idx]:.2f}, ")
     else:
         best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
 
@@ -130,9 +143,11 @@ def test_step(args):
         all_y_pred.append(y_pred)
         y_pred_binary = y_pred > best_thresholds[idx]
 
-
         score = precision_recall_fscore_support(
-            local_inputs[idx], y_pred_binary, average="micro", zero_division=0,
+            local_inputs[idx],
+            y_pred_binary,
+            average="micro",
+            zero_division=0,
         )
 
         avg_score = average_precision_score(
@@ -140,7 +155,6 @@ def test_step(args):
             y_pred,
             average="micro",
         )
-
 
         # score = average_precision_score(
         #     local_inputs[idx], y_pred_binary, average="micro"
@@ -169,7 +183,6 @@ def test_step(args):
     # print(y_true_global_original[0].tolist())
     # logging.info("Y pred")
     # print(y_pred_global_binary[0].tolist())
-
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],

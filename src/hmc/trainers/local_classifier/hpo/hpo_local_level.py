@@ -1,26 +1,21 @@
 import logging
 import sys
+
 import optuna
 import torch
-from sklearn.metrics import precision_recall_fscore_support, average_precision_score
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
-from hmc.utils.train.job import create_job_id_name
-
-
+from hmc.models.local_classifier.baseline import HMCLocalModel
+from hmc.models.local_classifier.constraint.model import ConstraintHMCLocalModel
 from hmc.utils.dataset.labels import (
     show_local_losses,
 )
-
+from hmc.utils.path.dir import create_dir
+from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
-
-
-from hmc.utils.path.output import save_dict_to_json
-
-from hmc.utils.path.dir import create_dir
+from hmc.utils.train.job import create_job_id_name
 
 
 def optimize_hyperparameters(args):
@@ -101,7 +96,9 @@ def optimize_hyperparameters(args):
 
         logging.info("Tentativa número: %d", trial.number)
         dropout = trial.suggest_float(f"dropout_level_{level}", 0.3, 0.8, log=True)
-        weight_decay = trial.suggest_float(f"weight_decay_level_{level}", 1e-6, 1e-2, log=True)
+        weight_decay = trial.suggest_float(
+            f"weight_decay_level_{level}", 1e-6, 1e-2, log=True
+        )
         lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
         num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
         dropouts = {level: dropout}
@@ -156,7 +153,7 @@ def optimize_hyperparameters(args):
             "level_model_type": args.level_model_type,
         }
 
-        if args.method == "local_constrained":
+        if args.method == "local_constraint":
             args.model = ConstrainedHMCLocalModel(**params).to(args.device)
         else:
             args.model = HMCLocalModel(**params).to(args.device)

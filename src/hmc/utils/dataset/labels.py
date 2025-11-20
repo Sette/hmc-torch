@@ -1,9 +1,10 @@
-import pickle
 import logging
-import numpy as np
+import pickle
+
 import networkx as nx
-from sklearn.preprocessing import MultiLabelBinarizer
+import numpy as np
 import torch
+from sklearn.preprocessing import MultiLabelBinarizer
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)

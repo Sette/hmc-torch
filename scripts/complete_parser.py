@@ -4,18 +4,18 @@
 # In[1]:
 
 
-import os
-import math
 import json
+import math
+import os
+from itertools import chain
 
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 # In[2]:
 
 
-import numpy as np
-import pandas as pd
-from itertools import chain
 
 # from hmc.utils import create_dir, __load_json__
 
@@ -43,13 +43,12 @@ def __load_json__(path):
 # In[5]:
 
 
+import keras
 import torch
-
 
 # In[6]:
 
 
-import keras
 
 
 # In[8]:

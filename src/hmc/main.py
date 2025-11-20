@@ -1,41 +1,31 @@
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
+import logging
 import os
 import random
 import sys
 from pathlib import Path
-import logging
+
 import numpy as np
 import torch
-
-from hmc.arguments import get_parser
-from hmc.trainers.global_classifier.constrained.train_global import train_global
-
-from hmc.utils.path.dir import create_dir
-from hmc.utils.train.job import parse_str_flags
-
 import torch.nn as nn
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.test_local import (
-    test_step as test_step_core,
-)
+from hmc.arguments import get_parser
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
-from hmc.trainers.local_classifier.core.train_local import (
-    train_step as train_step_core,
-)
+# Import necessary modules for training baseline_old local classifiers
+# from hmc.models.local_classifier.baseline_old.model import HMCLocalModel
+from hmc.models.local_classifier.baseline import HMCLocalModel
 
-# Import necessary modules for constrained training local classifiers
-from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
-
-
-# Import necessary modules for training baseline local classifiers
-from hmc.models.local_classifier.baseline.model import HMCLocalModel
-
-
+# Import necessary modules for constraint_old training local classifiers
+from hmc.models.local_classifier.constraint.model import ConstraintHMCLocalModel
 from hmc.models.local_classifier.utils.losses import FocalLoss
-
+from hmc.trainers.global_classifier.constraint.train_global import train_global
+from hmc.trainers.local_classifier.core.test_local import test_step as test_step_core
+from hmc.trainers.local_classifier.core.train_local import train_step as train_step_core
+from hmc.utils.path.dir import create_dir
+from hmc.utils.train.job import parse_str_flags
 
 # Set a logger config
 logging.basicConfig(
@@ -59,9 +49,9 @@ def get_train_methods(x, by_level=True):
         )
 
     match x:
-        case "local_constrained":
+        case "local_constraint":
             return {
-                "model": ConstrainedHMCLocalModel,
+                "model": ConstraintHMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step_core,
                 "train_step": train_step_core,
@@ -87,7 +77,7 @@ def get_train_methods(x, by_level=True):
             }
         case "global":
             return {
-                "model": ConstrainedHMCLocalModel,
+                "model": ConstraintHMCLocalModel,
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
@@ -284,8 +274,8 @@ def main():
 
     args.train_methods = get_train_methods(args.method, by_level=args.hpo_by_level)
 
-    if args.method == "local_constrained":
-        logging.info("Using constrained local model")
+    if args.method == "local_constraint":
+        logging.info("Using constraint_old local model")
 
     # Load train, val and test set
 
@@ -453,11 +443,11 @@ def main():
                 "active_levels": args.active_levels,
                 "results_path": args.results_path,
                 "residual": args.model_regularization == "residual",
-                "level_model_type": args.level_model_type,
             }
 
-            if args.method == "local_constrained":
+            if args.method == "local_constraint":
 
+                params["level_model_type"] = args.level_model_type
                 args.class_indices_per_level = {
                     lvl: torch.tensor(
                         [
@@ -482,7 +472,7 @@ def main():
         logging.info(args.model)
 
         match args.method:
-            case "local" | "local_constrained" | "local_mask":
+            case "local" | "local_constraint" | "local_mask":
                 logging.info("Local method selected")
                 args.train_methods["train_step"](args)
                 args.train_methods["test_step"](args)

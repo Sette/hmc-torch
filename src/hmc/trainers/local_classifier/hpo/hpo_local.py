@@ -2,29 +2,18 @@ import logging
 import sys
 import optuna
 import torch
-from hmc.trainers.local_classifier.core.valid_local import valid_step
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
-from hmc.utils.job import create_job_id_name
-
-
-from hmc.utils.labels import (
-    show_local_losses,
-    get_probs_ancestral_descendent,
-)
-
-
-from hmc.utils.path.output import save_dict_to_json
-
+from hmc.trainers.local_classifier.core.valid_local import valid_step
 from hmc.utils.dir import create_dir
-
-
+from hmc.utils.job import create_job_id_name
+from hmc.utils.labels import (
+    get_probs_ancestral_descendent,
+    show_local_losses,
+)
+from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.losses import calculate_local_loss
-
-
-import numpy as np
-import random
 
 
 def optimize_hyperparameters(args):
@@ -158,7 +147,7 @@ def optimize_hyperparameters(args):
             "results_path": args.results_path,
         }
 
-        if args.method == "local_constrained":
+        if args.method == "local_constraint":
             args.class_indices_per_level = {
                 lvl: torch.tensor(
                     [
@@ -322,7 +311,7 @@ def optimize_hyperparameters(args):
                 val_loss = val_loss / args.max_depth
                 best_val_loss = best_val_loss / args.max_depth
                 best_val_score = best_val_score / args.max_depth
-                
+
                 logging.info(
                     "Trial %d Local validation loss: %f AVG Score: %f",
                     trial.number,
@@ -335,7 +324,7 @@ def optimize_hyperparameters(args):
                     best_val_loss,
                     best_val_score,
                 )
-                
+
                 if next_level > args.max_depth:
                     # Reporta o valor de validação para Optuna
                     trial.report(val_score, step=epoch)

@@ -4,15 +4,15 @@
 # In[1]:
 
 
-import os
 import json
-import yaml
+import os
 
+import yaml
 
 # In[2]:
 
 
-hpo_path = '/home/bruno/git/hmc-torch/results/hpo/local'
+hpo_path = "/home/bruno/git/hmc-torch/results/hpo/local"
 
 
 # In[3]:
@@ -46,7 +46,6 @@ def _get_hpo_values(dataset_name):
     return json_file_path
 
 
-
 # In[9]:
 
 
@@ -55,9 +54,9 @@ def get_hpo_values(datasets):
     for dataset_name in datasets:
         json_file = _get_hpo_values(dataset_name)
         if not os.path.exists(json_file):
-            print(f'Arquivo não encontrado para dataset: {dataset_name}')
+            print(f"Arquivo não encontrado para dataset: {dataset_name}")
             continue
-        with open(json_file, 'r') as f:
+        with open(json_file, "r") as f:
             data = json.load(f)
         # Cria listas para cada hiperparâmetro
         hidden_dims = []
@@ -68,24 +67,24 @@ def get_hpo_values(datasets):
         # Coleta valores de cada trial
         for k in data:
             trial = data[k]
-            hidden_dims.append(trial['hidden_dims'])
-            lr_values.append(trial['lr'])
-            dropout_values.append(trial['dropout'])
-            num_layers_values.append(trial['num_layers'])
-            weight_decay_values.append(trial['weight_decay'])
+            hidden_dims.append(trial["hidden_dims"])
+            lr_values.append(trial["lr"])
+            dropout_values.append(trial["dropout"])
+            num_layers_values.append(trial["num_layers"])
+            weight_decay_values.append(trial["weight_decay"])
         # Adiciona no dicionário final
         datasets_params[dataset_name] = {
-            'hidden_dims': hidden_dims,
-            'lr_values': lr_values,
-            'dropout_values': dropout_values,
-            'num_layers_values': num_layers_values,
-            'weight_decay_values': weight_decay_values
+            "hidden_dims": hidden_dims,
+            "lr_values": lr_values,
+            "dropout_values": dropout_values,
+            "num_layers_values": num_layers_values,
+            "weight_decay_values": weight_decay_values,
         }
     # Formata para salvar compatível com YAML de exemplo
-    out_dict = {'datasets_params': datasets_params}
-    with open('datasets_params.yaml', 'w') as f:
+    out_dict = {"datasets_params": datasets_params}
+    with open("datasets_params.yaml", "w") as f:
         yaml.dump(out_dict, f, allow_unicode=True, sort_keys=False)
-    print('Arquivo YAML criado: datasets_params.yaml')
+    print("Arquivo YAML criado: datasets_params.yaml")
 
 
 # In[10]:
@@ -95,7 +94,3 @@ get_hpo_values(datasets)
 
 
 # In[ ]:
-
-
-
-
