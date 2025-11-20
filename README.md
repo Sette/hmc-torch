@@ -37,7 +37,18 @@ For more information and installation steps, visit the [UV documentation](https:
 Before setting up the project, ensure you have the following prerequisites installed and configured:
 
 ### 1. Create a Virtual Environment
-It is recommended to use a virtual environment to manage dependencies. Run the following command to create one:
+
+#### If you are using UV:
+```bash
+cd hmc-torch
+uv python install 3.12.12
+uv python pin 3.12.12
+uv venv
+```
+#### If you are not using UV:
+
+It is still recommended to use a virtual environment to manage dependencies.
+Run the following command to create one:
 
 ```bash
 python -m venv .venv
