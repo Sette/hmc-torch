@@ -141,7 +141,7 @@ def get_parser():
             "local",
             "globalLM",
             "global_baseline",
-            "local_constrained",
+            "local_constraint",
             "local_mask",
             "local_test",
         ],
