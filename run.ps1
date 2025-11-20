@@ -142,7 +142,7 @@ if ($DATASET -eq "all") {
             $cmd_dataset += " --active_levels $($ACTIVE_LEVELS -join ' ')"
         }
 
-        if (($HPO -eq "false") -and (($METHOD -eq "local") -or ($METHOD -eq "local_constrained") -or ($METHOD -eq "local_mask"))) {
+        if (($HPO -eq "false") -and (($METHOD -eq "local") -or ($METHOD -eq "local_constraint") -or ($METHOD -eq "local_mask"))) {
             $cmd_dataset += " --lr_values $($LR_VALUES -join ' ') " +
                 "--dropout_values $($DROPOUT_VALUES -join ' ') " +
                 "--hidden_dims $HIDDEN_DIMS " +
@@ -182,7 +182,7 @@ else {
         $cmd += " --active_levels $($ACTIVE_LEVELS -join ' ')"
     }
 
-    if (($HPO -eq "false") -and (($METHOD -eq "local") -or ($METHOD -eq "local_test") -or ($METHOD -eq "local_constrained") -or ($METHOD -eq "local_mask"))) {
+    if (($HPO -eq "false") -and (($METHOD -eq "local") -or ($METHOD -eq "local_test") -or ($METHOD -eq "local_constraint") -or ($METHOD -eq "local_mask"))) {
         $cmd += " --lr_values $($LR_VALUES -join ' ') " +
             "--dropout_values $($DROPOUT_VALUES -join ' ') " +
             "--hidden_dims $HIDDEN_DIMS " +

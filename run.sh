@@ -147,7 +147,7 @@ if [ "$DATASET" = "all" ]; then
             cmd_dataset=cmd+" --active_levels $ACTIVE_LEVELS"
         fi
 
-        if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
+        if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_constraint" ] || [ "$METHOD" = "local_mask" ]; }; then
             cmd_dataset+=" --lr_values ${LR_VALUES[@]} \
                 --dropout_values ${DROPOUT_VALUES[@]} \
                 --hidden_dims ${HIDDEN_DIMS[@]} \
@@ -181,7 +181,7 @@ else
         cmd+=" --active_levels $ACTIVE_LEVELS"
     fi
 
-    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constrained" ] || [ "$METHOD" = "local_mask" ]; }; then
+    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constraint" ] || [ "$METHOD" = "local_mask" ]; }; then
         cmd+=" \
             --lr_values ${LR_VALUES[@]} \
             --dropout_values ${DROPOUT_VALUES[@]} \
