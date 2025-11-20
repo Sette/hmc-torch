@@ -3,7 +3,7 @@ import torch
 
 def get_constr_out(x, R):
     """
-    Given the network output x and a constraint matrix R,
+    Given the network output x and a constraint_old matrix R,
     returns the modified output according to the hierarchical constraints in R.
     """
     # Convert x to double precision

@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class BaselineFFNNModel(nn.Module):
-    """HMCNN(h) model - baseline model without constraints"""
+    """HMCNN(h) model - baseline_old model without constraints"""
 
     def __init__(self, input_dim, hidden_dim, output_dim, hyperparams, R):
         super(BaselineFFNNModel, self).__init__()

@@ -4,15 +4,15 @@ import torch
 import torch.nn as nn
 from lightning import LightningModule
 from sklearn.metrics import average_precision_score
-from hmc.models.global_classifier.constrained.utils import get_constr_out
+from hmc.models.global_classifier.constraint.utils import get_constr_out
 
 
-class ConstrainedModel(nn.Module):
-    """C-HMCNN(h) model - during training it returns the not-constrained
+class ConstraintModel(nn.Module):
+    """C-HMCNN(h) model - during training it returns the not-constraint_old
     output that is then passed to MCLoss"""
 
     def __init__(self, input_dim, hidden_dim, output_dim, hyperparams, R):
-        super(ConstrainedModel, self).__init__()
+        super(ConstraintModel, self).__init__()
 
         self.nb_layers = hyperparams["num_layers"]
         self.R = R
@@ -49,7 +49,7 @@ class ConstrainedModel(nn.Module):
         return constrained_out
 
 
-class ConstrainedLightningModel(LightningModule):
+class ConstraintLightningModel(LightningModule):
     def __init__(
         self,
         input_dim,

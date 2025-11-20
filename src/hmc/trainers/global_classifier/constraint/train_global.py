@@ -5,16 +5,14 @@ import torch.nn as nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tqdm import tqdm
 
-from hmc.models.global_classifier.constrained.model import (
-    ConstrainedModel,
+from hmc.models.global_classifier.constraint.model import (
+    ConstraintModel,
     get_constr_out,
 )
-from hmc.utils.path.dir import create_dir
-
-from hmc.utils.train.job import create_job_id_name
-from hmc.utils.path.output import save_dict_to_json
-
 from hmc.utils.dataset.labels import global_to_local_predictions
+from hmc.utils.path.dir import create_dir
+from hmc.utils.path.output import save_dict_to_json
+from hmc.utils.train.job import create_job_id_name
 
 
 def train_global(dataset_name, args):
@@ -26,7 +24,9 @@ def train_global(dataset_name, args):
 
     job_id = create_job_id_name(prefix="test")
 
-    to_eval = torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    to_eval = (
+        torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    )
 
     results_path = f"results/train/{args.method}-{args.dataset_name}/{job_id}"
 
@@ -75,7 +75,6 @@ def train_global(dataset_name, args):
     # Transpose to get the descendants for each node
     R = R.transpose(1, 0)
     R = R.unsqueeze(0).to(device)
-
 
     if "GO" in dataset_name:
         num_to_skip = 4
