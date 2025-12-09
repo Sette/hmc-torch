@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline import HMCLocalModel
-from hmc.models.local_classifier.constraint.model import ConstraintHMCLocalModel
+from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 from hmc.utils.dataset.labels import (
     show_local_losses,
 )
@@ -103,6 +103,7 @@ def optimize_hyperparameters(args):
         num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
         dropouts = {level: dropout}
         hidden_dims = []
+        num_layers_values = {level: num_layers}
 
         for i in range(num_layers):
             input_size = args.input_size
@@ -132,10 +133,10 @@ def optimize_hyperparameters(args):
 
         for i in hpo_levels:
             if i != level:
-                num_layers_local = args.best_params_per_level[i]["num_layers"]
+                num_layers_values[i] = args.best_params_per_level[i]["num_layers"]
                 hidden_dims_all[i] = [
                     args.best_params_per_level[i]["hidden_dims"][layer]
-                    for layer in range(num_layers_local)
+                    for layer in range(num_layers_values[i])
                 ]
                 dropouts[i] = args.best_params_per_level[i]["dropout"]
 
@@ -145,16 +146,36 @@ def optimize_hyperparameters(args):
             "levels_size": args.levels_size,
             "input_size": args.input_size,
             "hidden_dims": hidden_dims_all,
-            "num_layers": num_layers,
+            "num_layers": num_layers_values,
             "dropouts": dropouts,
             "active_levels": hpo_levels,
             "results_path": args.results_path,
             "residual": args.model_regularization == "residual",
-            "level_model_type": args.level_model_type,
         }
 
         if args.method == "local_constraint":
-            args.model = ConstrainedHMCLocalModel(**params).to(args.device)
+            params["level_model_type"] = args.level_model_type
+            args.class_indices_per_level = {
+                lvl: torch.tensor(
+                    [
+                        args.hmc_dataset.nodes_idx[n.replace("/", ".")]
+                        for n in args.hmc_dataset.levels[lvl]
+                    ],
+                    device=args.device,
+                )
+                for lvl in args.hmc_dataset.levels.keys()
+            }
+            params["class_indices_per_level"] = args.class_indices_per_level
+            # params["nodes_idx"] = args.hmc_dataset.nodes_idx
+            # params["local_nodes_reverse_idx"] = (
+            #     args.hmc_dataset.local_nodes_reverse_idx
+            # )
+            # params["edges_matrix_dict"] = (
+            #     args.hmc_dataset.edges_matrix_dict
+            # )  # Precomputed mapping matrices
+
+            params["r_global"] = args.hmc_dataset.r.to(args.device)
+            args.model = HMCLocalModelConstraint(**params).to(args.device)
         else:
             args.model = HMCLocalModel(**params).to(args.device)
 

@@ -21,7 +21,7 @@ $USE_SAMPLE = "false"
 $SAVE_TORCH_DATASET = "false"
 $MODEL_REGULARIZATION = "false"
 $LEVEL_MODEL_TYPE = "mlp"
-$WARM_UP = "false"
+$WARMUP = "false"
 $N_WARMUP_EPOCHS = 50
 $N_WARMUP_EPOCHS_INCREMENT = 50
 $DATASET_NAME = "seq_FUN"
@@ -56,9 +56,9 @@ function Show-Usage {
     Write-Host "  -hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     Write-Host "  -active_levels <num>     Number of active levels"
     Write-Host "  -model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
-    Write-Host "  -level_model_type <true/false>  Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
+    Write-Host "  -level_model_type <type>  Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
         'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network). (default: $LEVEL_MODEL_TYPE)"
-    Write-Host "  -warmup <true/false>     Enable learning rate warmup (default: $WARM_UP)"
+    Write-Host "  -warmup <true/false>     Enable learning rate warmup (default: $WARMUP)"
     Write-Host "  -n_warmup_epochs <num>   Number of warmup epochs (default: $N_WARMUP_EPOCHS)"
     Write-Host "  -n_warmup_epochs_increment <num> Increment of warmup epochs (default: $N_WARMUP_EPOCHS_INCREMENT)"
     Write-Host "  -epochs_to_evaluate <num> Number of epochs to evaluate"
@@ -93,7 +93,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
         "-epochs_to_evaluate" { $EPOCHS_TO_EVALUATE = $args[++$i] }
         "-model_regularization" { $MODEL_REGULARIZATION = $args[++$i] }
         "-level_model_type" { $LEVEL_MODEL_TYPE = $args[++$i] }
-        "-warmup" { $WARM_UP = $args[++$i] }
+        "-warmup" { $WARMUP = $args[++$i] }
         "-n_warmup_epochs" { $N_WARMUP_EPOCHS = $args[++$i] }
         "-n_warmup_epochs_increment" { $N_WARMUP_EPOCHS_INCREMENT = $args[++$i] }
         "-help" { Show-Usage }
@@ -117,7 +117,7 @@ $cmd = "python -m hmc.main " +
     "--method $METHOD " +
     "--epochs_to_evaluate $EPOCHS_TO_EVALUATE " +
     "--hpo $HPO " +
-    "--warmup $WARM_UP " +
+    "--warmup $WARMUP " +
     "--n_warmup_epochs $N_WARMUP_EPOCHS " +
     "--n_warmup_epochs_increment $N_WARMUP_EPOCHS_INCREMENT " +
     "--model_regularization $MODEL_REGULARIZATION " +

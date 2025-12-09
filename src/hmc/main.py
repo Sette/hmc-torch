@@ -19,7 +19,7 @@ from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline import HMCLocalModel
 
 # Import necessary modules for constraint_old training local classifiers
-from hmc.models.local_classifier.constraint.model import ConstraintHMCLocalModel
+from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 from hmc.models.local_classifier.utils.losses import FocalLoss
 from hmc.trainers.global_classifier.constraint.train_global import train_global
 from hmc.trainers.local_classifier.core.test_local import test_step as test_step_core
@@ -51,7 +51,7 @@ def get_train_methods(x, by_level=True):
     match x:
         case "local_constraint":
             return {
-                "model": ConstraintHMCLocalModel,
+                "model": HMCLocalModelConstraint,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step_core,
                 "train_step": train_step_core,
@@ -257,11 +257,7 @@ def main():
     args = parse_str_flags(args)
 
     args.results_path = os.path.join(
-        "home",
-        "bruno",
-        "git",
-        "hmc-torch",
-        "data",
+        "results",
         args.output_path,
         "train",
         "local",
@@ -458,15 +454,16 @@ def main():
                     )
                     for lvl in args.hmc_dataset.levels.keys()
                 }
-                params["device"] = args.device
-                params["nodes_idx"] = args.hmc_dataset.nodes_idx
-                params["local_nodes_reverse_idx"] = (
-                    args.hmc_dataset.local_nodes_reverse_idx
-                )
-                params["r"] = args.hmc_dataset.r.to(args.device)
-                params["edges_matrix_dict"] = (
-                    args.hmc_dataset.edges_matrix_dict
-                )  # Precomputed mapping matrices
+                params["class_indices_per_level"] = args.class_indices_per_level
+                # params["nodes_idx"] = args.hmc_dataset.nodes_idx
+                # params["local_nodes_reverse_idx"] = (
+                #     args.hmc_dataset.local_nodes_reverse_idx
+                # )
+                # params["edges_matrix_dict"] = (
+                #     args.hmc_dataset.edges_matrix_dict
+                # )  # Precomputed mapping matrices
+
+                params["r_global"] = args.hmc_dataset.r.to(args.device)
 
         args.model = args.train_methods["model"](**params)
         logging.info(args.model)
