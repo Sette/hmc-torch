@@ -6,8 +6,8 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from tqdm import tqdm
 
 from hmc.models.global_classifier.constraint.model import (
-    ConstraintModel,
     get_constr_out,
+    ConstraintGlobalModel,
 )
 from hmc.utils.dataset.labels import global_to_local_predictions
 from hmc.utils.path.dir import create_dir
@@ -38,7 +38,7 @@ def train_global(dataset_name, args):
         args.hidden_dim = args.hidden_dims[ontology][data]
         args.lr = args.lrs[ontology][data]
         if not epochs_by_args:
-            args.epochs = args.epochss[ontology][data]
+            args.epochs = args.all_epochs[ontology][data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
@@ -82,7 +82,7 @@ def train_global(dataset_name, args):
         num_to_skip = 1
 
     # Create the model
-    model = ConstrainedModel(
+    model = ConstraintGlobalModel(
         args.input_dims[data],
         args.hidden_dim,
         args.output_dims[ontology][data] + num_to_skip,
@@ -158,40 +158,40 @@ def train_global(dataset_name, args):
             constr_test = torch.cat((constr_test, cpu_constrained_output), dim=0)
             y_test = torch.cat((y_test, y), dim=0)
 
-    Y_pred_local_binary = global_to_local_predictions(
-        constr_test.data > threshold,
-        args.hmc_dataset.train.local_nodes_idx,
-        args.hmc_dataset.train.nodes_idx,
-    )
+    # Y_pred_local_binary = global_to_local_predictions(
+    #     constr_test.data > threshold,
+    #     args.hmc_dataset.train.local_nodes_idx,
+    #     args.hmc_dataset.train.nodes_idx,
+    # )
 
-    y_test_local_binary = global_to_local_predictions(
-        y_test,
-        args.hmc_dataset.train.local_nodes_idx,
-        args.hmc_dataset.train.nodes_idx,
-    )
+    # y_test_local_binary = global_to_local_predictions(
+    #     y_test,
+    #     args.hmc_dataset.train.local_nodes_idx,
+    #     args.hmc_dataset.train.nodes_idx,
+    # )
 
     # Get local scores
-    local_test_score = {
-        level: {"f1score": None, "precision": None, "recall": None}
-        for level in range(len(y_test_local_binary))
-    }
-    for level, (y_test_local, Y_pred_local) in enumerate(
-        zip(y_test_local_binary, Y_pred_local_binary)
-    ):
-        score = precision_recall_fscore_support(
-            y_test_local,
-            Y_pred_local,
-            average="micro",
-            zero_division=0,
-        )
-        local_test_score[level]["precision"] = score[0]  # Precision
-        local_test_score[level]["recall"] = score[1]  # Recall
-        local_test_score[level]["f1score"] = score[2]  # F1-score
-        print("Local evaluation score:")
-        print(
-            "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f"
-            % (level, score[0], score[1], score[2])
-        )
+    # local_test_score = {
+    #     level: {"f1score": None, "precision": None, "recall": None}
+    #     for level in range(len(y_test_local_binary))
+    # }
+    # for level, (y_test_local, Y_pred_local) in enumerate(
+    #     zip(y_test_local_binary, Y_pred_local_binary)
+    # ):
+    #     score = precision_recall_fscore_support(
+    #         y_test_local,
+    #         Y_pred_local,
+    #         average="micro",
+    #         zero_division=0,
+    #     )
+    #     local_test_score[level]["precision"] = score[0]  # Precision
+    #     local_test_score[level]["recall"] = score[1]  # Recall
+    #     local_test_score[level]["f1score"] = score[2]  # F1-score
+    #     print("Local evaluation score:")
+    #     print(
+    #         "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f"
+    #         % (level, score[0], score[1], score[2])
+    #     )
 
     score = precision_recall_fscore_support(
         y_test[:, to_eval],
@@ -199,10 +199,10 @@ def train_global(dataset_name, args):
         average="micro",
         zero_division=0,
     )
-    local_test_score["global"] = {"f1score": None, "precision": None, "recall": None}
-    local_test_score["global"]["precision"] = score[0]  # Precision
-    local_test_score["global"]["recall"] = score[1]  # Recall
-    local_test_score["global"]["f1score"] = score[2]  # F1-score
+    # local_test_score["global"] = {"f1score": None, "precision": None, "recall": None}
+    # local_test_score["global"]["precision"] = score[0]  # Precision
+    # local_test_score["global"]["recall"] = score[1]  # Recall
+    # local_test_score["global"]["f1score"] = score[2]  # F1-score
 
     print("Global evaluation score:")
     print(
@@ -211,10 +211,10 @@ def train_global(dataset_name, args):
 
     create_dir(results_path)
 
-    save_dict_to_json(
-        local_test_score,
-        f"{results_path}/test-scores.json",
-    )
+    # save_dict_to_json(
+    #     local_test_score,
+    #     f"{results_path}/test-scores.json",
+    # )
 
     score = average_precision_score(
         y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"

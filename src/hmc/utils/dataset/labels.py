@@ -124,7 +124,10 @@ def binarize_labels(dataset_df, args):
 
 
 def local_to_global_predictions(
-    local_labels, local_nodes_idx, nodes_idx, threshold=0.6
+    local_labels,
+    local_nodes_idx,
+    nodes_idx,
+    threshold=0.2,
 ):
     """
     Converte previsões de nível local para vetores globais de scores e predições binárias.
@@ -188,11 +191,11 @@ def local_to_global_predictions(
 
                 # 1. Atribui o score original à matriz de scores
                 score = sample_scores[local_idx]
-                global_scores[idx_example, global_idx] = score
 
                 # 2. Binariza o score e atribui à matriz de predições binárias
                 if score >= threshold:
                     global_binary_preds[idx_example, global_idx] = 1
+                    global_scores[idx_example, global_idx] = score
 
     return global_scores, global_binary_preds
 

@@ -35,7 +35,7 @@ def train_global_baseline(dataset_name, args):
     if experiment:
         args.hidden_dim = args.hidden_dims[ontology][data]
         args.lr = args.lrs[ontology][data]
-        args.num_epochs = args.epochss[ontology][data]
+        args.num_epochs = args.all_epochs[ontology][data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
