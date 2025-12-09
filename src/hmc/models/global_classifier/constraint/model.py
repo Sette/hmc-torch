@@ -7,12 +7,12 @@ from sklearn.metrics import average_precision_score
 from hmc.models.global_classifier.constraint.utils import get_constr_out
 
 
-class ConstraintModel(nn.Module):
+class ConstraintGlobalModel(nn.Module):
     """C-HMCNN(h) model - during training it returns the not-constraint_old
     output that is then passed to MCLoss"""
 
     def __init__(self, input_dim, hidden_dim, output_dim, hyperparams, R):
-        super(ConstraintModel, self).__init__()
+        super(ConstraintGlobalModel, self).__init__()
 
         self.nb_layers = hyperparams["num_layers"]
         self.R = R
@@ -62,7 +62,9 @@ class ConstraintLightningModel(LightningModule):
         weight_decay,
     ):
         super(ConstrainedLightningModel, self).__init__()
-        self.model = ConstrainedModel(input_dim, hidden_dim, output_dim, hyperparams, R)
+        self.model = ConstraintGlobalModel(
+            input_dim, hidden_dim, output_dim, hyperparams, R
+        )
         self.model = self.model.to(self.device)
         self.R = R
         self.to_eval = to_eval.to(self.device)

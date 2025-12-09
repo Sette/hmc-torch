@@ -15,11 +15,9 @@ from hmc.arguments import get_parser
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
 # Import necessary modules for training baseline_old local classifiers
-# from hmc.models.local_classifier.baseline_old.model import HMCLocalModel
 from hmc.models.local_classifier.baseline import HMCLocalModel
-
-# Import necessary modules for constraint_old training local classifiers
 from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
+from hmc.models.global_classifier.constraint.model import ConstraintGlobalModel
 from hmc.models.local_classifier.utils.losses import FocalLoss
 from hmc.trainers.global_classifier.constraint.train_global import train_global
 from hmc.trainers.local_classifier.core.test_local import test_step as test_step_core
@@ -44,9 +42,7 @@ def get_train_methods(x, by_level=True):
             optimize_hyperparameters,
         )
     else:
-        from hmc.trainers.local_classifier.hpo.hpo_local import (
-            optimize_hyperparameters,
-        )
+        from hmc.trainers.local_classifier.hpo.hpo_local import optimize_hyperparameters
 
     match x:
         case "local_constraint":
@@ -77,7 +73,7 @@ def get_train_methods(x, by_level=True):
             }
         case "global":
             return {
-                "model": ConstraintHMCLocalModel,
+                "model": ConstraintGlobalModel,
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
@@ -240,7 +236,7 @@ def main():
         "spo": 103,
     }
     epochss_others = {"diatoms": 474, "enron": 133, "imclef07a": 592, "imclef07d": 588}
-    args.epochss = {"FUN": epochss_FUN, "GO": epochss_GO, "others": epochss_others}
+    args.all_epochs = {"FUN": epochss_FUN, "GO": epochss_GO, "others": epochss_others}
 
     # Set seed
     torch.manual_seed(args.seed)
@@ -323,7 +319,7 @@ def main():
             read_data=read_data,
             use_sample=args.use_sample,
         )
-        data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+        data_train, data_test, data_valid = args.hmc_dataset.get_datasets()
 
         scaler = preprocessing.StandardScaler().fit(
             np.concatenate((data_train.X, data_valid.X))
@@ -331,14 +327,16 @@ def main():
         imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
             np.concatenate((data_train.X, data_valid.X))
         )
-        data_valid.X = (
-            torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
+
+        data_train.X = (
+            torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
             .clone()
             .detach()
             .to(args.device)
         )
-        data_train.X = (
-            torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
+
+        data_valid.X = (
+            torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
             .clone()
             .detach()
             .to(args.device)
@@ -351,9 +349,9 @@ def main():
             .to(args.device)
         )
 
+        data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
         data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
         data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
-        data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
 
         # Create loaders using local (per-level) y labels
         train_dataset = [
@@ -414,12 +412,13 @@ def main():
 
         logging.info(best_params)
     else:
-        if args.lr_values:
-            args.lr_values = [float(x) for x in args.lr_values]
-            args.dropout_values = [float(x) for x in args.dropout_values]
-            # args.hidden_dims = [int(x) for x in args.hidden_dims]
-            args.num_layers_values = [int(x) for x in args.num_layers_values]
-            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+        if args.method != "global" and args.method != "global_baseline":
+            if args.lr_values:
+                args.lr_values = [float(x) for x in args.lr_values]
+                args.dropout_values = [float(x) for x in args.dropout_values]
+                # args.hidden_dims = [int(x) for x in args.hidden_dims]
+                args.num_layers_values = [int(x) for x in args.num_layers_values]
+                args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
             # Ensure all hyperparameter lists have the same length as 'max_depth'
             assert_hyperparameter_lengths(
@@ -465,8 +464,9 @@ def main():
 
                 params["r_global"] = args.hmc_dataset.r.to(args.device)
 
-        args.model = args.train_methods["model"](**params)
-        logging.info(args.model)
+            logging.info("Local method selected")
+            args.model = args.train_methods["model"](**params)
+            logging.info(args.model)
 
         match args.method:
             case "local" | "local_constraint" | "local_mask":

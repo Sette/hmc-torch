@@ -477,7 +477,7 @@ class HMCDatasetManager:
         Returns:
             tuple: A tuple containing the train, valid, and test datasets.
         """
-        return self.train, self.valid, self.test
+        return self.train, self.test, self.valid
 
 
 def initialize_dataset_experiments(
