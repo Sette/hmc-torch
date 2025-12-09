@@ -69,7 +69,7 @@ def get_parser():
     parser.add_argument(
         "--best_theshold",
         type=str,
-        default="true",
+        default="false",
         choices=["true", "false"],
         metavar="BEST_THESHOLD",
         required=False,
