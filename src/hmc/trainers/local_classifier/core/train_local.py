@@ -31,6 +31,15 @@ from hmc.utils.train.job import (
 )
 from hmc.utils.train.losses import calculate_local_loss
 
+def train_local(args):
+    """
+    Wrapper function to initiate the training of a local classifier model.
+    This function calls the main training step with the provided arguments.
+
+    Args:
+        args: An object containing all necessary training parameters and objects.
+    """
+    train_step(args)
 
 def train_step(args):
     """
