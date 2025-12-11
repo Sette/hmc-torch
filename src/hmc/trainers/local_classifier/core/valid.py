@@ -3,7 +3,7 @@ import os
 import torch
 from sklearn.metrics import precision_recall_fscore_support
 
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_dir
 from hmc.trainers.losses import calculate_local_loss
 
 

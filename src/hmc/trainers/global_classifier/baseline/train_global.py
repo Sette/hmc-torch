@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.baseline.model import BaselineFFNNModel
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_dir
 
 
 def train_global_baseline(dataset_name, args):

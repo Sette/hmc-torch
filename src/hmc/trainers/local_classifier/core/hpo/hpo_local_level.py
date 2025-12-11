@@ -6,13 +6,24 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.trainers.utils import (
+
+
+from hmc.utils.train.job import (
     create_job_id_name,
+)
+
+from hmc.utils.path.output import (
     save_dict_to_json,
+)
+
+
+from hmc.utils.dataset.labels import (
     show_global_loss,
     show_local_losses,
 )
-from hmc.utils.dir import create_dir
+
+
+from hmc.utils.path.dir import create_dir
 
 
 def check_metrics(metric, best_metric, metric_type="loss"):

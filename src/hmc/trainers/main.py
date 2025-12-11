@@ -7,10 +7,10 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.trainers.global_classifier.constrained.train_global import train_global
+from hmc.trainers.global_classifier.constraint.train_global import train_global
 from hmc.trainers.train import train_local
 
-from hmc.utils.dir import create_job_id
+from hmc.utils.path.dir import create_job_id
 
 # Set a logger config
 logging.basicConfig(
@@ -158,7 +158,7 @@ def main():
     }
     lrs_others = {"diatoms": 1e-5, "enron": 1e-5, "imclef07a": 1e-5, "imclef07d": 1e-5}
     args.lrs = {"FUN": lrs_FUN, "GO": lrs_GO, "others": lrs_others}
-    epochss_FUN = {
+    all_epochs_FUN = {
         "cellcycle": 106,
         "derisi": 67,
         "eisen": 110,
@@ -168,7 +168,7 @@ def main():
         "seq": 13,
         "spo": 115,
     }
-    epochss_GO = {
+    all_epochs_GO = {
         "cellcycle": 62,
         "derisi": 91,
         "eisen": 123,
@@ -178,8 +178,17 @@ def main():
         "seq": 45,
         "spo": 103,
     }
-    epochss_others = {"diatoms": 474, "enron": 133, "imclef07a": 592, "imclef07d": 588}
-    args.epochss = {"FUN": epochss_FUN, "GO": epochss_GO, "others": epochss_others}
+    all_epochs_others = {
+        "diatoms": 474,
+        "enron": 133,
+        "imclef07a": 592,
+        "imclef07d": 588,
+    }
+    args.all_epochs = {
+        "FUN": all_epochs_FUN,
+        "GO": all_epochs_GO,
+        "others": all_epochs_others,
+    }
 
     # Set seed
     torch.manual_seed(args.seed)
@@ -209,7 +218,8 @@ def main():
                 logging.info("Global method selected")
                 train_global(dataset_name, args)
             case _:  # Default case (like 'default' in other languages
-                print("Invalid Day")
+                print("Invalid option for method. Please select a valid method.")
+    return args.score
 
 
 if __name__ == "__main__":

@@ -6,11 +6,11 @@ from sklearn.metrics import (
 )
 
 
-from hmc.trainers.utils import (
+from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
-from hmc.trainers.utils import local_to_global_predictions
+from hmc.utils.dataset.labels import local_to_global_predictions
 
 
 def test_step(args):
@@ -47,7 +47,7 @@ def test_step(args):
             torch.load(os.path.join(args.results_path, f"best_model_level_{level}.pth"))
         )
 
-    threshold = 0.2
+    threshold = 0.5
     y_true_global = []
     with torch.no_grad():
         for inputs, targets, global_targets in args.test_loader:
@@ -114,10 +114,11 @@ def test_step(args):
     # Concat global targets
     y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
 
-    y_pred_global_binary = local_to_global_predictions(
+    y_pred_global, y_pred_global_binary = local_to_global_predictions(
         all_y_pred_binary,
         args.hmc_dataset.train.local_nodes_idx,
         args.hmc_dataset.train.nodes_idx,
+        threshold=threshold,
     )
 
     score = precision_recall_fscore_support(
