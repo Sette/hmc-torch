@@ -57,7 +57,7 @@ def optimize_hyperparameters(args):
                     "lr": ...,
                     "dropout": ...,
                 },
-                global: 
+                global:
                     "num_layers": ...,
                     "weight_decay": ...
                 ...

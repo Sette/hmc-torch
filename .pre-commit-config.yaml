@@ -42,7 +42,7 @@ repos:
         exclude: ^(.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Autopep8
         language: python
-        entry: autopep8 --in-place --recursive .
+        entry: .venv/bin/autopep8 --in-place --recursive .
         types_or: [python, pyi]
       - id: pylama
         exclude: ^(.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
@@ -54,7 +54,7 @@ repos:
         exclude: ^(.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Pylint Lint
         language: python
-        entry: pylint $(git ls-files '*.py')
+        entry: .venv/bin/pylint $(git ls-files '*.py')
         types_or: [python, pyi]
   - repo: https://github.com/psf/black
     rev: 24.3.0
