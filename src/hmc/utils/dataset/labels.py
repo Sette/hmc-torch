@@ -447,7 +447,8 @@ def show_local_losses(local_losses, dataset="Train"):
 
     Args:
         local_losses (list): A list containing the loss value for each hierarchy level.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+        dataset (str): The name of the dataset, e.g., "Train", "Validation", or \
+        "Test". Defaults to "Train".
 
     Returns:
         None

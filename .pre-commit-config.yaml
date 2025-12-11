@@ -48,13 +48,13 @@ repos:
         exclude: ^(.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Pylama Lint
         language: python
-        entry: poetry run pylama src
+        entry: .venv/bin/pylama src
         types_or: [python, pyi]
       - id: pylint
         exclude: ^(.venv/|src/hmc/dataset/datasets/gofun/dataset_arff\.py|src/hmc/train/train_global\.py)$
         name: Pylint Lint
         language: python
-        entry: .venv/bin/pylint $(git ls-files '*.py')
+        entry: .venv/bin/pylint '*.py'
         types_or: [python, pyi]
   - repo: https://github.com/psf/black
     rev: 24.3.0

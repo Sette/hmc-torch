@@ -20,11 +20,11 @@ from hmc.trainers.local_classifier.core.train import (
 )
 
 # Import necessary modules for constrained training local classifiers
-from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
+from hmc.models.local_classifier.constrained_old.model import ConstrainedHMCLocalModel
 
 
 # Import necessary modules for training baseline local classifiers
-from hmc.models.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.baseline_old.model import HMCLocalModel
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 
