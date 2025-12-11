@@ -12,8 +12,9 @@ from hmc.models.local_classifier.baseline import HMCLocalModel
 from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 from hmc.trainers.global_classifier.constraint.train_global import train_global
-from hmc.trainers.local_classifier.core.test_local import test_step as test_step_core
-from hmc.trainers.local_classifier.core.train_local import train_step as train_step_core
+from hmc.trainers.local_classifier.core.test_local import test_step
+from hmc.trainers.local_classifier.core.train_local import train_step
+from hmc.trainers.local_classifier.core.train_local import train_local
 from hmc.utils.path.dir import create_dir
 from hmc.utils.train.job import parse_str_flags
 
@@ -43,27 +44,27 @@ def get_train_methods(x, by_level=True):
             return {
                 "model": HMCLocalModelConstraint,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step_core,
-                "train_step": train_step_core,
+                "test_step": test_step,
+                "train_step": train_step,
             }
         case "local":
             return {
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step_core,
-                "train_step": train_step_core,
+                "test_step": test_step,
+                "train_step": train_step,
             }
         case "local_mask":
             return {
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step_core,
-                "train_step": train_step_core,
+                "test_step": test_step,
+                "train_step": train_step,
             }
         case "local_test":
             return {
                 "model": HMCLocalModel,
-                "test_step": test_step_core,
+                "test_step": test_step,
             }
         case "global":
             return {
