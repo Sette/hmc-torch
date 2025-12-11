@@ -1,18 +1,50 @@
 import argparse
+import json
 
 
 def get_parser():
     parser = argparse.ArgumentParser(
         description="Train a Hierarchical Multi-label Classification model."
     )
-    # Dataset parameters
+
     parser.add_argument(
-        "--datasets",
+        "--job_id",
         type=str,
-        nargs="+",
-        default=["seq_GO", "derisi_GO", "gasch1_GO", "cellcycle_FUN"],
-        help="List with dataset names.",
+        required=False,
+        help="Job id for trainer job.",
     )
+
+    # Dataset name
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        required=False,
+        default=None,
+        help="Dataset name to be used.",
+    )
+
+    parser.add_argument(
+        "--use_sample",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use a sample of data (for tests). \
+                Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--save_torch_dataset",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="USE_SAMPLE",
+        required=False,
+        help="Enable or disable to use save torch dataset. \
+                    Use 'true' to enable and 'false' to disable.",
+    )
+
     parser.add_argument(
         "--dataset_path",
         type=str,
@@ -24,7 +56,25 @@ def get_parser():
         "--output_path",
         type=str,
         required=True,
-        help="Path to save the models.",
+        help="Path to save models.",
+    )
+
+    parser.add_argument(
+        "--n_trials",
+        type=int,
+        required=False,
+        help="n_trials for hpo.",
+    )
+
+    parser.add_argument(
+        "--best_theshold",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="BEST_THESHOLD",
+        required=False,
+        help="Enable or disable to use find the best thesholds. \
+                        Use 'true' to enable and 'false' to disable.",
     )
 
     # Training parameters
@@ -34,14 +84,6 @@ def get_parser():
         default=64,
         required=False,
         help="Batch size for training.",
-    )
-
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=15,
-        required=False,
-        help="Number of epochs for training.",
     )
 
     parser.add_argument(
@@ -75,10 +117,10 @@ def get_parser():
         help='Device to use (e.g., "cpu" or "cuda").',
     )
     parser.add_argument(
-        "--num_epochs",
+        "--epochs",
         type=int,
         default=2000,
-        metavar="NUM_EPOCHS",
+        metavar="EPOCHS",
         required=False,
         help="Total number of training epochs.",
     )
@@ -99,12 +141,51 @@ def get_parser():
             "local",
             "globalLM",
             "global_baseline",
-            "local_constrained",
+            "local_constraint",
             "local_mask",
+            "local_test",
         ],
         metavar="METHOD",
         required=False,
         help="Method type to use.",
+    )
+
+    parser.add_argument(
+        "--focal_loss",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="FOCAL_LOSS",
+        required=False,
+        help="Enable or disable Focal Loss. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--warmup",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="WARMUP",
+        required=False,
+        help="Enable or disable learning rate warmup. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--n_warmup_epochs",
+        type=int,
+        default=200,
+        required=False,
+        metavar="N_WARMUP_EPOCHS",
+    )
+
+    parser.add_argument(
+        "--n_warmup_epochs_increment",
+        type=int,
+        default=200,
+        required=False,
+        metavar="N_WARMUP_EPOCHS_INCREMENT",
     )
 
     # Hyperparameter Optimization (HPO) parameters
@@ -117,6 +198,39 @@ def get_parser():
         required=False,
         help="Enable or disable Hyperparameter Optimization (HPO). \
             Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--hpo_by_level",
+        type=str,
+        default="true",
+        choices=["true", "false"],
+        metavar="HPO_BY_LEVEL",
+        required=False,
+        help="Enable or disable HPO by level. \
+            Use 'true' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--model_regularization",
+        type=str,
+        default="false",
+        choices=["residual", "soft", "false"],
+        metavar="MODEL_REGULARIZATION",
+        required=False,
+        help="Select or disable model regularization. \
+            Use 'residual' or 'soft' to enable and 'false' to disable.",
+    )
+
+    parser.add_argument(
+        "--level_model_type",
+        type=str,
+        default="mlp",
+        choices=["mlp", "attention", "gcn", "gat"],
+        metavar="LEVEL_MODEL_TYPE",
+        required=False,
+        help="Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
+'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network).",
     )
 
     parser.add_argument(
@@ -148,12 +262,11 @@ def get_parser():
     )
     parser.add_argument(
         "--hidden_dims",
-        type=int,
-        nargs="+",
+        type=json.loads,  # aceita JSON (ex.: '[[128,64],[256]]')
         required=False,
         metavar="HIDDEN_DIMS",
-        help="List of values for the number"
-        " of hidden neurons (used when HPO is disabled).",
+        help="List (or list of lists) of hidden neurons. "
+        "Can be passed as JSON when HPO is enabled (e.g. '[[128,64],[256]]').",
     )
     parser.add_argument(
         "--num_layers_values",
@@ -177,8 +290,18 @@ def get_parser():
     parser.add_argument(
         "--patience",
         type=int,
-        default=3,
+        default=15,
         metavar="PATIENCE",
+        required=False,
+        help="Number of epochs with no improvement \
+            after which training will be stopped.",
+    )
+
+    parser.add_argument(
+        "--patience_score",
+        type=int,
+        default=20,
+        metavar="PATIENCE_SCORE",
         required=False,
         help="Number of epochs with no improvement \
             after which training will be stopped.",
@@ -187,7 +310,7 @@ def get_parser():
     parser.add_argument(
         "--epochs_to_evaluate",
         type=int,
-        default=10,
+        default=20,
         metavar="EPOCHS_TO_EVALUATE",
         required=False,
         help="Number of epochs to evaluate the \

@@ -126,7 +126,7 @@ def train_global(dataset_name, args):
 
     # Create loaders
     train_dataset = [(x, y) for (x, y) in zip(train.X, train.Y)]
-    if "others" not in args.datasets:
+    if "others" not in args.dataset_name:
         # val_dataset = [(x, y) for (x, y) in zip(valid.X, valid.Y)]
         for x, y in zip(valid.X, valid.Y):
             train_dataset.append((x, y))

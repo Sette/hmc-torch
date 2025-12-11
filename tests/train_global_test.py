@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 import sys
 
-from hmc.trainers.main import main
+from hmc.main import main
 
 
 class TestTrainGlobalSeqFUN(unittest.TestCase):
