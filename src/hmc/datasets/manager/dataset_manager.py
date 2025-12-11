@@ -267,8 +267,8 @@ class HMCDatasetManager:
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
         self.A = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
-        self.R = self.compute_matrix_R(self.A)
-        self.compute_matrix_R_local()
+        # self.R = self.compute_matrix_R(self.A)
+        # self.compute_matrix_R_local()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
