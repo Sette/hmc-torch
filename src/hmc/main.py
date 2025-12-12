@@ -7,16 +7,8 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
-from hmc.models.local_classifier.baseline import HMCLocalModel
-from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
-
-from hmc.trainers.global_classifier.constraint.train_global import train_global
-from hmc.trainers.local_classifier.core.test_local import test_step
-from hmc.trainers.local_classifier.core.train_local import train_step
-from hmc.trainers.local_classifier.core.train_local import train_local
-from hmc.utils.path.dir import create_dir
-from hmc.utils.train.job import parse_str_flags
+from hmc.trainers.global_classifier.constraint.run import train_global
+from hmc.trainers.local_classifier.run import train_local
 
 from hmc.utils.path.dir import create_job_id
 
@@ -234,8 +226,7 @@ def main():
     match args.method:
         case "local" | "local_constrained" | "local_mask":
             logging.info("Local method selected")
-            args.train_methods["train_step"](args)
-            args.train_methods["test_step"](args)
+            train_local(args)
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset_name, args)

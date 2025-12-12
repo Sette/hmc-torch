@@ -22,7 +22,7 @@ import logging
 
 import torch
 
-from hmc.trainers.local_classifier.core.valid_local import valid_step
+from hmc.trainers.local_classifier.core.valid import valid_step
 from hmc.utils.dataset.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
@@ -31,15 +31,6 @@ from hmc.utils.train.job import (
 )
 from hmc.utils.train.losses import calculate_local_loss
 
-def train_local(args):
-    """
-    Wrapper function to initiate the training of a local classifier model.
-    This function calls the main training step with the provided arguments.
-
-    Args:
-        args: An object containing all necessary training parameters and objects.
-    """
-    train_step(args)
 
 def train_step(args):
     """
@@ -106,7 +97,7 @@ def train_step(args):
 
     args.model.train()
 
-    args.r = args.hmc_dataset.r.to(args.device)
+    # args.r = args.hmc_dataset.R.to(args.device)
     if (
         args.warmup
         or args.model_regularization == "soft"
