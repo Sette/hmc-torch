@@ -156,6 +156,8 @@ def test_step(args):
             average="micro",
         )
 
+        args.score = score[2]  # F1-score
+
         # score = average_precision_score(
         #     local_inputs[idx], y_pred_binary, average="micro"
         # )
