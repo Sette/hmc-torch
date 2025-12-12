@@ -96,12 +96,11 @@ def train_step(args):
     ]
 
     args.model.train()
+    print(args.model_regularization)
 
     # args.r = args.hmc_dataset.R.to(args.device)
-    if (
-        args.warmup
-        or args.model_regularization == "soft"
-        or args.model_regularization == "residual"
+    if args.warmup or (
+        args.model_regularization == "soft" or args.model_regularization == "residual"
     ):
         args.level_active = [False] * len(args.level_active)
         args.level_active[0] = True

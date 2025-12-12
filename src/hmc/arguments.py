@@ -223,6 +223,25 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--results_path",
+        type=str,
+        default="./results/",
+        metavar="RESULTS_PATH",
+        required=False,
+        help="Path to save results.",
+    )
+
+    parser.add_argument(
+        "--early_metric",
+        type=str,
+        default="f1-score",
+        choices=["f1-score", "accuracy", "loss"],
+        metavar="EARLY_METRIC",
+        required=False,
+        help="Metric to use for early stopping.",
+    )
+
+    parser.add_argument(
         "--level_model_type",
         type=str,
         default="mlp",
