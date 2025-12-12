@@ -127,7 +127,7 @@ To execute the training process, follow these steps:
 Before running the training script, ensure it has the necessary execution permissions:
 
 ```bash
-chmod +x train.sh
+chmod +x run.sh
 ```
 
 #### 5.2. Run the Training Script
@@ -135,12 +135,12 @@ You can run the training script with the desired device configuration:
 
 - **For CPU Execution**:
   ```bash
-  ./train.sh --device cpu
+  ./run.sh --device cpu
   ```
 
 - **For GPU Execution**:
   ```bash
-  ./train.sh --device gpu
+  ./run.sh --device gpu
   ```
 
 These commands will initiate the training process using the specified hardware.
