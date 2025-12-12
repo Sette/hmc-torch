@@ -1,8 +1,22 @@
-import argparse
+"""
+This module provides a command-line interface for configuring and launching
+the training and hyperparameter optimization of a Hierarchical Multi-label
+Classification (HMC) model. It defines all necessary arguments using argparse,
+allowing flexible and reproducible experimentation with different models,
+datasets, and training configurations.
+"""
 import json
+import argparse
 
 
 def get_parser():
+    """
+    Create and return an argument parser for the HMC (Hierarchical Multi-label Classification) model.
+
+    Returns:
+        argparse.ArgumentParser: Configured argument parser with all command-line arguments
+                                 for training and hyperparameter optimization.
+    """
     parser = argparse.ArgumentParser(
         description="Train a Hierarchical Multi-label Classification model."
     )
@@ -239,6 +253,17 @@ def get_parser():
         metavar="EARLY_METRIC",
         required=False,
         help="Metric to use for early stopping.",
+    )
+
+    parser.add_argument(
+        "--predict_test",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="PREDICT_TEST",
+        required=False,
+        help="Enable or disable prediction on test set after training. \
+            Use 'true' to enable and 'false' to disable.",
     )
 
     parser.add_argument(

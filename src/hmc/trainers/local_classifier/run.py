@@ -1,3 +1,33 @@
+"""
+Module for training local hierarchical multi-label classifiers.
+
+This module provides utility functions and methods to train, evaluate, and perform
+hyperparameter optimization on local-level neural network classifiers for hierarchical
+multi-label classification (HMC) tasks. It supports handling data loading, preprocessing,
+and experiment setup for local and constrained local classifiers. Hyperparameter lists
+are validated for correct configuration according to the levels of the hierarchy.
+
+Main functionality:
+    - Selects and initializes the appropriate classifier and associated train/test methods.
+    - Loads, normalizes, and imputes missing values in train, validation, and test datasets.
+    - Constructs per-level data loaders for efficient training and evaluation.
+    - Supports hyperparameter optimization (HPO) and manual hyperparameter configuration.
+    - Provides robust reproducibility through controlled random seed settings.
+    - Validates configuration consistency per hierarchical level.
+
+Classes and functions:
+    - get_train_methods: Returns method mappings based on the classifier type.
+    - assert_hyperparameter_lengths: Validates hyperparameter list lengths per hierarchy level.
+    - train_local: Main training routine for local (and constrained local) HMC classifiers.
+
+Dependencies:
+    - torch, numpy, sklearn, hmc.utils, hmc.datasets, hmc.models, hmc.trainers
+
+Intended for research and experimentation with HMC classifier benchmarks.
+
+Authors: Bruno Sette
+"""
+
 import logging
 import os
 import random
@@ -29,6 +59,22 @@ from hmc.utils.path.dir import create_dir
 
 
 def get_train_methods(x):
+    """
+    Given a local classifier method string, returns a mapping of train/test/model/HPO methods.
+
+    Args:
+        x (str): Type of local classifier. Options:
+            - "local_constrained": Constrained local classifier (per level, constraints enforced)
+            - "local": Standard per-level classifier
+            - "local_mask": Standard per-level classifier with mask variant
+
+    Returns:
+        dict: Dictionary with keys "model", "optimize_hyperparameters", "test_step", and "train_step"
+            mapping to the appropriate functions or classes.
+
+    Raises:
+        ValueError: If an unknown method string is provided.
+    """
     match x:
         case "local_constrained":
             return {
@@ -56,8 +102,30 @@ def get_train_methods(x):
 
 
 def assert_hyperparameter_lengths(
-    args, lr_values, dropout_values, hidden_dims, num_layers_values, weight_decay_values
+    args,
+    lr_values,
+    dropout_values,
+    hidden_dims,
+    num_layers_values,
+    weight_decay_values,
 ):
+    """
+    Validates that all hyperparameter lists have a length equal to the maximum depth of the hierarchy.
+
+    Args:
+        args: Arguments object containing max_depth and relevant experiment settings.
+        lr_values (list): List of learning rates per level.
+        dropout_values (list): List of dropout rates per level.
+        hidden_dims (list): List of hidden layer sizes per level.
+        num_layers_values (list): List of number of layers per level.
+        weight_decay_values (list): List of weight decay values per level.
+
+    Side Effects:
+        - Prints assertion results to stdout.
+
+    Raises:
+        AssertionError: If any list does not have a length equal to args.max_depth.
+    """
     checks = {
         "lr_values": lr_values,
         "dropout_values": dropout_values,
