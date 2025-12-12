@@ -196,7 +196,7 @@ def train_local(args):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # Verifica quantas GPUs estão disponíveis
+    # Check how many GPUs are available
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
@@ -222,7 +222,7 @@ def train_local(args):
     # Load train, val and test set
 
     if not torch.cuda.is_available():
-        print("CUDA não está disponível. Usando CPU.")
+        print("CUDA is not available. Using CPU.")
         args.device = torch.device("cpu")
     else:
         args.device = torch.device(args.device)
