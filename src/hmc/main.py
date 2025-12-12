@@ -8,7 +8,7 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constraint.run import train_global
-from hmc.trainers.local_classifier.run import train_local
+from hmc.trainers.local_classifier.run import train_local, test_local
 
 from hmc.utils.path.dir import create_job_id
 
@@ -21,49 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-
-
-def get_train_methods(x, by_level=True):
-    if by_level:
-        from hmc.trainers.local_classifier.hpo.hpo_local_level import (
-            optimize_hyperparameters,
-        )
-    else:
-        from hmc.trainers.local_classifier.hpo.hpo_local import optimize_hyperparameters
-
-    match x:
-        case "local_constraint":
-            return {
-                "model": HMCLocalModelConstraint,
-                "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step,
-                "train_step": train_step,
-            }
-        case "local":
-            return {
-                "model": HMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step,
-                "train_step": train_step,
-            }
-        case "local_mask":
-            return {
-                "model": HMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step,
-                "train_step": train_step,
-            }
-        case "local_test":
-            return {
-                "model": HMCLocalModel,
-                "test_step": test_step,
-            }
-        case "global":
-            return {
-                "train_step": train_global,
-            }
-        case _:
-            raise ValueError(f"Método '{x}' não reconhecido.")
 
 
 def main():
@@ -218,7 +175,8 @@ def main():
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
-    args.job_id = create_job_id()
+    if args.job_id is None:
+        args.job_id = create_job_id()
     print(f"Job ID: {args.job_id}")
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -230,6 +188,9 @@ def main():
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset_name, args)
+        case "local_test":
+            logging.info("Local test method selected")
+            test_local(args)
         case _:  # Default case (like 'default' in other languages
             print("Invalid option for method. Please select a valid method.")
     return args.score

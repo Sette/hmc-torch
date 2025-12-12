@@ -33,7 +33,7 @@ def train_global(dataset_name, args):
     # Load train, val and test set
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
-    threshold = 0.5
+    threshold = 0.2
 
     hmc_dataset = initialize_dataset_experiments(
         dataset_name,

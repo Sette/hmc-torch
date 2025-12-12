@@ -57,7 +57,7 @@ def valid_step(args):
         level: torch.tensor([]) for _, level in enumerate(args.active_levels)
     }
 
-    threshold = 0.5
+    threshold = 0.2
 
     # Get local scores
     args.local_val_scores = [0.0] * args.max_depth

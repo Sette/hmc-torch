@@ -96,7 +96,6 @@ def train_step(args):
     ]
 
     args.model.train()
-    print(args.model_regularization)
 
     # args.r = args.hmc_dataset.R.to(args.device)
     if args.warmup or (

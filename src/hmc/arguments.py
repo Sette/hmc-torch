@@ -5,6 +5,7 @@ Classification (HMC) model. It defines all necessary arguments using argparse,
 allowing flexible and reproducible experimentation with different models,
 datasets, and training configurations.
 """
+
 import json
 import argparse
 
@@ -83,7 +84,7 @@ def get_parser():
     parser.add_argument(
         "--best_theshold",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
         metavar="BEST_THESHOLD",
         required=False,
