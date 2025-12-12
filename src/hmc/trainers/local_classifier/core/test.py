@@ -130,9 +130,9 @@ def test_step(args):
                         "average_precision_score": avg_score,
                     }
 
-        print("Best thresholds per level:")
+        logging.info("Best thresholds per level:")
         for idx in args.active_levels:
-            print(f"Level {idx}: threshold={best_thresholds[idx]:.2f}, ")
+            logging.info(f"Level {idx}: threshold={best_thresholds[idx]:.2f}, ")
     else:
         best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
 
@@ -206,11 +206,6 @@ def test_step(args):
                 score[2],
             )
 
-            print("pred:")
-            print(y_pred_global)
-            print("true:")
-            print(y_true_global_original)
-
             avg_score = average_precision_score(
                 y_true_global_original[:, args.hmc_dataset.to_eval],
                 y_pred_global[:, args.hmc_dataset.to_eval],
@@ -226,7 +221,7 @@ def test_step(args):
                     "average_precision_score": avg_score,
                 }
 
-        thresholds = np.linspace(best_threshold - 0.01, best_threshold + 0.01, 17)
+        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 17)
         best_scores = {
             "precision": 0,
             "recall": 0,
@@ -255,11 +250,6 @@ def test_step(args):
                 score[2],
             )
 
-            print("pred:")
-            print(y_pred_global)
-            print("true:")
-            print(y_true_global_original)
-
             avg_score = average_precision_score(
                 y_true_global_original[:, args.hmc_dataset.to_eval],
                 y_pred_global[:, args.hmc_dataset.to_eval],
@@ -281,10 +271,6 @@ def test_step(args):
         args.hmc_dataset.nodes_idx,
         threshold=best_threshold,
     )
-    # logging.info("Y true")
-    # print(y_true_global_original[0].tolist())
-    # logging.info("Y pred")
-    # print(y_pred_global_binary[0].tolist())
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],
@@ -297,18 +283,13 @@ def test_step(args):
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
-    print("pred:")
-    print(y_pred_global)
-    print("true:")
-    print(y_true_global_original)
-
     avg_score = average_precision_score(
         y_true_global_original[:, args.hmc_dataset.to_eval],
         y_pred_global[:, args.hmc_dataset.to_eval],
         average="micro",
     )
 
-    print("Average precision score: %.4f", avg_score)
+    logging.info("Average precision score: %.4f", avg_score)
 
     local_test_score["global"] = {
         "precision": score[0],
