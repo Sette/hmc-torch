@@ -9,18 +9,22 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
-from hmc.models.global_classifier.constrained.model import (
+from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
     get_constr_out,
 )
-from hmc.utils.dir import create_dir
+from hmc.utils.path.dir import create_dir
 
-from hmc.trainers.utils import (
+from hmc.utils.train.job import (
     create_job_id_name,
+)
+
+from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
-from hmc.trainers.utils import global_to_local_predictions
+
+from hmc.utils.dataset.labels import global_to_local_predictions
 
 
 def train_global(dataset_name, args):
@@ -29,6 +33,7 @@ def train_global(dataset_name, args):
     # Load train, val and test set
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
+    threshold = 0.5
 
     hmc_dataset = initialize_dataset_experiments(
         dataset_name,
@@ -52,7 +57,7 @@ def train_global(dataset_name, args):
         args.hidden_dim = args.hidden_dims[ontology][data]
         args.lr = args.lrs[ontology][data]
         if not epochs_by_args:
-            args.epochs = args.epochss[ontology][data]
+            args.epochs = args.all_epochs[ontology][data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
@@ -121,7 +126,7 @@ def train_global(dataset_name, args):
 
     # Create loaders
     train_dataset = [(x, y) for (x, y) in zip(train.X, train.Y)]
-    if "others" not in args.datasets:
+    if "others" not in args.dataset_name:
         # val_dataset = [(x, y) for (x, y) in zip(valid.X, valid.Y)]
         for x, y in zip(valid.X, valid.Y):
             train_dataset.append((x, y))
@@ -177,7 +182,7 @@ def train_global(dataset_name, args):
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
 
-            predicted = constr_output.data > 0.5
+            predicted = constr_output.data > threshold
 
             # Total number of labels
             # total_train = labels.size(0) * labels.size(1)
@@ -217,7 +222,7 @@ def train_global(dataset_name, args):
             y_test = torch.cat((y_test, y), dim=0)
 
     Y_pred_local_binary = global_to_local_predictions(
-        constr_test.data > 0.2,
+        constr_test.data > threshold,
         hmc_dataset.train.local_nodes_idx,
         hmc_dataset.train.nodes_idx,
     )
@@ -253,7 +258,7 @@ def train_global(dataset_name, args):
 
     score = precision_recall_fscore_support(
         y_test[:, to_eval],
-        constr_test.data[:, to_eval] > 0.5,
+        constr_test.data[:, to_eval] > threshold,
         average="micro",
         zero_division=0,
     )
@@ -274,11 +279,13 @@ def train_global(dataset_name, args):
         f"{results_path}/test-scores.json",
     )
 
-    score = average_precision_score(
+    local_test_score["global"]["avg_precision"] = average_precision_score(
         y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
     )
 
-    print("Average precision score: %.4f" % score)
+    print("Average precision score: %.4f" % local_test_score["global"]["avg_precision"])
+
+    args.score = local_test_score["global"]
 
     f = open(results_path + "/" + "average-precision" + ".csv", "a", encoding="utf-8")
     f.write(str(args.seed) + "," + str(score) + "\n")

@@ -9,7 +9,7 @@ from hmc.datasets.datasets.gofun import get_dataset_paths, to_skip
 from hmc.datasets.datasets.gofun.dataset_arff import HMCDatasetArff
 from hmc.datasets.datasets.gofun.dataset_csv import HMCDatasetCsv
 from hmc.datasets.datasets.gofun.dataset_torch import HMCDatasetTorch
-from hmc.utils.dir import __load_json__
+from hmc.utils.path.dir import __load_json__
 
 # Set a logger config
 logging.basicConfig(
@@ -267,8 +267,8 @@ class HMCDatasetManager:
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
         self.A = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict
-        self.R = self.compute_matrix_R(self.A)
-        self.compute_matrix_R_local()
+        # self.R = self.compute_matrix_R(self.A)
+        # self.compute_matrix_R_local()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx

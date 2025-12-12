@@ -7,10 +7,10 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.trainers.global_classifier.constrained.train_global import train_global
-from hmc.trainers.train import train_local
+from hmc.trainers.global_classifier.constraint.run import train_global
+from hmc.trainers.local_classifier.run import train_local
 
-from hmc.utils.dir import create_job_id
+from hmc.utils.path.dir import create_job_id
 
 # Set a logger config
 logging.basicConfig(
@@ -23,37 +23,53 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
+def get_train_methods(x, by_level=True):
+    if by_level:
+        from hmc.trainers.local_classifier.hpo.hpo_local_level import (
+            optimize_hyperparameters,
+        )
+    else:
+        from hmc.trainers.local_classifier.hpo.hpo_local import optimize_hyperparameters
+
+    match x:
+        case "local_constraint":
+            return {
+                "model": HMCLocalModelConstraint,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local_mask":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local_test":
+            return {
+                "model": HMCLocalModel,
+                "test_step": test_step,
+            }
+        case "global":
+            return {
+                "train_step": train_global,
+            }
+        case _:
+            raise ValueError(f"Método '{x}' não reconhecido.")
+
+
 def main():
     # Training settings
     parser = get_parser()
     args = parser.parse_args()
-
-    # Insert her a logic to use all datasets with arguments
-
-    if "all" in args.datasets:
-        datasets = [
-            "cellcycle_GO",
-            "derisi_GO",
-            "eisen_GO",
-            "expr_GO",
-            "gasch1_GO",
-            "gasch2_GO",
-            "seq_GO",
-            "spo_GO",
-            "cellcycle_FUN",
-            "derisi_FUN",
-            "eisen_FUN",
-            "expr_FUN",
-            "gasch1_FUN",
-            "gasch2_FUN",
-            "seq_FUN",
-            "spo_FUN",
-        ]
-    else:
-        if len(args.datasets) > 1:
-            datasets = [str(dataset) for dataset in args.datasets]
-        else:
-            datasets = args.datasets
 
     # Dictionaries with number of features and number of labels for each dataset
     args.input_dims = {
@@ -158,7 +174,7 @@ def main():
     }
     lrs_others = {"diatoms": 1e-5, "enron": 1e-5, "imclef07a": 1e-5, "imclef07d": 1e-5}
     args.lrs = {"FUN": lrs_FUN, "GO": lrs_GO, "others": lrs_others}
-    epochss_FUN = {
+    all_epochs_FUN = {
         "cellcycle": 106,
         "derisi": 67,
         "eisen": 110,
@@ -168,7 +184,7 @@ def main():
         "seq": 13,
         "spo": 115,
     }
-    epochss_GO = {
+    all_epochs_GO = {
         "cellcycle": 62,
         "derisi": 91,
         "eisen": 123,
@@ -178,8 +194,17 @@ def main():
         "seq": 45,
         "spo": 103,
     }
-    epochss_others = {"diatoms": 474, "enron": 133, "imclef07a": 592, "imclef07d": 588}
-    args.epochss = {"FUN": epochss_FUN, "GO": epochss_GO, "others": epochss_others}
+    all_epochs_others = {
+        "diatoms": 474,
+        "enron": 133,
+        "imclef07a": 592,
+        "imclef07d": 588,
+    }
+    args.all_epochs = {
+        "FUN": all_epochs_FUN,
+        "GO": all_epochs_GO,
+        "others": all_epochs_others,
+    }
 
     # Set seed
     torch.manual_seed(args.seed)
@@ -198,18 +223,16 @@ def main():
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    for dataset_name in datasets:
-        args.dataset_name = dataset_name
-
-        match args.method:
-            case "local" | "local_constrained" | "local_mask":
-                logging.info("Local method selected")
-                train_local(args)
-            case "global" | "global_baseline":
-                logging.info("Global method selected")
-                train_global(dataset_name, args)
-            case _:  # Default case (like 'default' in other languages
-                print("Invalid Day")
+    match args.method:
+        case "local" | "local_constrained" | "local_mask":
+            logging.info("Local method selected")
+            train_local(args)
+        case "global" | "global_baseline":
+            logging.info("Global method selected")
+            train_global(args.dataset_name, args)
+        case _:  # Default case (like 'default' in other languages
+            print("Invalid option for method. Please select a valid method.")
+    return args.score
 
 
 if __name__ == "__main__":

@@ -1,5 +1,36 @@
-import logging
+"""
+Module for training local hierarchical multi-label classifiers.
 
+This module provides utility functions and methods to train, evaluate, and perform
+hyperparameter optimization on local-level neural network classifiers for hierarchical
+multi-label classification (HMC) tasks. It supports handling data loading, preprocessing,
+and experiment setup for local and constrained local classifiers. Hyperparameter lists
+are validated for correct configuration according to the levels of the hierarchy.
+
+Main functionality:
+    - Selects and initializes the appropriate classifier and associated train/test methods.
+    - Loads, normalizes, and imputes missing values in train, validation, and test datasets.
+    - Constructs per-level data loaders for efficient training and evaluation.
+    - Supports hyperparameter optimization (HPO) and manual hyperparameter configuration.
+    - Provides robust reproducibility through controlled random seed settings.
+    - Validates configuration consistency per hierarchical level.
+
+Classes and functions:
+    - get_train_methods: Returns method mappings based on the classifier type.
+    - assert_hyperparameter_lengths: Validates hyperparameter list lengths per hierarchy level.
+    - train_local: Main training routine for local (and constrained local) HMC classifiers.
+
+Dependencies:
+    - torch, numpy, sklearn, hmc.utils, hmc.datasets, hmc.models, hmc.trainers
+
+Intended for research and experimentation with HMC classifier benchmarks.
+
+Authors: Bruno Sette
+"""
+
+import logging
+import os
+import random
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,7 +38,7 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.trainers.local_classifier.core.hpo.hpo_local_level import (
+from hmc.trainers.local_classifier.hpo.hpo_local_level import (
     optimize_hyperparameters,
 )
 
@@ -19,21 +50,35 @@ from hmc.trainers.local_classifier.core.train import (
     train_step as train_step_core,
 )
 
-# Import necessary modules for constrained training local classifiers
-from hmc.models.local_classifier.constrained.model import ConstrainedHMCLocalModel
-
-
-# Import necessary modules for training baseline local classifiers
-from hmc.models.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.baseline import HMCLocalModel
+from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
+from hmc.utils.train.job import parse_str_flags
+from hmc.utils.path.dir import create_dir
 
 
 def get_train_methods(x):
+    """
+    Given a local classifier method string, returns a mapping of train/test/model/HPO methods.
+
+    Args:
+        x (str): Type of local classifier. Options:
+            - "local_constrained": Constrained local classifier (per level, constraints enforced)
+            - "local": Standard per-level classifier
+            - "local_mask": Standard per-level classifier with mask variant
+
+    Returns:
+        dict: Dictionary with keys "model", "optimize_hyperparameters", "test_step", and "train_step"
+            mapping to the appropriate functions or classes.
+
+    Raises:
+        ValueError: If an unknown method string is provided.
+    """
     match x:
         case "local_constrained":
             return {
-                "model": ConstrainedHMCLocalModel,
+                "model": HMCLocalModelConstraint,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step_core,
                 "train_step": train_step_core,
@@ -54,6 +99,54 @@ def get_train_methods(x):
             }
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
+
+
+def assert_hyperparameter_lengths(
+    args,
+    lr_values,
+    dropout_values,
+    hidden_dims,
+    num_layers_values,
+    weight_decay_values,
+):
+    """
+    Validates that all hyperparameter lists have a length equal to the maximum depth of the hierarchy.
+
+    Args:
+        args: Arguments object containing max_depth and relevant experiment settings.
+        lr_values (list): List of learning rates per level.
+        dropout_values (list): List of dropout rates per level.
+        hidden_dims (list): List of hidden layer sizes per level.
+        num_layers_values (list): List of number of layers per level.
+        weight_decay_values (list): List of weight decay values per level.
+
+    Side Effects:
+        - Prints assertion results to stdout.
+
+    Raises:
+        AssertionError: If any list does not have a length equal to args.max_depth.
+    """
+    checks = {
+        "lr_values": lr_values,
+        "dropout_values": dropout_values,
+        "hidden_dims": hidden_dims,
+        "num_layers_values": num_layers_values,
+        "weight_decay_values": weight_decay_values,
+    }
+    all_passed = True
+    for name, lst in checks.items():
+        try:
+            assert (
+                len(lst) == args.max_depth
+            ), f"{name} length {len(lst)} != max_depth {args.max_depth}"
+        except AssertionError as e:
+            print(f"Assert failed: {e}")
+            all_passed = False
+
+    if all_passed:
+        print("All hyperparameter lists have the correct length.")
+    else:
+        print("One or more hyperparameter lists have the wrong length.")
 
 
 def train_local(args):
@@ -95,23 +188,55 @@ def train_local(args):
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
 
-    train_methods = get_train_methods(args.method)
+    # Set seed
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    os.environ["PYTHONHASHSEED"] = str(args.seed)
+    random.seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    # Check how many GPUs are available
+    num_gpus = torch.cuda.device_count()
+    print(f"Total de GPUs disponíveis: {num_gpus}")
+
+    args = parse_str_flags(args)
+
+    args.results_path = os.path.join(
+        "results",
+        args.output_path,
+        "train",
+        "local",
+        args.dataset_name,
+        args.job_id,
+    )
+
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset", args.dataset_name)
+
+    args.train_methods = get_train_methods(args.method)
 
     if args.method == "local_constrained":
         logging.info("Using constrained local model")
 
-    args.early_metric = "f1-score"
-    args.model_regularization = "soft"
-
     # Load train, val and test set
 
     if not torch.cuda.is_available():
-        print("CUDA não está disponível. Usando CPU.")
+        print("CUDA is not available. Using CPU.")
         args.device = torch.device("cpu")
     else:
         args.device = torch.device(args.device)
 
     args.data, args.ontology = args.dataset_name.split("_")
+
+    create_dir(args.results_path)
+
+    # path
+    # train_path = os.path.join(args.results_path, "train_dataset.pt")
+    # val_path = os.path.join(args.results_path, "val_dataset.pt")
+    # test_path = os.path.join(args.results_path, "test_dataset.pt")
+    # is_global = args.method == "global" or args.method == "global_baseline"
+
     hmc_dataset = initialize_dataset_experiments(
         args.dataset_name,
         device=args.device,
@@ -196,46 +321,47 @@ def train_local(args):
     if args.hpo == "true":
         logging.info("Hyperparameter optimization")
         args.n_trials = 30
-        best_params = train_methods["optimize_hyperparameters"](args=args)
+        best_params = args.train_methods["optimize_hyperparameters"](args=args)
 
         logging.info(best_params)
     else:
-        lr_values = [float(x) for x in args.lr_values]
-        dropout_values = [float(x) for x in args.dropout_values]
-        hidden_dims = [int(x) for x in args.hidden_dims]
-        num_layers_values = [int(x) for x in args.num_layers_values]
-        weight_decay_values = [float(x) for x in args.weight_decay_values]
+        if args.lr_values:
+            args.lr_values = [float(x) for x in args.lr_values]
+            args.dropout_values = [float(x) for x in args.dropout_values]
+            # hidden_dims = [int(x) for x in args.hidden_dims]
+            args.num_layers_values = [int(x) for x in args.num_layers_values]
+            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
         # Ensure all hyperparameter lists have the same length as 'max_depth'
-        assert all(
-            len(lst) == args.max_depth
-            for lst in [
-                lr_values,
-                dropout_values,
-                hidden_dims,
-                num_layers_values,
-                weight_decay_values,
-            ]
-        ), "All hyperparameter lists must have the same length as 'max_depth'."
+        assert_hyperparameter_lengths(
+            args,
+            args.lr_values,
+            args.dropout_values,
+            args.hidden_dims,
+            args.num_layers_values,
+            args.weight_decay_values,
+        )
 
         params = {
-            "levels_size": hmc_dataset.levels_size,
+            "levels_size": args.hmc_dataset.levels_size,
             "input_size": args.input_dims[args.data],
-            "hidden_size": hidden_dims,
-            "num_layers": num_layers_values,
-            "dropout": dropout_values,
+            "hidden_dims": args.hidden_dims,
+            "num_layers": args.num_layers_values,
+            "dropouts": args.dropout_values,
             "active_levels": args.active_levels,
+            "results_path": args.results_path,
+            "residual": args.model_regularization == "residual",
         }
 
         if args.method == "local_constrained":
             params["all_matrix_r"] = hmc_dataset.all_matrix_r
 
-        model = train_methods["model"](**params)
+        model = args.train_methods["model"](**params)
         args.model = model
         logging.info(model)
         # Create the model
         # model = HMCLocalClassificationModel(levels_size=hmc_dataset.levels_size,
         #                                     input_size=args.input_dims[data],
         #                                     hidden_size=args.hidden_dim)
-        train_methods["train_step"](args)
-        train_methods["test_step"](args)
+        args.train_methods["train_step"](args)
+        args.train_methods["test_step"](args)

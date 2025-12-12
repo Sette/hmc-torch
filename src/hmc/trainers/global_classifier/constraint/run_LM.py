@@ -8,7 +8,7 @@ from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
-from hmc.models.global_classifier.constrained.model import ConstrainedLightningModel
+from hmc.models.global_classifier.constraint.model import ConstrainedLightningModel
 
 
 def train_globalLM(dataset_name, args):

@@ -3,7 +3,7 @@ import logging
 import torch.nn as nn
 
 
-from hmc.models.local_classifier.constrained.utils import get_constr_out
+from hmc.models.local_classifier.constrained_old.utils import get_constr_out
 
 
 def transform_predictions(predictions):
