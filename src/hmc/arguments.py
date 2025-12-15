@@ -82,11 +82,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--best_theshold",
+        "--best_threshold",
         type=str,
         default="true",
         choices=["true", "false"],
-        metavar="BEST_THESHOLD",
+        metavar="best_threshold",
         required=False,
         help="Enable or disable to use find the best thesholds. \
                         Use 'true' to enable and 'false' to disable.",

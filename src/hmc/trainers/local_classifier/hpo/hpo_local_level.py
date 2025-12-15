@@ -32,7 +32,7 @@ def check_metrics(metric, best_metric, metric_type="loss"):
             return True
         else:
             return False
-    elif metric_type == "f1":
+    elif metric_type == "f1-score":
         if metric > best_metric:
             return True
         else:
@@ -208,7 +208,7 @@ def optimize_hyperparameters(args):
                 if args.early_metric == "loss":
                     metric = round(val_loss.item(), 4)
                     best_metric = args.best_val_loss[level]
-                elif args.early_metric == "f1":
+                elif args.early_metric == "f1-score":
                     metric = val_f1
                     best_metric = args.best_val_score[level]
 
@@ -387,7 +387,7 @@ def val_optimizer(args, level):
             if args.early_metric == "loss":
                 metric = round(local_val_losses[i], 4)
                 best_metric = args.best_val_loss[i]
-            elif args.early_metric == "f1":
+            elif args.early_metric == "f1-score":
                 metric = round(local_val_score[i], 4)
                 best_metric = args.best_val_score[i]
             if check_metrics(metric, best_metric, metric_type=args.early_metric):

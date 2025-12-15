@@ -323,7 +323,7 @@ def train_local(args):
     criterions = [nn.BCELoss() for _ in hmc_dataset.levels_size]
     args.criterions = criterions
 
-    if args.hpo == "true":
+    if args.hpo:
         logging.info("Hyperparameter optimization")
         args.n_trials = 30
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
@@ -337,15 +337,15 @@ def train_local(args):
             args.num_layers_values = [int(x) for x in args.num_layers_values]
             args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
-        # Ensure all hyperparameter lists have the same length as 'max_depth'
-        assert_hyperparameter_lengths(
-            args,
-            args.lr_values,
-            args.dropout_values,
-            args.hidden_dims,
-            args.num_layers_values,
-            args.weight_decay_values,
-        )
+            # Ensure all hyperparameter lists have the same length as 'max_depth'
+            assert_hyperparameter_lengths(
+                args,
+                args.lr_values,
+                args.dropout_values,
+                args.hidden_dims,
+                args.num_layers_values,
+                args.weight_decay_values,
+            )
 
         params = {
             "levels_size": args.hmc_dataset.levels_size,

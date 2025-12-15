@@ -124,8 +124,9 @@ def train_step(args):
             targets = [target.to(args.device) for target in targets]
             outputs = args.model(inputs.float())
 
-            for optimizer in args.optimizers:
-                optimizer.zero_grad()
+            for level, optimizer in enumerate(args.optimizers):
+                if args.level_active[level]:
+                    optimizer.zero_grad()
 
             total_loss = 0.0
 
