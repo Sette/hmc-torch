@@ -358,7 +358,7 @@ def val_optimizer(args):
     print(f"Evaluating level {args.current_level}...")
     y_pred = local_outputs[args.current_level].to("cpu").numpy()
     y_true = local_inputs[args.current_level].to("cpu").int().numpy()
-    y_pred_binary = y_pred > 0.2
+    y_pred_binary = y_pred > threshold
 
     score = precision_recall_fscore_support(
         y_true,
