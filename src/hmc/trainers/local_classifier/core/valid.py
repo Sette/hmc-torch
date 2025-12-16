@@ -81,10 +81,11 @@ def valid_step(args):
                     args.local_val_losses[level] += loss.item()
                     total_loss += loss
 
-                    if i == 0:  # Primeira iteração: inicia tensor
+                    if i == 0:  # First iteration: initialize tensor
                         local_outputs[level] = outputs[level]
                         local_inputs[level] = targets[level]
-                    else:  # Nas seguintes, empilha ao longo do batch
+
+                    else:  # In subsequent iterations, concatenate along batch dimension
                         local_outputs[level] = torch.cat(
                             (local_outputs[level], outputs[level]),
                             dim=0,
@@ -123,10 +124,12 @@ def valid_step(args):
                 avg_score,
             )
 
-            args.local_val_scores[level] = avg_score
+            if args.early_metric == "f1-score":
+                args.local_val_scores[level] = score[2]
+            elif args.early_metric == "avgscore":
+                args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
-    logging.info("Levels to evaluate: %s", args.active_levels)
     check_early_stopping_normalized(args, args.active_levels)

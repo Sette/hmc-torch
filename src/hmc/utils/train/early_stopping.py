@@ -54,8 +54,9 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
             )
 
             logging.info(
-                "Is better level %d f1 %s",
+                "Is better level %d %s? %s",
                 level,
+                args.early_metric,
                 is_better_metric,
             )
 
@@ -66,7 +67,7 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
             )
 
             logging.info(
-                "Is better level %d loss %s",
+                "Is better level %d loss? %s",
                 level,
                 is_better_loss,
             )
@@ -110,8 +111,9 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                 args.best_model[level] = args.model.levels[str(level)].state_dict()
                 args.patience_counters_score[level] = 0
                 logging.info(
-                    "Level %d: improved (F1 score=%.4f)",
+                    "Level %d: improved (%s=%.4f)",
                     level,
+                    args.early_metric,
                     round(args.local_val_scores[level], 4),
                 )
                 if save_model:
@@ -142,9 +144,10 @@ def check_early_stopping_normalized(args, active_levels=[], save_model=True):
                     args.model.level_active[level] = False
                     # args.active_levels.remove(i)
                     logging.info(
-                        "🚫 Early stopping triggered for level %d by loss\
+                        "🚫 Early stopping triggered for level %d by %s\
                             — freezing its parameters",
                         level,
+                        args.early_metric,
                     )
                     # ❄️ Congelar os parâmetros desse nível
                     for param in args.model.levels[str(level)].parameters():

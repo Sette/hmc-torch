@@ -250,7 +250,7 @@ def get_parser():
         "--early_metric",
         type=str,
         default="f1-score",
-        choices=["f1-score", "accuracy", "loss"],
+        choices=["f1-score", "avgscore"],
         metavar="EARLY_METRIC",
         required=False,
         help="Metric to use for early stopping.",
