@@ -96,13 +96,14 @@ def optimize_hyperparameters(args):
                 pruned early based on intermediate results.
         """
 
-        logging.info("Tentativa número: %d", trial.number)
+        logging.info("Trial number: %d", trial.number)
+
         dropout = trial.suggest_float(f"dropout_level_{level}", 0.3, 0.8, log=True)
         weight_decay = trial.suggest_float(
             f"weight_decay_level_{level}", 1e-6, 1e-2, log=True
         )
         lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
-        num_layers = trial.suggest_int(f"num_layers_level_{level}", 2, 5, log=True)
+        num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
 
         hidden_dims_all = {level: []}
         dropouts = {level: dropout}

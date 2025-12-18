@@ -249,7 +249,7 @@ def get_parser():
     parser.add_argument(
         "--early_metric",
         type=str,
-        default="f1-score",
+        default="avgscore",
         choices=["f1-score", "avgscore"],
         metavar="EARLY_METRIC",
         required=False,
