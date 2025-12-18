@@ -25,6 +25,8 @@ tensorflow = ">=2.12.0"
 litmodels = "^0.1.7"
 optuna = "^4.3.0"
 logging = "^0.4.9.6"
+jq = "^1.10.0"
+yq = "^3.4.3"
 
 
 [[tool.poetry.source]]
