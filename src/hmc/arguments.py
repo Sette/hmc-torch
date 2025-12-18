@@ -84,7 +84,7 @@ def get_parser():
     parser.add_argument(
         "--best_threshold",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
         metavar="best_threshold",
         required=False,
