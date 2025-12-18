@@ -30,6 +30,7 @@ DATASET_NAME="seq_FUN"
 export PYTHONPATH=src
 export DATASET_PATH
 export OUTPUT_PATH
+export GLOBAL_LOG_LEVEL=CRITICAL
 
 
 # Function to display help

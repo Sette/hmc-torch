@@ -102,20 +102,27 @@ def optimize_hyperparameters(args):
             f"weight_decay_level_{level}", 1e-6, 1e-2, log=True
         )
         lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
-        num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
+        num_layers = trial.suggest_int(f"num_layers_level_{level}", 2, 5, log=True)
 
         hidden_dims_all = {level: []}
         dropouts = {level: dropout}
         num_layers_values = {level: num_layers}
 
         for i in range(num_layers):
-            input_size = args.input_size
-            dim = trial.suggest_int(
-                f"hidden_dim_level_{level}_layer_{i}",
-                input_size,
-                input_size * 3,
-                log=True,
-            )
+            if i == 0:
+                dim = trial.suggest_int(
+                    f"hidden_dim_level_{level}_layer_{i}",
+                    args.input_size,
+                    args.input_size * 4,
+                    log=True,
+                )
+            else:
+                dim = trial.suggest_int(
+                    f"hidden_dim_level_{level}_layer_{i}",
+                    args.levels_size[level],
+                    args.levels_size[level] * 4,
+                    log=True,
+                )
 
             hidden_dims_all[level].append(dim)
 
