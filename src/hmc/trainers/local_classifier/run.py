@@ -313,7 +313,7 @@ def train_local(args):
     args.input_dim = args.input_dims[args.data]
     args.max_depth = hmc_dataset.max_depth
     args.to_eval = hmc_dataset.to_eval
-    args.constrained = True
+
     if args.active_levels is None:
         args.active_levels = list(range(args.max_depth))
     else:
@@ -327,7 +327,6 @@ def train_local(args):
         logging.info("Hyperparameter optimization")
         args.n_trials = 30
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
-
         logging.info(best_params)
     else:
         if args.lr_values:
@@ -436,12 +435,6 @@ def test_local(args):
 
     create_dir(args.results_path)
 
-    # path
-    # train_path = os.path.join(args.results_path, "train_dataset.pt")
-    # val_path = os.path.join(args.results_path, "val_dataset.pt")
-    # test_path = os.path.join(args.results_path, "test_dataset.pt")
-    # is_global = args.method == "global" or args.method == "global_baseline"
-
     hmc_dataset = initialize_dataset_experiments(
         args.dataset_name,
         device=args.device,
@@ -477,34 +470,15 @@ def test_local(args):
     )
 
     data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
-    # data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
-    # data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
-
-    # # Create loaders using local (per-level) y labels
-    # train_dataset = [
-    #     (x, y_levels, y)
-    #     for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
-    # ]
-
-    # val_dataset = [
-    #     (x, y_levels, y)
-    #     for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
-    # ]
-
     test_dataset = [
         (x, y_levels, y)
         for (x, y_levels, y) in zip(data_test.X, data_test.Y_local, data_test.Y)
     ]
 
-    # train_loader = DataLoader(
-    #     dataset=train_dataset, batch_size=args.batch_size, shuffle=True
-    # )
     test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, shuffle=False
     )
-    # val_loader = DataLoader(
-    #     dataset=val_dataset, batch_size=args.batch_size, shuffle=False
-    # )
+
     args.test_loader = test_loader
     args.hmc_dataset = hmc_dataset
     args.levels_size = hmc_dataset.levels_size
