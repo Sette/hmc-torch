@@ -7,7 +7,7 @@ packages = [{ include = "hmc", from = "src" }]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 tqdm = ">=4.66.4"
 numpy = "2.0"
 torch = { version = "2.5.1", source = "pytorch-gpu" }
@@ -27,6 +27,7 @@ optuna = "^4.3.0"
 logging = "^0.4.9.6"
 jq = "^1.10.0"
 yq = "^3.4.3"
+torch-geometric = "^2.7.0"
 
 
 [[tool.poetry.source]]
