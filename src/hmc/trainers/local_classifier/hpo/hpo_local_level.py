@@ -6,7 +6,9 @@ import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline import HMCLocalModel
-from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
+
+# from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
+
 from hmc.utils.dataset.labels import (
     show_local_losses,
 )
@@ -16,7 +18,6 @@ from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
 from hmc.utils.train.job import create_job_id_name
-
 from hmc.utils.train.losses import calculate_local_loss
 
 
