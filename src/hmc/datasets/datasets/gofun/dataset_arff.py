@@ -69,15 +69,15 @@ def parse_arff(arff_file, is_go=False):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()
                     for branch in h.split(","):
-                        terms = branch.split("/")
+                        branch = branch.replace("/", ".")
+                        terms = branch.split(".")
                         all_terms.append(branch)
-                        level = branch.count(
-                            "/"
-                        )  # Count the number of '.' to determine the level
-                        levels[level].append(branch)
+
                         if is_go:
                             g.add_edge(terms[1], terms[0])
                         else:
+                            level = len(terms) - 1
+                            levels[level].append(branch)
                             if len(terms) == 1:
                                 g.add_edge(terms[0], "root")
                             else:
@@ -85,11 +85,6 @@ def parse_arff(arff_file, is_go=False):
                                     g.add_edge(
                                         ".".join(terms[:i]), ".".join(terms[: i - 1])
                                     )
-                    levels_size = {
-                        key: len(set(value)) for key, value in levels.items()
-                    }
-                    print(f"Levels size: {levels_size}")
-                    # print(f'Levels: {levels}')
                     nodes = sorted(
                         g.nodes(),
                         key=lambda x: (
@@ -100,6 +95,29 @@ def parse_arff(arff_file, is_go=False):
                     )
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
+
+                    if is_go:
+                        for label in nodes:
+                            if label != "root":
+                                level = (
+                                    nx.shortest_path_length(g_t, "root").get(label) - 1
+                                )
+                                # print(f"Label {label} level {level}")
+                                levels[level].append(label)
+
+                        levels_size = {
+                            key: len(set(value)) for key, value in levels.items()
+                        }
+                        max_depth = len(levels_size)
+                        print(f"Levels size go dataset: {levels_size}")
+                        print(f"Max depth: {max_depth}")
+                    else:
+                        levels_size = {
+                            key: len(set(value)) for key, value in levels.items()
+                        }
+                        max_depth = len(levels_size)
+                        print(f"Levels size: {levels_size}")
+
                     max_depth = len(levels_size)
                     local_nodes_idx = {
                         idx: dict(zip(level_nodes, range(len(level_nodes))))
@@ -148,26 +166,35 @@ def parse_arff(arff_file, is_go=False):
                 )
 
                 for t in lab.split("@"):
-                    y_[
-                        [
-                            nodes_idx.get(a)
-                            for a in nx.ancestors(g_t, t.replace("/", "."))
-                        ]
-                    ] = 1
-                    y_[nodes_idx[t.replace("/", ".")]] = 1
+                    y_node = t.replace("/", ".")
+                    y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, y_node)]] = 1
+                    y_[nodes_idx[y_node]] = 1
 
-                    depth = t.count("/") + 1
+                    if is_go:
+                        depth = nx.shortest_path_length(g_t, "root").get(y_node) - 1
+                        y_local_[depth][local_nodes_idx[depth].get(y_node)] = 1
+                        for ancestor in nx.ancestors(g_t, y_node):
+                            if ancestor != "root":
+                                depth = (
+                                    nx.shortest_path_length(g_t, "root").get(ancestor)
+                                    - 1
+                                )
+                                y_local_[depth][
+                                    local_nodes_idx[depth].get(ancestor)
+                                ] = 1
 
-                    assert depth is not None
+                    else:
+                        depth = y_node.count(".") + 1
 
-                    for index in range(depth, 0, -1):
-                        local_terms = t.split("/")[:index]
-                        local_label = "/".join(local_terms)
-                        local_depth = local_label.count("/")
+                        assert depth is not None
 
-                        y_local_[local_depth][
-                            local_nodes_idx.get(local_depth).get(local_label)
-                        ] = 1
+                        for index in range(depth, 0, -1):
+                            local_terms = y_node.split(".")[:index]
+                            local_label = ".".join(local_terms)
+                            local_depth = len(local_terms) - 1
+                            y_local_[local_depth][
+                                local_nodes_idx.get(local_depth).get(local_label)
+                            ] = 1
 
                 Y.append(y_)
                 Y_local.append([np.stack(y) for y in y_local_])
