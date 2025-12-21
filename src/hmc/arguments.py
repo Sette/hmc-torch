@@ -25,6 +25,7 @@ def get_parser():
     parser.add_argument(
         "--job_id",
         type=str,
+        default=None,
         required=False,
         help="Job id for trainer job.",
     )

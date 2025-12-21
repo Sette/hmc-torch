@@ -196,14 +196,6 @@ def train_local(args):
 
     args = parse_str_flags(args)
 
-    args.results_path = os.path.join(
-        args.output_path,
-        "train",
-        "local",
-        args.dataset_name,
-        args.job_id,
-    )
-
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
 
@@ -406,14 +398,6 @@ def test_local(args):
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
     args = parse_str_flags(args)
-
-    args.results_path = os.path.join(
-        args.output_path,
-        "train",
-        "local",
-        args.dataset_name,
-        args.job_id,
-    )
 
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
