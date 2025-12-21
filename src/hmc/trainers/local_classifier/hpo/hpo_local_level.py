@@ -394,7 +394,7 @@ def val_optimizer(args):
     if args.early_metric == "f1-score":
         print("Using f1-score for early stopping...")
         args.local_val_scores[args.current_level] = score[2]
-    elif args.early_metric == "avgscore":
+    elif args.early_metric == "avg-score":
         args.local_val_scores[args.current_level] = avg_score
 
     args.local_val_losses = [

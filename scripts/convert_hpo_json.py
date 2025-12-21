@@ -72,7 +72,7 @@ def get_hpo_values(datasets):
 
 if __name__ == "__main__":
 
-    hpo_path = "/home/bruno/git/hmc-torch/results/hpo/local"
+    hpo_path = "/home/bruno/Projetos/git/hmc-torch/results/hpo/local"
 
     # In[12]:
 

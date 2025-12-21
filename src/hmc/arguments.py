@@ -249,8 +249,8 @@ def get_parser():
     parser.add_argument(
         "--early_metric",
         type=str,
-        default="avgscore",
-        choices=["f1-score", "avgscore"],
+        default="avg-score",
+        choices=["f1-score", "avg-score"],
         metavar="EARLY_METRIC",
         required=False,
         help="Metric to use for early stopping.",
