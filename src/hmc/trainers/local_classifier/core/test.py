@@ -83,7 +83,7 @@ def test_step(args):
 
     if args.best_threshold:
         logging.info("find best theshold")
-        best_thresholds = {level: None for _, level in enumerate(args.active_levels)}
+        best_thresholds = {level: 0 for _, level in enumerate(args.active_levels)}
         thresholds = np.linspace(0.1, 0.9, 17)
         best_scores = {
             level: {
@@ -118,7 +118,7 @@ def test_step(args):
                 recall = score[1]
                 f1_score = score[2]
 
-                if avg_score > best_scores[level]["average_precision_score"]:
+                if f1_score > best_scores[level]["f1score"]:
                     best_thresholds[level] = actual_threshold
                     best_scores[level] = {
                         "precision": precision,
