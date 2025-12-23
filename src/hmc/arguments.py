@@ -260,7 +260,7 @@ def get_parser():
     parser.add_argument(
         "--predict_test",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
         metavar="PREDICT_TEST",
         required=False,
