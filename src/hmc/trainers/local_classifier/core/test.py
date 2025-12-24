@@ -294,6 +294,7 @@ def test_step(args):
         "recall": score[1],
         "f1score": score[2],
         "avgscore": avg_score,
+        "threshold": best_threshold,
     }
 
     args.score = score[2]  # F1-score
