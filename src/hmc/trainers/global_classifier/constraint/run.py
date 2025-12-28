@@ -1,3 +1,4 @@
+import logging
 import networkx as nx
 import numpy as np
 import torch
@@ -23,6 +24,8 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
+from tqdm import tqdm
+
 
 from hmc.utils.dataset.labels import global_to_local_predictions
 
@@ -33,7 +36,7 @@ def train_global(dataset_name, args):
     # Load train, val and test set
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
-    threshold = 0.19
+    best_threshold = 0.19
 
     hmc_dataset = initialize_dataset_experiments(
         dataset_name,
@@ -182,7 +185,7 @@ def train_global(dataset_name, args):
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
 
-            predicted = constr_output.data > threshold
+            # predicted = constr_output.data > best_threshold
 
             # Total number of labels
             # total_train = labels.size(0) * labels.size(1)
@@ -222,7 +225,7 @@ def train_global(dataset_name, args):
             y_test = torch.cat((y_test, y), dim=0)
 
     Y_pred_local_binary = global_to_local_predictions(
-        constr_test.data > threshold,
+        constr_test.data > best_threshold,
         hmc_dataset.train.local_nodes_idx,
         hmc_dataset.train.nodes_idx,
     )
@@ -256,20 +259,73 @@ def train_global(dataset_name, args):
             % (level, score[0], score[1], score[2])
         )
 
+
+    if args.best_threshold:
+        logging.info("finding best threshold")
+
+        thresholds = np.linspace(0.1, 0.9, 17)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test[:, to_eval],
+                constr_test.data[:, to_eval] > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            
+            
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+                
+        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test[:, to_eval],
+                constr_test.data[:, to_eval] > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+
     score = precision_recall_fscore_support(
-        y_test[:, to_eval],
-        constr_test.data[:, to_eval] > threshold,
-        average="micro",
-        zero_division=0,
-    )
+            y_test[:, to_eval],
+            constr_test.data[:, to_eval] > best_threshold,
+            average="micro",
+            zero_division=0,
+        )
     local_test_score["global"] = {"f1score": None, "precision": None, "recall": None}
     local_test_score["global"]["precision"] = score[0]  # Precision
     local_test_score["global"]["recall"] = score[1]  # Recall
     local_test_score["global"]["f1score"] = score[2]  # F1-score
 
-    print("Global evaluation score:")
-    print(
-        "Precision: %.4f, Recall: %.4f, F1-score: %.4f" % (score[0], score[1], score[2])
+    logging.info("Global evaluation score with best threshold %.3f", best_threshold)
+    logging.info(
+        "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
     create_dir(results_path)
