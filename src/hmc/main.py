@@ -179,7 +179,7 @@ def main():
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
-    if args.job_id == "false":
+    if not args.job_id:
         args.job_id = create_job_id_name()
         print(f"Job ID: {args.job_id}")
 
