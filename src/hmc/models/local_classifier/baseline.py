@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Dict, List, Optional
 
@@ -124,13 +125,14 @@ class HMCLocalModel(HierarchicalModel):
 
     def _load_checkpoint(self, level_idx: int) -> bool:
         """Load a saved checkpoint for a specific level."""
-        import os
 
         checkpoint_name = f"best_model_level_{level_idx}.pth"
         checkpoint_path = os.path.join(self.results_path, checkpoint_name)
 
         if os.path.exists(checkpoint_path):
             # logging.info(f"Loading checkpoint: {checkpoint_path}")
-            self.levels[str(level_idx)].load_state_dict(torch.load(checkpoint_path))
+            self.levels[str(level_idx)].load_state_dict(
+                torch.load(checkpoint_path, weights_only=True)
+            )
             return True
         return False

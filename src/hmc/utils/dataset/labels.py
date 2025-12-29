@@ -198,7 +198,11 @@ def local_to_global_predictions(
     return global_scores, global_binary_preds
 
 
-def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
+def global_to_local_predictions(
+    global_preds,
+    local_nodes_idx,
+    nodes_idx,
+):
     """
     Parâmetros:
         global_preds: np.array [n_samples, n_global_labels] \
@@ -226,9 +230,9 @@ def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
             # Quais globais estão ativados neste sample
             active_globals = np.where(global_preds[sample_idx] == 1)[0]
             for global_idx in active_globals:
-                node_name = idx_to_node[global_idx]
+                node_name_local = idx_to_node[global_idx]
                 # Ajustar para nomes locais, se necessário
-                node_name_local = node_name.replace(".", "/")
+                # node_name_local = node_name.replace(".", "/")
                 # Verifica se é nó deste nível
                 if node_name_local in node_to_local_idx:
                     local_idx = node_to_local_idx[node_name_local]

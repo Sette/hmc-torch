@@ -126,7 +126,7 @@ def valid_step(args):
 
             if args.early_metric == "f1-score":
                 args.local_val_scores[level] = score[2]
-            elif args.early_metric == "avgscore":
+            elif args.early_metric == "avg-score":
                 args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [

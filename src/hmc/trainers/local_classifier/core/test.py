@@ -83,7 +83,7 @@ def test_step(args):
 
     if args.best_threshold:
         logging.info("find best theshold")
-        best_thresholds = {level: None for _, level in enumerate(args.active_levels)}
+        best_thresholds = {level: 0 for _, level in enumerate(args.active_levels)}
         thresholds = np.linspace(0.1, 0.9, 17)
         best_scores = {
             level: {
@@ -118,7 +118,7 @@ def test_step(args):
                 recall = score[1]
                 f1_score = score[2]
 
-                if avg_score > best_scores[level]["average_precision_score"]:
+                if f1_score > best_scores[level]["f1score"]:
                     best_thresholds[level] = actual_threshold
                     best_scores[level] = {
                         "precision": precision,
@@ -179,10 +179,9 @@ def test_step(args):
             "precision": 0,
             "recall": 0,
             "f1score": 0,
-            "average_precision_score": 0,
         }
 
-        for actual_threshold in thresholds:
+        for actual_threshold in tqdm(thresholds):
             y_pred_global, y_pred_global_binary = local_to_global_predictions(
                 all_y_pred,
                 args.hmc_dataset.local_nodes_idx,
@@ -195,27 +194,13 @@ def test_step(args):
                 average="micro",
                 zero_division=0,
             )
-            logging.info("Global evaluation score:")
-            logging.info(
-                "Precision: %.4f, Recall: %.4f, F1-score: %.4f",
-                score[0],
-                score[1],
-                score[2],
-            )
-
-            avg_score = average_precision_score(
-                y_true_global_original[:, args.hmc_dataset.to_eval],
-                y_pred_global[:, args.hmc_dataset.to_eval],
-                average="micro",
-            )
-
+            
             if score[2] > best_scores["f1score"]:
                 best_threshold = actual_threshold
                 best_scores = {
                     "precision": score[0],
                     "recall": score[1],
                     "f1score": score[2],
-                    "average_precision_score": avg_score,
                 }
 
         thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
@@ -240,13 +225,6 @@ def test_step(args):
                 zero_division=0,
             )
 
-            logging.info("Global evaluation score:")
-            logging.info(
-                "Precision: %.4f, Recall: %.4f, F1-score: %.4f",
-                score[0],
-                score[1],
-                score[2],
-            )
 
             avg_score = average_precision_score(
                 y_true_global_original[:, args.hmc_dataset.to_eval],
@@ -294,6 +272,7 @@ def test_step(args):
         "recall": score[1],
         "f1score": score[2],
         "avgscore": avg_score,
+        "threshold": best_threshold,
     }
 
     args.score = score[2]  # F1-score

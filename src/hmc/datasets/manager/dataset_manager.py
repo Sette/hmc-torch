@@ -102,8 +102,6 @@ class HMCDatasetManager:
             # Load hierarchical structure
             self.load_structure_from_json(self.labels_file)
 
-        logger.info("Loading dataset from %s", self.train_file)
-
         if dataset_type == "csv":
             self.load_csv_data()
             self.to_eval = [t not in self.to_skip for t in self.nodes]
@@ -262,8 +260,11 @@ class HMCDatasetManager:
         self.test.set_y(self.transform_labels(dataset_labels))
 
     def load_arff_data(self):
+        logger.info("Loading dataset from %s", self.train_file)
         self.train = HMCDatasetArff(self.train_file, is_go=self.is_go)
+        logger.info("Loading dataset from %s", self.valid_file)
         self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go)
+        logger.info("Loading dataset from %s", self.test_file)
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
         self.A = self.train.A
         self.edges_matrix_dict = self.train.edges_matrix_dict

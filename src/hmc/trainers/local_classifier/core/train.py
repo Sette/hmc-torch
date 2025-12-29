@@ -92,7 +92,7 @@ def train_step(args):
             lr=args.lr_values[level],
             weight_decay=args.weight_decay_values[level],
         )
-        for level in range(args.hmc_dataset.max_depth)
+        for level in args.active_levels
     ]
 
     args.model.train()

@@ -10,7 +10,11 @@ from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constraint.run import train_global
 from hmc.trainers.local_classifier.run import train_local, test_local
 
-from hmc.utils.path.dir import create_job_id
+from hmc.utils.train.job import (
+    create_job_id_name,
+    end_timer,
+    start_timer,
+)
 
 # Set a logger config
 logging.basicConfig(
@@ -175,9 +179,17 @@ def main():
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
-    if args.job_id is None:
-        args.job_id = create_job_id()
-    print(f"Job ID: {args.job_id}")
+    if args.job_id == "false":
+        args.job_id = create_job_id_name()
+        print(f"Job ID: {args.job_id}")
+
+    args.results_path = os.path.join(
+        args.output_path,
+        "train",
+        "local",
+        args.dataset_name,
+        args.job_id,
+    )
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
