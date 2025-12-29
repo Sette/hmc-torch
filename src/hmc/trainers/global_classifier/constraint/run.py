@@ -224,42 +224,6 @@ def train_global(dataset_name, args):
             constr_test = torch.cat((constr_test, cpu_constrained_output), dim=0)
             y_test = torch.cat((y_test, y), dim=0)
 
-    Y_pred_local_binary = global_to_local_predictions(
-        constr_test.data > best_threshold,
-        hmc_dataset.train.local_nodes_idx,
-        hmc_dataset.train.nodes_idx,
-    )
-
-    y_test_local_binary = global_to_local_predictions(
-        y_test,
-        hmc_dataset.train.local_nodes_idx,
-        hmc_dataset.train.nodes_idx,
-    )
-
-    # Get local scores
-    local_test_score = {
-        level: {"f1score": None, "precision": None, "recall": None}
-        for level in range(len(y_test_local_binary))
-    }
-    for level, (y_test_local, Y_pred_local) in enumerate(
-        zip(y_test_local_binary, Y_pred_local_binary)
-    ):
-        score = precision_recall_fscore_support(
-            y_test_local,
-            Y_pred_local,
-            average="micro",
-            zero_division=0,
-        )
-        local_test_score[level]["precision"] = score[0]  # Precision
-        local_test_score[level]["recall"] = score[1]  # Recall
-        local_test_score[level]["f1score"] = score[2]  # F1-score
-        print("Local evaluation score:")
-        print(
-            "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f"
-            % (level, score[0], score[1], score[2])
-        )
-
-
     if args.best_threshold:
         logging.info("finding best threshold")
 
@@ -311,6 +275,42 @@ def train_global(dataset_name, args):
                     "recall": score[1],
                     "f1score": score[2],
                 }
+                
+    Y_pred_local_binary = global_to_local_predictions(
+        constr_test.data > best_threshold,
+        hmc_dataset.train.local_nodes_idx,
+        hmc_dataset.train.nodes_idx,
+    )
+
+    y_test_local_binary = global_to_local_predictions(
+        y_test,
+        hmc_dataset.train.local_nodes_idx,
+        hmc_dataset.train.nodes_idx,
+    )
+
+    # Get local scores
+    local_test_score = {
+        level: {"f1score": None, "precision": None, "recall": None}
+        for level in range(len(y_test_local_binary))
+    }
+    for level, (y_test_local, Y_pred_local) in enumerate(
+        zip(y_test_local_binary, Y_pred_local_binary)
+    ):
+        score = precision_recall_fscore_support(
+            y_test_local,
+            Y_pred_local,
+            average="micro",
+            zero_division=0,
+        )
+        local_test_score[level]["precision"] = score[0]  # Precision
+        local_test_score[level]["recall"] = score[1]  # Recall
+        local_test_score[level]["f1score"] = score[2]  # F1-score
+        print("Local evaluation score:")
+        print(
+            "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f"
+            % (level, score[0], score[1], score[2])
+        )
+
 
     score = precision_recall_fscore_support(
             y_test[:, to_eval],
@@ -318,6 +318,7 @@ def train_global(dataset_name, args):
             average="micro",
             zero_division=0,
         )
+    
     local_test_score["global"] = {"f1score": None, "precision": None, "recall": None}
     local_test_score["global"]["precision"] = score[0]  # Precision
     local_test_score["global"]["recall"] = score[1]  # Recall
