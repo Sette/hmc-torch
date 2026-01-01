@@ -337,6 +337,8 @@ def train_local(args):
                 args.num_layers_values,
                 args.weight_decay_values,
             )
+        
+        
 
         params = {
             "levels_size": args.hmc_dataset.levels_size,
@@ -347,6 +349,9 @@ def train_local(args):
             "active_levels": args.active_levels,
             "results_path": args.results_path,
             "residual": args.model_regularization == "residual",
+            "attention": args.level_model_type == "attention",
+            "gcn": args.level_model_type == "gcn",
+            "gat": args.level_model_type == "gat",
         }
 
         if args.method == "local_constrained":
@@ -495,6 +500,7 @@ def test_local(args):
         args.num_layers_values,
         args.weight_decay_values,
     )
+    
 
     params = {
         "levels_size": args.hmc_dataset.levels_size,
@@ -505,6 +511,9 @@ def test_local(args):
         "active_levels": args.active_levels,
         "results_path": args.results_path,
         "residual": args.model_regularization == "residual",
+        "attention": args.level_model_type == "attention",
+        "gcn": args.level_model_type == "gcn",
+        "gat": args.level_model_type == "gat",
     }
 
     if args.method == "local_constrained":

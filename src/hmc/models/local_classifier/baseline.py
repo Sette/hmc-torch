@@ -31,6 +31,10 @@ class HMCLocalModel(HierarchicalModel):
         dropouts: Optional[List[float]] = None,
         active_levels: Optional[List[int]] = None,
         residual: bool = False,
+        attention: bool = False,
+        gcn: bool = False,
+        gat: bool = False,
+        num_heads: int = 1,
     ):
         """
         Initialize local classification model.
@@ -51,6 +55,11 @@ class HMCLocalModel(HierarchicalModel):
             results_path=results_path,
             active_levels=active_levels,
         )
+        
+        self.attention = attention
+        self.gcn = gcn
+        self.gat = gat
+        self.num_heads = num_heads
 
         # Set defaults
         if num_layers is None:
@@ -83,11 +92,15 @@ class HMCLocalModel(HierarchicalModel):
                 output_size=self.levels_size[index],
                 num_layers=self.num_layers[index],
                 dropout=self.dropouts[index],
+                attention=self.attention and index > 3,  # attention from level 4 onwards
+                gcn=self.gcn,
+                gat=self.gat,
+                num_heads=self.num_heads,
             )
 
             logging.debug(
-                f"Level {index}: input_size={current_input_size}, "
-                f"output_size={self.levels_size[index]}"
+                "Level %d: input_size=%d, output_size=%d",
+                index, current_input_size, self.levels_size[index]
             )
 
     def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:

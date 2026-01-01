@@ -24,6 +24,10 @@ class ClassificationNetwork(nn.Module):
         output_size: int,
         num_layers: int = 2,
         dropout: float = 0.0,
+        attention: bool = False,
+        gcn: bool = False,
+        gat: bool = False,
+        num_heads: int = 1,
     ):
         """
         Initialize classification network.
@@ -36,16 +40,37 @@ class ClassificationNetwork(nn.Module):
             dropout: Dropout probability
         """
         super(ClassificationNetwork, self).__init__()
+        self.attention = attention
+        self.gcn = gcn
+        self.gat = gat
 
         layers = []
         current_size = input_size
+        
+        # ============================================
+        # 3. GCNConv (real, PyG)
+        # ============================================
+        if self.gcn:
+            # 1 camada GCN antes da MLP
+            layers.append(GCNConv(current_size, current_size))
+            
+        if self.gat:
+            layers.append(GATConv(
+                in_channels=current_size,
+                out_channels=current_size // num_heads,
+                heads=num_heads,
+                concat=True,
+            ))
+
+        if self.attention:
+            layers.append(LocalLevelAttentionBlock(input_dim=current_size, attn_dim=512, num_heads=4))
 
         # Build hidden layers
         for i in range(num_layers):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-
+        
             layers.append(nn.Linear(current_size, hidden_size))
             layers.append(nn.ReLU())
 
@@ -194,3 +219,68 @@ class BuildClassification(nn.Module):
         # Pure MLP
         # =====================================================
         return self.mlp(x)
+
+
+
+class LocalLevelAttentionBlock(nn.Module):
+    def __init__(self, input_dim, attn_dim=256, num_heads=4):
+        """
+        Local Attention Block for a single hierarchy level.
+        - input_dim: dimension of incoming embedding (ex: 529)
+        - attn_dim: internal projected dimension (must be divisible by num_heads)
+        - num_heads: number of attention heads
+        """
+        super().__init__()
+
+        # Ensure attn_dim is valid
+        if attn_dim % num_heads != 0:
+            raise ValueError(f"attn_dim ({attn_dim}) must be divisible by num_heads ({num_heads})")
+
+        # Project input_dim → attn_dim
+        self.proj_in = nn.Linear(input_dim, attn_dim)
+
+        # Local multi-head attention (per-level)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=attn_dim,
+            num_heads=num_heads,
+            batch_first=True
+        )
+
+        # Normalize after attention
+        self.norm1 = nn.LayerNorm(attn_dim)
+
+        # Feed-forward block (transformer-like)
+        self.ffn = nn.Sequential(
+            nn.Linear(attn_dim, attn_dim * 2),
+            nn.ReLU(),
+            nn.Linear(attn_dim * 2, attn_dim)
+        )
+
+        self.norm2 = nn.LayerNorm(attn_dim)
+
+        # Project back to original dim → keeps compatibilidade
+        self.proj_out = nn.Linear(attn_dim, input_dim)
+
+    def forward(self, x):
+        """
+        x shape expected: (batch, features)  → convert to sequence length = 1
+        """
+        # Reshape: (B, F) → (B, 1, F)
+        x = x.unsqueeze(1)
+
+        # Project to attention dimension
+        h = self.proj_in(x)
+
+        # Apply local self-attention
+        attn_output, _ = self.attn(h, h, h)
+        h = self.norm1(h + attn_output)
+
+        # FFN
+        ffn_output = self.ffn(h)
+        h = self.norm2(h + ffn_output)
+
+        # Project back to original dim
+        h = self.proj_out(h)
+
+        # Remove sequence dimension: (B, 1, F) → (B, F)
+        return h.squeeze(1)
