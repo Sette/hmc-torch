@@ -92,15 +92,35 @@ def get_constr_out_vectorized_hard(
     return outputs.to(device)
 
 
-def _calculate_local_loss(output, target, criterion, regularization=None, level=0):
-    if regularization == "soft" or regularization == "residual":
-        output = get_constr_out_vectorized(
-            output,
-            target,
-            level=level,
-            device=output.device,
-        )
+def _calculate_local_loss(output, target, criterion, parent_conditioning=None, p_output=None, matrix_r=None):
     loss = criterion(output.double(), target)
+    lambda_factor = 0.2
+
+    if parent_conditioning != "none":
+        if parent_conditioning == "residual" and p_output is not None:
+            # Perda residual: diferença entre a saída atual e a saída do nível anterior
+            residual = output - p_output
+            loss += lambda_factor * torch.mean(residual ** 2)
+        elif parent_conditioning == "soft" and p_output is not None:
+            # Perda suave: penaliza a diferença absoluta entre as saídas
+            soft_diff = torch.abs(output - p_output)
+            loss += lambda_factor * torch.mean(soft_diff)
+        elif parent_conditioning == "teacher_forcing" and p_output is not None:
+            # Perda de teacher forcing: força a saída atual a se aproximar da saída do nível anterior
+            
+            device = p_output.device
+            matrix_r_tensor = torch.from_numpy(matrix_r).float().to(device)
+
+            parents_projected = torch.mm(p_output, matrix_r_tensor)
+
+            diff = output - parents_projected
+    
+            # 3. ReLU: Só penaliza se a diferença for POSITIVA (Filho > Pai)
+            # Valores negativos viram 0.
+            penalty = torch.relu(diff)
+
+            tf_loss = penalty.mean()
+            loss += lambda_factor * tf_loss
 
     return loss
 
@@ -121,8 +141,32 @@ def calculate_local_loss(output, target, args):
         output,
         target,
         args.criterions[args.current_level],
-        regularization=args.model_regularization,
-        level=args.current_level,
+        parent_conditioning=args.parent_conditioning,
+    )
+
+    return loss
+
+
+def calculate_hierarchical_local_loss(output, target, p_output, matrix_r, args):
+    """
+    Calculates the local loss using a specific criterion based on the current computation level.
+
+    Args:
+        output (torch.Tensor): The output tensor from the model.
+        target (torch.Tensor): The ground truth tensor.
+        p_output (torch.Tensor): The output tensor from the previous level.
+        args (Namespace): An object containing the current computation level and the criterions.
+    Returns:
+        torch.Tensor: The calculated loss.
+    """
+
+    loss = _calculate_local_loss(
+        output,
+        target,
+        args.criterions[args.current_level],
+        parent_conditioning=args.parent_conditioning,
+        p_output=p_output,
+        matrix_r=matrix_r,
     )
 
     return loss
