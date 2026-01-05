@@ -337,8 +337,6 @@ def train_local(args):
                 args.num_layers_values,
                 args.weight_decay_values,
             )
-        
-        
 
         params = {
             "levels_size": args.hmc_dataset.levels_size,
@@ -499,8 +497,7 @@ def test_local(args):
         args.hidden_dims,
         args.num_layers_values,
         args.weight_decay_values,
-    )
-    
+    )   
 
     params = {
         "levels_size": args.hmc_dataset.levels_size,
@@ -510,7 +507,7 @@ def test_local(args):
         "dropouts": args.dropout_values,
         "active_levels": args.active_levels,
         "results_path": args.results_path,
-        "residual": args.model_regularization == "residual",
+        "residual": args.parent_conditioning != "none",
         "attention": args.level_model_type == "attention",
         "gcn": args.level_model_type == "gcn",
         "gat": args.level_model_type == "gat",

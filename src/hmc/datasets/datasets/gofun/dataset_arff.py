@@ -1,6 +1,6 @@
 from collections import defaultdict
 from itertools import chain
-
+import torch
 import keras
 import networkx as nx
 import numpy as np
@@ -200,13 +200,44 @@ def parse_arff(arff_file, is_go=False):
                 Y_local.append([np.stack(y) for y in y_local_])
         X = np.array(X)
         Y = np.stack(Y)
+        level_nodes_list = list(levels.values())
         edges_matrix_dict = {}
-        for idx, level_nodes in enumerate(levels.values()):
-            if idx != 0:
-                level_nodes = [node.replace("/", ".") for node in level_nodes]
-                edges_matrix_dict[idx] = np.array(
-                    nx.to_numpy_array(g, nodelist=level_nodes)
-                )
+        for idx, current_level_nodes in enumerate(level_nodes_list):
+            if idx == 0:
+                # Level 0 has no ancestor; the Constraint Layer starts from level 1.
+                continue
+            # 1. Identify Previous Level (Ancestor) and Current Level (Child)
+            prev_level_nodes = level_nodes_list[idx - 1]
+            # 2. Format node names (adjust for your case with 'replace')
+            # The R_sub matrix should contain all nodes from the previous level (rows)
+            # and all nodes from the current level (columns).
+            # Replace '/' with '.' if necessary (this depends on how your graph 'g' is labeled)
+            ancestral_nodelist = prev_level_nodes
+            child_nodelist = current_level_nodes
+            # 3. Build the N_previous x N_current adjacency matrix
+            # row_order (nodelist): defines the ROWS (Ancestors / Previous Level)
+            # column_order: defines the COLUMNS (Children / Current Level)
+            # nx.to_numpy_array will create the matrix A[i, j] where:
+            # A[i, j] = 1 if there is an edge from row_order[i] to column_order[j]
+            # 2. Criar matriz vazia com o shape CORRETO: (N_Pais, N_Filhos)
+            # Exemplo: Se tem 18 pais e 80 filhos -> Shape (18, 80)
+
+            shape = (len(ancestral_nodelist), len(child_nodelist))
+            matrix = np.zeros(shape, dtype=np.float32)
+            
+            # 3. Preencher a matriz de forma eficiente
+            # Criamos um mapa para achar o índice da coluna (filho) rapidamente
+            child_map = {node: i for i, node in enumerate(child_nodelist)}
+            parent_map = {node: i for i, node in enumerate(ancestral_nodelist)}
+
+            for c_node in child_nodelist:
+                if g.has_node(c_node):
+                    p_node = list(g.successors(c_node))[0]  # Get the parent node
+                    a = parent_map.get(p_node, None)
+                    b = child_map.get(c_node, None)
+                    
+                    matrix[a, b] = 1.0          
+            edges_matrix_dict[idx] = matrix
 
         logger.info(
             "Shape of edges matrix: %s",

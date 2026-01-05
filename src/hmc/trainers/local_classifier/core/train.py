@@ -99,13 +99,13 @@ def train_step(args):
 
     # args.r = args.hmc_dataset.R.to(args.device)
     if args.warmup or (
-        args.model_regularization == "soft" or args.model_regularization == "residual"
+        args.parent_conditioning != "none"
     ):
         args.level_active = [False] * len(args.level_active)
         args.level_active[0] = True
         next_level = 1
         logging.info(
-            "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+            "Using %s with %d warm-up epochs", args.parent_conditioning, args.n_warmup_epochs
         )
     else:
         next_level = len(args.active_levels)
