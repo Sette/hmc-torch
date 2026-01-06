@@ -142,26 +142,26 @@ def test_step(args):
         y_pred = local_outputs[idx].to("cpu").numpy()
         # --- INÍCIO DA CORREÇÃO DE INCONSISTÊNCIA ---
         # Só aplicamos a correção se NÃO for o primeiro nível (raiz)
-        if args.parent_conditioning != "false":
-            lambda_factor = 0.1 # Teste 0.2, 0.5, 0.8
-            if idx > 0: 
-                # Pegamos as predições do nível imediatamente anterior (já corrigidas)
-                # all_y_pred[-1] refere-se ao output do loop anterior
+        # if args.parent_conditioning == "teacher_forcing":
+        #     lambda_factor = 0.2 # Teste 0.2, 0.5, 0.8
+        #     if idx > 0: 
+        #         # Pegamos as predições do nível imediatamente anterior (já corrigidas)
+        #         # all_y_pred[-1] refere-se ao output do loop anterior
                 
-                parents_pred = all_y_pred[idx-1]
+        #         parents_pred = all_y_pred[idx-1]
                 
-                edge_matrix = args.hmc_dataset.edges_matrix_dict[idx]
+        #         edge_matrix = args.hmc_dataset.edges_matrix_dict[idx]
                 
-                # 1. Projeção (Mapeamento)
-                # Multiplicamos as probabilidades dos pais pela matriz.
-                # Isso cria um array do tamanho dos FILHOS, mas contendo a probabilidade dos PAIS correspondentes.
-                probs_pai_projetado = np.matmul(parents_pred, edge_matrix)
+        #         # 1. Projeção (Mapeamento)
+        #         # Multiplicamos as probabilidades dos pais pela matriz.
+        #         # Isso cria um array do tamanho dos FILHOS, mas contendo a probabilidade dos PAIS correspondentes.
+        #         probs_pai_projetado = np.matmul(parents_pred, edge_matrix)
 
-                probs_pai_suave = np.power(probs_pai_projetado, lambda_factor)
+        #         probs_pai_suave = np.power(probs_pai_projetado, lambda_factor)
 
-                # 2. Correção (Regra do Produto)
-                # Agora que os tamanhos batem e estão alinhados, multiplicamos elemento a elemento.
-                y_pred = y_pred * probs_pai_suave
+        #         # 2. Correção (Regra do Produto)
+        #         # Agora que os tamanhos batem e estão alinhados, multiplicamos elemento a elemento.
+        #         y_pred = y_pred * probs_pai_suave
             
             # --- FIM DA CORREÇÃO ---
 
