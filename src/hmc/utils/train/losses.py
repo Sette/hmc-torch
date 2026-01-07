@@ -6,26 +6,20 @@ def _calculate_local_loss(output, target, criterion, parent_conditioning=None, p
     loss = criterion(output.double(), target)
     lambda_factor = 0.2
 
-    if parent_conditioning != "none":
-        if parent_conditioning == "residual" and p_output is not None:
-            # Perda residual: diferença entre a saída atual e a saída do nível anterior
-            residual = output - p_output
-            loss += lambda_factor * torch.mean(residual ** 2)
-        elif parent_conditioning == "soft" and p_output is not None:
-            # Perda suave: penaliza a diferença absoluta entre as saídas
-            soft_diff = torch.abs(output - p_output)
-            loss += lambda_factor * torch.mean(soft_diff)
+    if parent_conditioning != "none" and p_output is not None:
+        device = p_output.device
+        matrix_r_tensor = torch.from_numpy(matrix_r).float().to(device)
+
+        parents_projected = torch.mm(p_output, matrix_r_tensor)
+
+        diff = output - parents_projected
+
+        if parent_conditioning == "soft" and p_output is not None:
+            # Perda soft: diferença entre a saída atual e a saída do nível anterior
+            loss += lambda_factor * torch.mean(diff ** 2)
         elif parent_conditioning == "teacher_forcing" and p_output is not None:
             # Perda de teacher forcing: força a saída atual a se aproximar da saída do nível anterior
-            
-            device = p_output.device
-            matrix_r_tensor = torch.from_numpy(matrix_r).float().to(device)
-
-            parents_projected = torch.mm(p_output, matrix_r_tensor)
-
-            diff = output - parents_projected
-    
-            # 3. ReLU: Só penaliza se a diferença for POSITIVA (Filho > Pai)
+            # ReLU: Só penaliza se a diferença for POSITIVA (Filho > Pai)
             # Valores negativos viram 0.
             penalty = torch.relu(diff)
 
