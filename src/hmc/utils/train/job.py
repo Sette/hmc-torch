@@ -56,12 +56,25 @@ def parse_str_flags(args):
 def log_gpu_memory(device):
     result = {}
     if torch.cuda.is_available():
-        allocated = torch.cuda.memory_allocated(device) / 1024**3  # GB
-        reserved = torch.cuda.memory_reserved(device) / 1024**3    # GB
-        result['gpu-allocated'] = allocated
-        result['gpu-reserved'] = reserved
-        print(f"GPU - Alocada: {allocated:.2f}GB, Reservada: {reserved:.2f}GB")
-    torch.cuda.empty_cache()  # Opcional para reset
+        prop = torch.cuda.get_device_properties(device)
+        total_mib = prop.total_memory / (1024**2)  # Total em MiB
+        
+        allocated_mib = torch.cuda.memory_allocated(device) / 1024**2
+        reserved_mib = torch.cuda.memory_reserved(device) / (1024**2)  # MiB como nvidia-smi
+        peak_mib = torch.cuda.max_memory_allocated(device) / 1024**2
+        
+        # SOMA alocado + reservado (em MiB)
+        soma_mib = (torch.cuda.memory_allocated(device) + torch.cuda.memory_reserved(device)) / (1024**2)
+        
+        result.update({
+            'total_mib': total_mib,
+            'allocated_mib': allocated_mib,
+            'reserved_mib': reserved_mib,
+            'peak_mib': peak_mib,
+            'soma_allocated_reserved_mib': soma_mib
+        })
+        
+    torch.cuda.empty_cache()
     return result
 
 
@@ -71,7 +84,6 @@ def log_cpu_ram(result):
     ram_used = process.memory_info().rss / 1024**3  # GB
     result['cpu-percent'] = cpu_percent
     result['cpu-ram'] = ram_used
-    print(f"CPU: {cpu_percent:.1f}%, RAM processo: {ram_used:.2f}GB")
     return result
 
 
