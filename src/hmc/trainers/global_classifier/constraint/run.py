@@ -169,7 +169,7 @@ def train_global(dataset_name, args):
     # patience, max_patience = 20, 20
     # max_score = 0.0
     start_train = time.perf_counter()
-    for epoch in range(args.epochs):
+    for _ in range(args.epochs):
         model.train()
         for _, (x, labels) in tqdm(enumerate(train_loader)):
             x = x.to(device)
