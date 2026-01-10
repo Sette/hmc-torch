@@ -1,4 +1,5 @@
 import logging
+import time
 import networkx as nx
 import numpy as np
 import torch
@@ -29,6 +30,7 @@ from tqdm import tqdm
 
 from hmc.utils.dataset.labels import global_to_local_predictions
 
+from hmc.utils.train.job import log_system_info
 
 def train_global(dataset_name, args):
     print(".......................................")
@@ -166,8 +168,8 @@ def train_global(dataset_name, args):
     # Set patience
     # patience, max_patience = 20, 20
     # max_score = 0.0
-
-    for _ in range(args.epochs):
+    start_train = time.perf_counter()
+    for epoch in range(args.epochs):
         model.train()
         for _, (x, labels) in tqdm(enumerate(train_loader)):
             x = x.to(device)
@@ -185,6 +187,8 @@ def train_global(dataset_name, args):
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
 
+                
+
             # predicted = constr_output.data > best_threshold
 
             # Total number of labels
@@ -194,7 +198,10 @@ def train_global(dataset_name, args):
 
             loss.backward()
             optimizer.step()
-
+    usage = log_system_info(device)
+    end_train = time.perf_counter()
+    total_time = end_train - start_train
+    print("Tempo de treino: %f segundos", total_time)
     for i, (x, y) in enumerate(test_loader):
 
         model.eval()
@@ -323,6 +330,13 @@ def train_global(dataset_name, args):
     local_test_score["global"]["precision"] = score[0]  # Precision
     local_test_score["global"]["recall"] = score[1]  # Recall
     local_test_score["global"]["f1score"] = score[2]  # F1-score
+    local_test_score["global"]["best_threshold"] = best_threshold
+    local_test_score["global"]["avg_precision"] = average_precision_score(
+        y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
+    )
+
+    local_test_score["global"]["usage"] = usage
+    local_test_score["global"]["training_time_seconds"] = total_time
 
     logging.info("Global evaluation score with best threshold %.3f", best_threshold)
     logging.info(
@@ -335,15 +349,9 @@ def train_global(dataset_name, args):
         local_test_score,
         f"{results_path}/test-scores.json",
     )
-
-    local_test_score["global"]["avg_precision"] = average_precision_score(
-        y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
-    )
-
+    
     print("Average precision score: %.4f" % local_test_score["global"]["avg_precision"])
 
     args.score = local_test_score["global"]
 
-    f = open(results_path + "/" + "average-precision" + ".csv", "a", encoding="utf-8")
-    f.write(str(args.seed) + "," + str(score) + "\n")
-    f.close()
+    return args
