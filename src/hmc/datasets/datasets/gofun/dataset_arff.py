@@ -108,15 +108,11 @@ def parse_arff(arff_file, is_go=False):
                         levels_size = {
                             key: len(set(value)) for key, value in levels.items()
                         }
-                        max_depth = len(levels_size)
-                        print(f"Levels size go dataset: {levels_size}")
-                        print(f"Max depth: {max_depth}")
                     else:
                         levels_size = {
                             key: len(set(value)) for key, value in levels.items()
                         }
                         max_depth = len(levels_size)
-                        print(f"Levels size: {levels_size}")
 
                     max_depth = len(levels_size)
                     local_nodes_idx = {
@@ -232,11 +228,12 @@ def parse_arff(arff_file, is_go=False):
 
             for c_node in child_nodelist:
                 if g.has_node(c_node):
-                    p_node = list(g.successors(c_node))[0]  # Get the parent node
-                    a = parent_map.get(p_node, None)
-                    b = child_map.get(c_node, None)
-                    
-                    matrix[a, b] = 1.0          
+                    p_node = list(g.successors(c_node))  # Get the parent node
+                    for p in p_node:
+                        a = parent_map.get(p, None)
+                        b = child_map.get(c_node, None)
+                        if a is not None and b is not None:
+                            matrix[a, b] = 1.0          
             edges_matrix_dict[idx] = matrix
 
         logger.info(
