@@ -303,6 +303,9 @@ def test_step(args):
         "threshold": best_threshold,
     }
 
+    local_test_score["usage"] = args.usage
+    local_test_score["training_time_seconds"] = args.training_time_seconds
+
     args.score = score[2]  # F1-score
 
     local_test_score["metadata"] = {

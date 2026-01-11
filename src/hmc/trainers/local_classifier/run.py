@@ -27,7 +27,7 @@ Intended for research and experimentation with HMC classifier benchmarks.
 
 Authors: Bruno Sette
 """
-
+import time
 import logging
 import os
 import random
@@ -49,6 +49,8 @@ from hmc.trainers.local_classifier.core.test import (
 from hmc.trainers.local_classifier.core.train import (
     train_step as train_step_core,
 )
+
+from hmc.utils.train.job import log_system_info
 
 from hmc.models.local_classifier.baseline import HMCLocalModel
 from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
@@ -362,7 +364,12 @@ def train_local(args):
         # model = HMCLocalClassificationModel(levels_size=hmc_dataset.levels_size,
         #                                     input_size=args.input_dims[data],
         #                                     hidden_size=args.hidden_dim)
+        start_train = time.perf_counter()
         args.train_methods["train_step"](args)
+        end_train = time.perf_counter()
+        args.usage = log_system_info(args.device)
+        args.training_time_seconds = end_train - start_train
+        print("Tempo de treino: %f segundos", args.training_time_seconds)
         args.train_methods["test_step"](args)
 
 
