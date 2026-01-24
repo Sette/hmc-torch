@@ -31,7 +31,7 @@ class HMCDatasetArff:
             self.Y,
             self.Y_local,
             self.A,
-            self.edges_matrix_dict,
+            self.edge_index,
             self.terms,
             self.g,
             self.levels,
@@ -197,7 +197,7 @@ def parse_arff(arff_file, is_go=False):
         X = np.array(X)
         Y = np.stack(Y)
         level_nodes_list = list(levels.values())
-        edges_matrix_dict = {}
+        edge_index = {}
         for idx, current_level_nodes in enumerate(level_nodes_list):
             if idx == 0:
                 # Level 0 has no ancestor; the Constraint Layer starts from level 1.
@@ -234,21 +234,21 @@ def parse_arff(arff_file, is_go=False):
                         b = child_map.get(c_node, None)
                         if a is not None and b is not None:
                             matrix[a, b] = 1.0          
-            edges_matrix_dict[idx] = matrix
+            edge_index[idx] = matrix
 
         logger.info(
             "Shape of edges matrix: %s",
-            {k: v.shape for k, v in edges_matrix_dict.items()},
+            {k: v.shape for k, v in edge_index.items()},
         )
         logger.info("Parsed ARFF file: %s", arff_file)
-        logger.info("Number of matrix: %d", len(edges_matrix_dict))
+        logger.info("Number of matrix: %d", len(edge_index))
 
         return (
             X,
             Y,
             Y_local,
             np.array(nx.to_numpy_array(g, nodelist=nodes)),
-            edges_matrix_dict,
+            edge_index,
             nodes,
             g,
             levels,
