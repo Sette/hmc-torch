@@ -98,9 +98,7 @@ def train_step(args):
     args.model.train()
 
     # args.r = args.hmc_dataset.R.to(args.device)
-    if args.warmup or (
-        args.parent_conditioning != "none"
-    ):
+    if args.warmup:
         args.level_active = [False] * len(args.level_active)
         args.level_active[0] = True
         next_level = 1
@@ -122,7 +120,7 @@ def train_step(args):
         for inputs, targets, _ in args.train_loader:
             inputs = inputs.to(args.device)
             targets = [target.to(args.device) for target in targets]
-            outputs = args.model(inputs.float())
+            outputs = args.model(inputs.float(), edge_index=args.hmc_dataset.edge_index)
 
             for level, optimizer in enumerate(args.optimizers):
                 if args.level_active[level]:
@@ -137,7 +135,7 @@ def train_step(args):
                         outputs[level],
                         targets[level],
                         outputs[level - 1] if level > 0 else None,
-                        matrix_r=args.hmc_dataset.edges_matrix_dict[level] if level > 0 else None,
+                        matrix_r=args.hmc_dataset.edge_index[level] if level > 0 else None,
                         args=args,
                     )
 
