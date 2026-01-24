@@ -80,10 +80,7 @@ class HMCLocalModel(HierarchicalModel):
         """Build classification networks for each active level."""
         for index in self.active_levels:
             # Input size depends on residual connections
-            if self.residual and index > 0:
-                current_input_size = self.input_size + self.levels_size[index - 1]
-            else:
-                current_input_size = self.input_size
+            current_input_size = self.input_size
 
             # Create classification network
             self.levels[str(index)] = ClassificationNetwork(
@@ -103,7 +100,11 @@ class HMCLocalModel(HierarchicalModel):
                 index, current_input_size, self.levels_size[index]
             )
 
-    def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
+    def forward(
+            self, 
+            x: torch.Tensor, 
+            edge_index=None,
+            ) -> Dict[int, torch.Tensor]:
         """
         Forward pass with optional residual connections.
 
@@ -131,7 +132,7 @@ class HMCLocalModel(HierarchicalModel):
                 current_input = torch.cat((x, previous_output_binary), dim=1)
 
             # Forward through level
-            level_output = level_module(current_input)
+            level_output = level_module(current_input, edge_index=edge_index)
             outputs[level_idx] = level_output
 
         return outputs
