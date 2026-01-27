@@ -10,11 +10,8 @@ from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constraint.run import train_global
 from hmc.trainers.local_classifier.run import train_local, test_local
 
-from hmc.utils.train.job import (
-    create_job_id_name,
-    end_timer,
-    start_timer,
-)
+from hmc.utils.train.job import create_job_id_name
+
 
 # Set a logger config
 logging.basicConfig(
