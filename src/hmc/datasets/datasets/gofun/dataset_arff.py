@@ -29,6 +29,7 @@ class HMCDatasetArff:
         (
             self.X,
             self.Y,
+            self.Y_nodes,
             self.Y_local,
             self.A,
             self.edge_index,
@@ -52,6 +53,7 @@ def parse_arff(arff_file, is_go=False):
         read_data = False
         X = []
         Y = []
+        Y_nodes = []
         Y_local = []
         levels_size = defaultdict(int)
         levels = defaultdict(list)
@@ -95,7 +97,6 @@ def parse_arff(arff_file, is_go=False):
                     )
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
-
                     if is_go:
                         for label in nodes:
                             if label != "root":
@@ -145,6 +146,7 @@ def parse_arff(arff_file, is_go=False):
                 read_data = True
             elif read_data:
                 y_ = np.zeros(len(nodes))
+                y_nodes = []
                 sorted_keys = sorted(levels_size.keys())
                 y_local_ = [np.zeros(levels_size.get(key)) for key in sorted_keys]
                 d_line = l.split("%")[0].strip().split(",")
@@ -163,6 +165,7 @@ def parse_arff(arff_file, is_go=False):
 
                 for t in lab.split("@"):
                     y_node = t.replace("/", ".")
+                    y_nodes.append(y_node)
                     y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, y_node)]] = 1
                     y_[nodes_idx[y_node]] = 1
 
@@ -193,6 +196,7 @@ def parse_arff(arff_file, is_go=False):
                             ] = 1
 
                 Y.append(y_)
+                Y_nodes.append(y_nodes)
                 Y_local.append([np.stack(y) for y in y_local_])
         X = np.array(X)
         Y = np.stack(Y)
@@ -246,6 +250,7 @@ def parse_arff(arff_file, is_go=False):
         return (
             X,
             Y,
+            Y_nodes,
             Y_local,
             np.array(nx.to_numpy_array(g, nodelist=nodes)),
             edge_index,
