@@ -28,6 +28,7 @@ class ClassificationNetwork(nn.Module):
         gcn: bool = False,
         gat: bool = False,
         num_heads: int = 1,
+        level: int = 0,
     ):
         """
         Initialize classification network.
@@ -43,6 +44,8 @@ class ClassificationNetwork(nn.Module):
         self.attention = attention
         self.gcn = gcn
         self.gat = gat
+        self.level = level
+        self.num_heads = num_heads
 
         layers = []
         current_size = input_size
@@ -87,6 +90,7 @@ class ClassificationNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network."""
+        
         return self.network(x)
 
 
@@ -107,41 +111,43 @@ class BuildClassification(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.0,
         attention: bool = False,
-        gcnconv: bool = False,
-        gatconv: bool = False,
+        gcn: bool = False,
+        gat: bool = False,
         num_heads: int = 1,
+        level: int = 0,
     ):
         super().__init__()
 
         self.attention = attention
-        self.gcn = gcnconv
-        self.gat = gatconv
+        self.gcn = gcn
+        self.gat = gat
         self.num_heads = num_heads
+        self.level = level
+        layers = []
+        current_size = input_size
 
         # ============================================
         # 1. BACKBONE MLP (sempre presente)
         # ============================================
-        mlp_layers = []
-        current_size = input_size
-
         # Build hidden layers
         for i in range(num_layers):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-
-            mlp_layers.append(nn.Linear(current_size, hidden_size))
-            mlp_layers.append(nn.ReLU())
+        
+            layers.append(nn.Linear(current_size, hidden_size))
+            layers.append(nn.ReLU())
 
             if dropout > 0:
-                mlp_layers.append(nn.Dropout(dropout))
+                layers.append(nn.Dropout(dropout))
 
             current_size = hidden_size
 
-        mlp_layers.append(nn.Linear(current_size, output_size))
-        mlp_layers.append(nn.Sigmoid())
+        # Output layer
+        layers.append(nn.Linear(current_size, output_size))
+        layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
-        self.mlp = nn.Sequential(*mlp_layers)
+        self.mpl = nn.Sequential(*layers)
 
         # ============================================
         # 2. Attention MLP (opcional)
@@ -189,19 +195,30 @@ class BuildClassification(nn.Module):
         if self.gcn:
             if edge_index is None:
                 raise ValueError("edge_index must be provided for GCNConv")
-            x = self.gcn_layer(x, edge_index)
-            x = F.relu(x)
-            return self.mlp(x)
-
+            if self.level != 0:
+                local_edge_index = edge_index[self.level]
+                
+                local_edge_index = torch.tensor(edge_index[self.level])
+                
+                x = self.gcn_layer(x, local_edge_index)
+                x = F.relu(x)
+            
         # =====================================================
         # GATConv
         # =====================================================
         if self.gat:
             if edge_index is None:
                 raise ValueError("edge_index must be provided for GATConv")
-            x = self.gat_layer(x, edge_index)
-            x = F.relu(x)
-            return self.mlp(x)
+            if self.level != 0:
+                # src = torch.arange(N).repeat(N, 1).t().contiguous()  # todas as origens
+                # dst = torch.arange(N).repeat(N, 1).contiguous()      # todos os destinos
+                # edge_index = torch.stack([src.flatten(), dst.flatten()], dim=0).to(x.device)
+
+                edge_index = torch.tensor(edge_index[self.level], dtype=torch.long)
+                edge_index_expanded = edge_index.unsqueeze(0).repeat(2, 1, 1).to(x.device)
+                
+                x = self.gat_layer(x, edge_index_expanded)
+                x = F.relu(x)
 
         # =====================================================
         # Attention MLP
@@ -213,12 +230,11 @@ class BuildClassification(nn.Module):
 
             att = self.softmax(Q @ K.T)
             x = att @ V
-            return self.mlp(x)
 
         # =====================================================
         # Pure MLP
         # =====================================================
-        return self.mlp(x)
+        return self.mpl(x)
 
 
 

@@ -120,7 +120,8 @@ def train_step(args):
         for inputs, targets, _ in args.train_loader:
             inputs = inputs.to(args.device)
             targets = [target.to(args.device) for target in targets]
-            outputs = args.model(inputs.float(), edge_index=args.hmc_dataset.edge_index)
+
+            outputs = args.model(inputs.float())
 
             for level, optimizer in enumerate(args.optimizers):
                 if args.level_active[level]:

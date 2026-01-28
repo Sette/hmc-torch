@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from hmc.models.base import HierarchicalModel
-from hmc.models.local_classifier.networks import ClassificationNetwork
+from hmc.models.local_classifier.networks import ClassificationNetwork, BuildClassification
 
 # ============================================================================
 # CHILD CLASS 1 - Local Classification Model
@@ -35,6 +35,7 @@ class HMCLocalModel(HierarchicalModel):
         gcn: bool = False,
         gat: bool = False,
         num_heads: int = 1,
+        edges_index=None,
     ):
         """
         Initialize local classification model.
@@ -60,6 +61,7 @@ class HMCLocalModel(HierarchicalModel):
         self.gcn = gcn
         self.gat = gat
         self.num_heads = num_heads
+        self.edges_index = edges_index
 
         # Set defaults
         if num_layers is None:
@@ -83,7 +85,7 @@ class HMCLocalModel(HierarchicalModel):
             current_input_size = self.input_size
 
             # Create classification network
-            self.levels[str(index)] = ClassificationNetwork(
+            self.levels[str(index)] = BuildClassification(
                 input_size=current_input_size,
                 hidden_dims=self.hidden_dims[index],
                 output_size=self.levels_size[index],
@@ -93,6 +95,7 @@ class HMCLocalModel(HierarchicalModel):
                 gcn=self.gcn,
                 gat=self.gat,
                 num_heads=self.num_heads,
+                level=index,
             )
 
             logging.debug(
@@ -103,7 +106,6 @@ class HMCLocalModel(HierarchicalModel):
     def forward(
             self, 
             x: torch.Tensor, 
-            edge_index=None,
             ) -> Dict[int, torch.Tensor]:
         """
         Forward pass with optional residual connections.
@@ -132,7 +134,7 @@ class HMCLocalModel(HierarchicalModel):
                 current_input = torch.cat((x, previous_output_binary), dim=1)
 
             # Forward through level
-            level_output = level_module(current_input, edge_index=edge_index)
+            level_output = level_module(current_input, edge_index=self.edges_index)
             outputs[level_idx] = level_output
 
         return outputs
