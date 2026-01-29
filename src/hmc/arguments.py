@@ -25,7 +25,7 @@ def get_parser():
     parser.add_argument(
         "--job_id",
         type=str,
-        default=None,
+        default="none",
         required=False,
         help="Job id for trainer job.",
     )
@@ -228,13 +228,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--model_regularization",
+        "--parent_conditioning",
         type=str,
         default="false",
-        choices=["residual", "soft", "false"],
-        metavar="MODEL_REGULARIZATION",
+        choices=["residual", "soft", "teacher_forcing", "none"],
+        metavar="PARENT_CONDITIONING",
         required=False,
-        help="Select or disable model regularization. \
+        help="Select or disable parent conditioning. \
             Use 'residual' or 'soft' to enable and 'false' to disable.",
     )
 

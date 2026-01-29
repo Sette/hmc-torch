@@ -4,7 +4,6 @@ import os
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.utils.dataset.labels import get_probs_ancestral_descendent
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )

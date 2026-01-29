@@ -56,7 +56,7 @@ class HMCDatasetManager:
             self.levels_size,
             self.nodes_idx,
             self.local_nodes_idx,
-            self.edges_matrix_dict,
+            self.edge_index,
             self.all_matrix_r,
         ) = (
             {},
@@ -176,7 +176,7 @@ class HMCDatasetManager:
         # Compute the list with local matrix of ancestors R, named matrix_r
         # Given n classes, R is an (n x n) matrix where R_ij = 1 \
         # if class i is ancestor of class j
-        for idx, edges_matrix in self.edges_matrix_dict.items():
+        for idx, edges_matrix in self.edge_index.items():
             matrix_r = self.compute_matrix_R(edges_matrix)
             logger.info(
                 "Computed matrix R for level %d with shape %s", idx, matrix_r.shape
@@ -267,7 +267,7 @@ class HMCDatasetManager:
         logger.info("Loading dataset from %s", self.test_file)
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
         self.A = self.train.A
-        self.edges_matrix_dict = self.train.edges_matrix_dict
+        self.edge_index = self.train.edge_index
         # self.R = self.compute_matrix_R(self.A)
         # self.compute_matrix_R_local()
         self.to_eval = self.train.to_eval

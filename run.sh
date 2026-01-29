@@ -5,7 +5,7 @@ export CUDA_LAUNCH_BLOCKING=1
 
 # Lista de datasets
 
-DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO seq_GO spo_GO cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN spo_FUN"
+DATASETS="cellcycle_GO derisi_GO eisen_GO expr_GO gasch1_GO gasch2_GO spo_GO seq_GO seq_FUN cellcycle_FUN derisi_FUN eisen_FUN expr_FUN gasch1_FUN gasch2_FUN spo_FUN"
 DATASET_PATH="./data"
 BATCH_SIZE=64
 NON_LIN="relu"
@@ -18,10 +18,10 @@ SEED=0
 DATASET_TYPE="arff"
 HPO="false"
 N_TRIALS=30
-JOB_ID="false"
+JOB_ID="none" 
 USE_SAMPLE="false"
 SAVE_TORCH_DATASET="false"
-MODEL_REGULARIZATION="false"
+PARENT_CONDITIONING="none"
 LEVEL_MODEL_TYPE="mlp"
 WARM_UP="false"
 N_WARMUP_EPOCHS=50
@@ -61,7 +61,7 @@ usage() {
     echo "  --method <method>         Training method (default: $METHOD)"
     echo "  --hpo <true/false>        Hyperparameter optimization (default: $HPO)"
     echo "  --active_levels <num>     Number of active levels"
-    echo "  --model_regularization <type> Model regularization (default: $MODEL_REGULARIZATION)"
+    echo "  --parent_conditioning <type> Parent conditioning (default: $PARENT_CONDITIONING)"
     echo "  --level_model_type <type> Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
         'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network). (default: $LEVEL_MODEL_TYPE)"
     echo "  --warmup <true/false>     Enable learning rate warmup (default: $WARM_UP)"
@@ -97,7 +97,7 @@ while [ "$#" -gt 0 ]; do
         --hpo) HPO="$2"; shift ;;
         --active_levels) ACTIVE_LEVELS=($2); shift ;;
         --epochs_to_evaluate) EPOCHS_TO_EVALUATE="$2"; shift ;;
-        --model_regularization) MODEL_REGULARIZATION="$2"; shift ;;
+        --parent_conditioning) PARENT_CONDITIONING="$2"; shift ;;
         --level_model_type) LEVEL_MODEL_TYPE="$2"; shift ;;
         --warmup) WARM_UP="$2"; shift ;;
         --n_warmup_epochs) N_WARMUP_EPOCHS="$2"; shift ;;
@@ -128,7 +128,7 @@ cmd="python -m hmc.main \
                 --warmup $WARM_UP \
                 --n_warmup_epochs $N_WARMUP_EPOCHS \
                 --n_warmup_epochs_increment $N_WARMUP_EPOCHS_INCREMENT \
-                --model_regularization $MODEL_REGULARIZATION \
+                --parent_conditioning $PARENT_CONDITIONING \
                 --level_model_type $LEVEL_MODEL_TYPE \
                 --n_trials $N_TRIALS" \
 

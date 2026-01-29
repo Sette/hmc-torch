@@ -24,6 +24,11 @@ class ClassificationNetwork(nn.Module):
         output_size: int,
         num_layers: int = 2,
         dropout: float = 0.0,
+        attention: bool = False,
+        gcn: bool = False,
+        gat: bool = False,
+        num_heads: int = 1,
+        level: int = 0,
     ):
         """
         Initialize classification network.
@@ -36,16 +41,39 @@ class ClassificationNetwork(nn.Module):
             dropout: Dropout probability
         """
         super(ClassificationNetwork, self).__init__()
+        self.attention = attention
+        self.gcn = gcn
+        self.gat = gat
+        self.level = level
+        self.num_heads = num_heads
 
         layers = []
         current_size = input_size
+        
+        # ============================================
+        # 3. GCNConv (real, PyG)
+        # ============================================
+        if self.gcn:
+            # 1 camada GCN antes da MLP
+            layers.append(GCNConv(current_size, current_size))
+            
+        if self.gat:
+            layers.append(GATConv(
+                in_channels=current_size,
+                out_channels=current_size // num_heads,
+                heads=num_heads,
+                concat=True,
+            ))
+
+        if self.attention:
+            layers.append(LocalLevelAttentionBlock(input_dim=current_size, attn_dim=512, num_heads=4))
 
         # Build hidden layers
         for i in range(num_layers):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-
+        
             layers.append(nn.Linear(current_size, hidden_size))
             layers.append(nn.ReLU())
 
@@ -62,6 +90,7 @@ class ClassificationNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network."""
+        
         return self.network(x)
 
 
@@ -82,41 +111,43 @@ class BuildClassification(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.0,
         attention: bool = False,
-        gcnconv: bool = False,
-        gatconv: bool = False,
+        gcn: bool = False,
+        gat: bool = False,
         num_heads: int = 1,
+        level: int = 0,
     ):
         super().__init__()
 
         self.attention = attention
-        self.gcn = gcnconv
-        self.gat = gatconv
+        self.gcn = gcn
+        self.gat = gat
         self.num_heads = num_heads
+        self.level = level
+        layers = []
+        current_size = input_size
 
         # ============================================
         # 1. BACKBONE MLP (sempre presente)
         # ============================================
-        mlp_layers = []
-        current_size = input_size
-
         # Build hidden layers
         for i in range(num_layers):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-
-            mlp_layers.append(nn.Linear(current_size, hidden_size))
-            mlp_layers.append(nn.ReLU())
+        
+            layers.append(nn.Linear(current_size, hidden_size))
+            layers.append(nn.ReLU())
 
             if dropout > 0:
-                mlp_layers.append(nn.Dropout(dropout))
+                layers.append(nn.Dropout(dropout))
 
             current_size = hidden_size
 
-        mlp_layers.append(nn.Linear(current_size, output_size))
-        mlp_layers.append(nn.Sigmoid())
+        # Output layer
+        layers.append(nn.Linear(current_size, output_size))
+        layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
-        self.mlp = nn.Sequential(*mlp_layers)
+        self.mpl = nn.Sequential(*layers)
 
         # ============================================
         # 2. Attention MLP (opcional)
@@ -164,19 +195,30 @@ class BuildClassification(nn.Module):
         if self.gcn:
             if edge_index is None:
                 raise ValueError("edge_index must be provided for GCNConv")
-            x = self.gcn_layer(x, edge_index)
-            x = F.relu(x)
-            return self.mlp(x)
-
+            if self.level != 0:
+                local_edge_index = edge_index[self.level]
+                
+                local_edge_index = torch.tensor(edge_index[self.level])
+                
+                x = self.gcn_layer(x, local_edge_index)
+                x = F.relu(x)
+            
         # =====================================================
         # GATConv
         # =====================================================
         if self.gat:
             if edge_index is None:
                 raise ValueError("edge_index must be provided for GATConv")
-            x = self.gat_layer(x, edge_index)
-            x = F.relu(x)
-            return self.mlp(x)
+            if self.level != 0:
+                # src = torch.arange(N).repeat(N, 1).t().contiguous()  # todas as origens
+                # dst = torch.arange(N).repeat(N, 1).contiguous()      # todos os destinos
+                # edge_index = torch.stack([src.flatten(), dst.flatten()], dim=0).to(x.device)
+
+                edge_index = torch.tensor(edge_index[self.level], dtype=torch.long)
+                edge_index_expanded = edge_index.unsqueeze(0).repeat(2, 1, 1).to(x.device)
+                
+                x = self.gat_layer(x, edge_index_expanded)
+                x = F.relu(x)
 
         # =====================================================
         # Attention MLP
@@ -188,9 +230,73 @@ class BuildClassification(nn.Module):
 
             att = self.softmax(Q @ K.T)
             x = att @ V
-            return self.mlp(x)
 
         # =====================================================
         # Pure MLP
         # =====================================================
-        return self.mlp(x)
+        return self.mpl(x)
+
+
+
+class LocalLevelAttentionBlock(nn.Module):
+    def __init__(self, input_dim, attn_dim=256, num_heads=4):
+        """
+        Local Attention Block for a single hierarchy level.
+        - input_dim: dimension of incoming embedding (ex: 529)
+        - attn_dim: internal projected dimension (must be divisible by num_heads)
+        - num_heads: number of attention heads
+        """
+        super().__init__()
+
+        # Ensure attn_dim is valid
+        if attn_dim % num_heads != 0:
+            raise ValueError(f"attn_dim ({attn_dim}) must be divisible by num_heads ({num_heads})")
+
+        # Project input_dim → attn_dim
+        self.proj_in = nn.Linear(input_dim, attn_dim)
+
+        # Local multi-head attention (per-level)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=attn_dim,
+            num_heads=num_heads,
+            batch_first=True
+        )
+
+        # Normalize after attention
+        self.norm1 = nn.LayerNorm(attn_dim)
+
+        # Feed-forward block (transformer-like)
+        self.ffn = nn.Sequential(
+            nn.Linear(attn_dim, attn_dim * 2),
+            nn.ReLU(),
+            nn.Linear(attn_dim * 2, attn_dim)
+        )
+
+        self.norm2 = nn.LayerNorm(attn_dim)
+
+        # Project back to original dim → keeps compatibilidade
+        self.proj_out = nn.Linear(attn_dim, input_dim)
+
+    def forward(self, x):
+        """
+        x shape expected: (batch, features)  → convert to sequence length = 1
+        """
+        # Reshape: (B, F) → (B, 1, F)
+        x = x.unsqueeze(1)
+
+        # Project to attention dimension
+        h = self.proj_in(x)
+
+        # Apply local self-attention
+        attn_output, _ = self.attn(h, h, h)
+        h = self.norm1(h + attn_output)
+
+        # FFN
+        ffn_output = self.ffn(h)
+        h = self.norm2(h + ffn_output)
+
+        # Project back to original dim
+        h = self.proj_out(h)
+
+        # Remove sequence dimension: (B, 1, F) → (B, F)
+        return h.squeeze(1)

@@ -29,7 +29,7 @@ from hmc.utils.train.job import (
     end_timer,
     start_timer,
 )
-from hmc.utils.train.losses import calculate_local_loss
+from hmc.utils.train.losses import calculate_hierarchical_local_loss
 
 
 def train_step(args):
@@ -98,14 +98,12 @@ def train_step(args):
     args.model.train()
 
     # args.r = args.hmc_dataset.R.to(args.device)
-    if args.warmup or (
-        args.model_regularization == "soft" or args.model_regularization == "residual"
-    ):
+    if args.warmup:
         args.level_active = [False] * len(args.level_active)
         args.level_active[0] = True
         next_level = 1
         logging.info(
-            "Using soft regularization with %d warm-up epochs", args.n_warmup_epochs
+            "Using %s with %d warm-up epochs", args.parent_conditioning, args.n_warmup_epochs
         )
     else:
         next_level = len(args.active_levels)
@@ -122,6 +120,7 @@ def train_step(args):
         for inputs, targets, _ in args.train_loader:
             inputs = inputs.to(args.device)
             targets = [target.to(args.device) for target in targets]
+
             outputs = args.model(inputs.float())
 
             for level, optimizer in enumerate(args.optimizers):
@@ -133,10 +132,12 @@ def train_step(args):
             for level in args.active_levels:
                 if args.level_active[level]:
                     args.current_level = level
-                    loss = calculate_local_loss(
+                    loss = calculate_hierarchical_local_loss(
                         outputs[level],
                         targets[level],
-                        args,
+                        outputs[level - 1] if level > 0 else None,
+                        matrix_r=args.hmc_dataset.edge_index[level] if level > 0 else None,
+                        args=args,
                     )
 
                     local_train_losses[level] += loss.item()
