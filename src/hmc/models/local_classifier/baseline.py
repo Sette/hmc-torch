@@ -6,7 +6,58 @@ import torch
 import torch.nn as nn
 
 from hmc.models.base import HierarchicalModel
-from hmc.models.local_classifier.networks import ClassificationNetwork, BuildClassification
+from hmc.models.local_classifier.networks import BuildClassification
+
+
+class EncoderBlock(nn.Module):
+    """Encoder block with multi-head self-attention and a feed-forward sublayer.
+
+    This block follows the Transformer-style residual pattern:
+    1) Multi-head self-attention + dropout + residual + layer norm
+    2) Feed-forward network + dropout + residual + layer norm
+
+    Args:
+        embed_dim: Dimensionality of input embeddings.
+        num_heads: Number of attention heads.
+        ff_dim: Inner dimension of the feed-forward network.
+        dropout: Dropout probability applied after attention and in FFN.
+
+    Forward shapes:
+        x: (batch_size, seq_len, embed_dim)
+        key_padding_mask: optional mask of shape (batch_size, seq_len) with True for padded positions
+        attn_mask: optional attention mask (seq_len, seq_len) or (batch_size, seq_len, seq_len)
+
+    Returns:
+        Tensor of shape (batch_size, seq_len, embed_dim)
+    """
+
+    def __init__(self, embed_dim: int, num_heads: int, ff_dim: int = 1024, dropout: float = 0.1):
+        super().__init__()
+        # batch_first=True: inputs are (batch, seq, embed_dim)
+        self.mha = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.ff = nn.Sequential(
+            nn.Linear(embed_dim, ff_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(ff_dim, embed_dim),
+        )
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Run the encoder block.
+
+        Note: key_padding_mask uses True for positions that should be ignored (padded).
+        """
+        # Self-attention residual
+        attn_out, _ = self.mha(x, x, x, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+        x = self.norm1(x + self.dropout(attn_out))
+        # Feed-forward residual
+        ff_out = self.ff(x)
+        x = self.norm2(x + self.dropout(ff_out))
+        return x
+
 
 # ============================================================================
 # CHILD CLASS 1 - Local Classification Model
