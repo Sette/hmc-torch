@@ -162,14 +162,3 @@ To deploy the project locally, you only need to run the deployment script, as it
     ```bash
     ./deploy_local cpu
     ```
-
-By following these instructions, the deployment script will handle the setup process, including dependency installation and environment configuration, based on your hardware preferences.
-
-
-## Commit History
-The project has a total of 8 commits, with the latest updates made on August 25, 2024. Notable commits include:
-- **Remove main func in train file**: Simplified the training process.
-- **Update project**: General updates across various files.
-
-## Conclusion
-The HMC Torch project is structured to facilitate the development and implementation of hierarchical multi-label classification models using PyTorch. The recent updates have streamlined the codebase and improved project organization.

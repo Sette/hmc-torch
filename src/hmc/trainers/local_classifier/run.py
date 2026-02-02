@@ -92,7 +92,6 @@ def get_train_methods(x):
                 "test_step": test_step_core,
                 "train_step": train_step_core,
             }
-
         case _:
             raise ValueError(f"Método '{x}' não reconhecido.")
 
