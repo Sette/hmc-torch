@@ -1,4 +1,3 @@
-import datetime
 import json
 import os
 
@@ -29,11 +28,3 @@ def join_path(path, file):
         return "{}{}".format(path, file)
     else:
         return "{}/{}".format(path, file)
-
-
-def create_job_id():
-    # Obtém a data e hora atual
-    now = datetime.datetime.now()
-    # Formata a data e hora no formato YYYYMMDD_HHMMSS
-    job_id = now.strftime("%Y%m%d_%H%M%S")
-    return job_id

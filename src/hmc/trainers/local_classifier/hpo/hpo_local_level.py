@@ -3,42 +3,22 @@ import sys
 
 import optuna
 import torch
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.models.local_classifier.baseline_old.model import HMCLocalModel
+from hmc.models.local_classifier.baseline import HMCLocalModel
 
-
-from hmc.utils.train.job import (
-    create_job_id_name,
-)
-
-from hmc.utils.path.output import (
-    save_dict_to_json,
-)
-
+# from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 from hmc.utils.dataset.labels import (
-    show_global_loss,
     show_local_losses,
 )
-
-
 from hmc.utils.path.dir import create_dir
-
-
-def check_metrics(metric, best_metric, metric_type="loss"):
-    if metric_type == "loss":
-        if metric < best_metric:
-            return True
-        else:
-            return False
-    elif metric_type == "f1":
-        if metric > best_metric:
-            return True
-        else:
-            return False
-    else:
-        return False
+from hmc.utils.path.output import save_dict_to_json
+from hmc.utils.train.early_stopping import (
+    check_early_stopping_normalized,
+)
+from hmc.utils.train.job import create_job_id_name
+from hmc.utils.train.losses import calculate_local_loss
 
 
 def optimize_hyperparameters(args):
@@ -117,23 +97,57 @@ def optimize_hyperparameters(args):
                 pruned early based on intermediate results.
         """
 
-        logging.info("Tentativa número: %d", trial.number)
-        hidden_dim = trial.suggest_int("hidden_dim_level_%s" % level, 64, 512, log=True)
-        dropout = trial.suggest_float("dropout_level_%s" % level, 0.3, 0.8, log=True)
-        num_layers = trial.suggest_int("num_layers_level_%s" % level, 1, 3, log=True)
+        logging.info("Trial number: %d", trial.number)
+
+        dropout = trial.suggest_float(f"dropout_level_{level}", 0.3, 0.8, log=True)
         weight_decay = trial.suggest_float(
-            "weight_decay_level_%s" % level, 1e-6, 1e-2, log=True
+            f"weight_decay_level_{level}", 1e-6, 1e-2, log=True
         )
-        lr = trial.suggest_float("lr_level_%s" % level, 1e-6, 1e-3, log=True)
-        args.active_levels = [level]
+        lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
+        num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
+
+        hidden_dims_all = {level: []}
+        dropouts = {level: dropout}
+        num_layers_values = {level: num_layers}
+
+        for i in range(num_layers):
+            if i == 0:
+                dim = trial.suggest_int(
+                    f"hidden_dim_level_{level}_layer_{i}",
+                    args.input_size,
+                    args.input_size * 4,
+                    log=True,
+                )
+            else:
+                dim = trial.suggest_int(
+                    f"hidden_dim_level_{level}_layer_{i}",
+                    args.levels_size[level],
+                    args.levels_size[level] * 4,
+                    log=True,
+                )
+
+            hidden_dims_all[level].append(dim)
+
+        args.level_active = [i == level for i in range(args.max_depth)]
+        args.current_level = level
+
+        print(f"Level active status: {args.level_active}")
+
+        args.local_val_scores = {
+            level: None for _, level in enumerate(args.active_levels)
+        }
+
+        args.local_val_losses = [0.0] * args.max_depth
 
         params = {
             "levels_size": args.levels_size,
-            "input_size": args.input_dims[args.data],
-            "hidden_size": hidden_dim,
-            "num_layers": num_layers,
-            "dropout": dropout,
-            "active_levels": args.active_levels,
+            "input_size": args.input_size,
+            "hidden_dims": hidden_dims_all,
+            "num_layers": num_layers_values,
+            "dropouts": dropouts,
+            "active_levels": [level],
+            "results_path": args.results_path,
+            "residual": args.parent_conditioning == "residual",
         }
 
         args.model = HMCLocalModel(**params).to(args.device)
@@ -146,29 +160,28 @@ def optimize_hyperparameters(args):
         args.optimizer = optimizer
 
         args.model = args.model.to(args.device)
-        args.criterions = [criterion.to(args.device) for criterion in args.criterions]
-        args.level_active = [
-            level in args.active_levels for level in range(args.max_depth)
-        ]
-        patience = args.patience if args.patience is not None else 3
-        patience_counter = 0
-        args.early_stopping_patience = patience
-        args.patience_counters = [0] * args.hmc_dataset.max_depth
 
-        args.best_val_loss = float("inf")
-        args.best_val_loss = [float("inf") for _ in range(args.max_depth)]
+        for criterion in args.criterions:
+            criterion.to(args.device)
+
+        args.model.train()
+
+        args.best_val_loss = [float("inf")] * args.max_depth
         args.best_val_score = [0.0] * args.max_depth
+        args.best_model = [None] * args.max_depth
 
-        logging.info("Levels to evaluate: %s", args.active_levels)
+        args.early_stopping_patience = args.patience
+        args.early_stopping_patience_score = args.patience_score
+        args.patience_counters = [0] * args.hmc_dataset.max_depth
+        args.patience_counters_score = [0] * args.hmc_dataset.max_depth
 
         for epoch in range(1, args.epochs + 1):
-            args.model.train()
+            args.epoch = epoch
             local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-            for inputs, targets, _ in args.train_loader:
 
-                inputs, targets = inputs.to(args.device), [
-                    target.to(args.device) for target in targets
-                ]
+            for inputs, targets, _ in args.train_loader:
+                inputs = inputs.to(args.device)
+                targets = [target.to(args.device) for target in targets]
                 outputs = args.model(inputs.float())
 
                 # Zerar os gradientes antes de cada batch
@@ -176,125 +189,121 @@ def optimize_hyperparameters(args):
 
                 total_loss = 0.0
 
-                for index in args.active_levels:
-                    if args.level_active[index]:
-                        output = outputs[index]  # Preferencialmente float32
-                        target = targets[index]
-                        loss = args.criterions[index](output.double(), target)
-                        local_train_losses[
-                            index
-                        ] += loss.item()  # Acumula média por batch
-                        total_loss += loss  # Soma da loss para backward
+                args.current_level = level
+                loss = calculate_local_loss(
+                    outputs[level],
+                    targets[level],
+                    args,
+                )
+
+                local_train_losses[level] += loss.item()  # Acumula média por batch
+                total_loss += loss  # Soma da loss para backward
 
                 # Após terminar loop dos níveis, execute backward
                 total_loss.backward()
                 args.optimizer.step()
 
-            local_train_losses = [
-                loss / len(args.train_loader) for loss in local_train_losses
-            ]
-            non_zero_losses = [loss for loss in local_train_losses if loss > 0]
-            global_train_loss = (
-                sum(non_zero_losses) / len(non_zero_losses) if non_zero_losses else 0
+            local_train_losses[level] = local_train_losses[level] / len(
+                args.train_loader
             )
-
             logging.info("Trial %d - Epoch %d/%d", trial.number, epoch, args.epochs)
             show_local_losses(local_train_losses, dataset=f"Train n {trial.number}")
-            show_global_loss(global_train_loss, dataset=f"Train n {trial.number}")
 
             if epoch % args.epochs_to_evaluate == 0:
-                metric, best_metric = 0, 0
-                val_loss, val_f1 = val_optimizer(args, level)
-                if args.early_metric == "loss":
-                    metric = round(val_loss.item(), 4)
-                    best_metric = args.best_val_loss[level]
-                elif args.early_metric == "f1":
-                    metric = val_f1
-                    best_metric = args.best_val_score[level]
-
-                if check_metrics(metric, best_metric, metric_type=args.early_metric):
-                    patience_counter = 0
-                    args.best_val_score[level] = val_f1
-                    args.best_val_loss[level] = val_loss
-                else:
-                    patience_counter += 1
-
-                if patience_counter >= patience:
-                    logging.info(
-                        "Early stopping triggered for trial %d at epoch %d.",
-                        trial.number,
-                        epoch,
-                    )
-                    break
+                args.epoch = epoch
+                val_optimizer(args)
 
                 if not any(args.level_active):
                     logging.info("All levels have triggered early stopping.")
-                    # Reporta o valor de validação para Optuna
                     break
 
                 # Reporta o valor de validação para Optuna
-                trial.report(metric, step=epoch)
+                trial.report(args.local_val_scores[level], step=epoch)
 
                 logging.info(
-                    "Trial %d Local validation loss: %f F1: %f",
+                    "Trial %d Local validation loss: %f %s: %f",
                     trial.number,
+                    args.local_val_losses[level],
+                    args.early_metric,
+                    args.local_val_scores[level],
+                )
+
+                logging.info(
+                    "Local best validation loss: %f %s: %f",
                     args.best_val_loss[level],
+                    args.early_metric,
                     args.best_val_score[level],
                 )
 
                 # Early stopping (pruning)
                 if trial.should_prune():
                     raise optuna.TrialPruned()
-        return total_loss.item()
+        return args.local_val_scores[level]
 
-    best_params_per_level = {}
+    args.job_id = create_job_id_name(prefix="hpo")
 
-    create_dir("results/hpo")
-    # Add stream handler of stdout to show the messages
+    args.results_path = (
+        f"{args.output_path}/hpo/{args.method}/{args.dataset_name}/{args.job_id}"
+    )
+
+    args.best_params_per_level = {}
+
+    args.input_size = args.input_dims[args.data]
+
+    create_dir(args.results_path)
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
-    if args.active_levels is None:
-        args.active_levels = list(args.max_depth)
-        logging.info("Active levels: %s", args.active_levels)
-    else:
-        args.active_levels = [int(x) for x in args.active_levels]
-        logging.info("Active levels: %s", args.active_levels)
-
+    sampler = optuna.samplers.TPESampler(seed=args.seed)
+    level = 0
     for level in args.active_levels:
-        study = optuna.create_study()
+        study = optuna.create_study(direction="maximize", sampler=sampler)
         study.optimize(
-            lambda trial: objective(trial, level),
+            lambda trial: objective(
+                trial,
+                level,
+            ),
             n_trials=args.n_trials,
         )
 
         logging.info("Best hyperparameters for level %d: %s", level, study.best_params)
+
+        num_layers = study.best_params[f"num_layers_level_{level}"]
+
+        hidden_dims = [
+            study.best_params[f"hidden_dim_level_{level}_layer_{i}"]
+            for i in range(num_layers)
+        ]
+
         level_parameters = {
-            "hidden_dim": study.best_params[f"hidden_dim_level_{level}"],
+            "hidden_dims": hidden_dims,
             "dropout": study.best_params[f"dropout_level_{level}"],
-            "num_layers": study.best_params[f"num_layers_level_{level}"],
+            "num_layers": num_layers,
             "weight_decay": study.best_params[f"weight_decay_level_{level}"],
             "lr": study.best_params[f"lr_level_{level}"],
         }
 
-        best_params_per_level[level] = level_parameters
+        args.best_params_per_level[level] = level_parameters
+
+        save_dict_to_json(
+            level_parameters,
+            f"{args.results_path}/best_params_{args.dataset_name}-{level}.json",
+        )
 
         logging.info(
             "✅ Best hyperparameters for level %s: %s", level, study.best_params
         )
 
-    best_params_per_level["global"] = {}
-
-    job_id = create_job_id_name(prefix="hpo")
-
     save_dict_to_json(
-        best_params_per_level,
-        f"results/hpo/best_params_{args.dataset_name}-{job_id}.json",
+        args.best_params_per_level,
+        f"{args.results_path}/best_params_{args.dataset_name}.json",
     )
 
-    return best_params_per_level
+    args.score = None
+
+    return args.best_params_per_level
 
 
-def val_optimizer(args, level):
+def val_optimizer(args):
     """
     Evaluates the model on the validation set and computes the average \
         loss and average precision score.
@@ -313,114 +322,85 @@ def val_optimizer(args, level):
     """
 
     args.model.eval()
-    local_val_losses = [0.0] * args.max_depth
 
     local_inputs = {level: [] for _, level in enumerate(args.active_levels)}
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     # Get local scores
-    local_val_score = {level: None for _, level in enumerate(args.active_levels)}
     threshold = 0.2
 
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
-            if torch.cuda.is_available():
-                inputs, targets = inputs.to(args.device), [
-                    target.to(args.device) for target in targets
-                ]
+            inputs, targets = inputs.to(args.device), [
+                target.to(args.device) for target in targets
+            ]
             outputs = args.model(inputs.float())
 
             total_loss = 0.0
 
-            for index in args.active_levels:
-                if not args.level_active[index]:
-                    continue  # Pula se não estiver ativo
-                output = outputs[index]
-                target = targets[index]
-                loss = args.criterions[index](output.double(), target)
-                local_val_losses[index] += loss.item()
+            if args.level_active[args.current_level]:
+                loss = calculate_local_loss(
+                    outputs[args.current_level],
+                    targets[args.current_level],
+                    args,
+                )
+                args.local_val_losses[args.current_level] += loss.item()
                 total_loss += loss
 
-                # *** Para métricas e concatenação ***
-                # Se quiser outputs binários para avaliação:
-                binary_outputs = (output > threshold).float()
+                if i == 0:  # First iteration: initialize tensor
+                    local_outputs[args.current_level] = outputs[args.current_level]
+                    local_inputs[args.current_level] = targets[args.current_level]
 
-                # Acumulação de outputs e targets para métricas
-                if i == 0:  # Primeira iteração: inicia tensor
-                    local_outputs[index] = binary_outputs
-                    local_inputs[index] = target
-                else:  # Nas seguintes, empilha ao longo do batch
-                    local_outputs[index] = torch.cat(
-                        (local_outputs[index], binary_outputs), dim=0
+                else:  # In subsequent iterations, concatenate along batch dimension
+                    local_outputs[args.current_level] = torch.cat(
+                        (
+                            local_outputs[args.current_level],
+                            outputs[args.current_level],
+                        ),
+                        dim=0,
                     )
-                    local_inputs[index] = torch.cat(
-                        (local_inputs[index], target), dim=0
+                    local_inputs[args.current_level] = torch.cat(
+                        (local_inputs[args.current_level], targets[args.current_level]),
+                        dim=0,
                     )
 
-    for idx in args.active_levels:
-        if args.level_active[idx]:
-            y_pred = local_outputs[idx].to("cpu").int().numpy()
-            y_true = local_inputs[idx].to("cpu").int().numpy()
+    print(f"Evaluating level {args.current_level}...")
+    y_pred = local_outputs[args.current_level].to("cpu").numpy()
+    y_true = local_inputs[args.current_level].to("cpu").int().numpy()
+    y_pred_binary = y_pred > threshold
 
-            score = precision_recall_fscore_support(
-                y_true, y_pred, average="micro", zero_division=0
-            )
-            # local_val_score[idx] = score
-            logging.info(
-                "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f",
-                idx,
-                score[0],
-                score[1],
-                score[2],
-            )
+    score = precision_recall_fscore_support(
+        y_true,
+        y_pred_binary,
+        average="micro",
+        zero_division=0,
+    )
 
-            local_val_score[idx] = score[2]
+    avg_score = average_precision_score(
+        y_true,
+        y_pred,
+        average="micro",
+    )
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}"
-    create_dir(results_path)
+    logging.info(
+        "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
+        args.current_level,
+        score[0],
+        score[1],
+        score[2],
+        avg_score,
+    )
+    print(args.early_metric)
+    if args.early_metric == "f1-score":
+        print("Using f1-score for early stopping...")
+        args.local_val_scores[args.current_level] = score[2]
+    elif args.early_metric == "avg-score":
+        args.local_val_scores[args.current_level] = avg_score
 
-    local_val_losses = [loss / len(args.val_loader) for loss in local_val_losses]
-    logging.info("Levels to evaluate: %s", args.active_levels)
-    for i in args.active_levels:
-        metric, best_metric = 0, 0
-        if args.level_active[i]:
-            if args.early_metric == "loss":
-                metric = round(local_val_losses[i], 4)
-                best_metric = args.best_val_loss[i]
-            elif args.early_metric == "f1":
-                metric = round(local_val_score[i], 4)
-                best_metric = args.best_val_score[i]
-            if check_metrics(metric, best_metric, metric_type=args.early_metric):
-                # Atualizar o melhor modelo e as melhores métricas
-                args.best_val_loss[i] = round(local_val_losses[i], 4)
-                args.best_val_score[i] = round(local_val_score[i], 4)
-                args.patience_counters[i] = 0
-                logging.info(
-                    "Level %d: improved (F1 score=%.4f)", i, local_val_score[i]
-                )
+    args.local_val_losses = [
+        loss / len(args.val_loader) for loss in args.local_val_losses
+    ]
 
-            else:
-                # Incrementar o contador de paciência
-                args.patience_counters[i] += 1
-                logging.info(
-                    "Level %d: no improvement (patience %d/%d)",
-                    i,
-                    args.patience_counters[i],
-                    args.early_stopping_patience,
-                )
-                if args.patience_counters[i] >= args.early_stopping_patience:
-                    args.level_active[i] = False
-                    # args.active_levels.remove(i)
-                    logging.info(
-                        "🚫 Early stopping triggered for level %d —\
-                            freezing its parameters",
-                        i,
-                    )
-                    # ❄️ Congelar os parâmetros desse nível
-                    for param in args.model.levels[str(i)].parameters():
-                        param.requires_grad = False
-
-    total_loss = total_loss / len(args.val_loader)
-    # logging.info(f"Levels to evaluate: {args.active_levels}")
-
-    return local_val_losses[level], local_val_score[level]
+    check_early_stopping_normalized(
+        args, active_levels=[args.current_level], save_model=True
+    )

@@ -24,6 +24,7 @@ def get_parser():
     parser.add_argument(
         "--job_id",
         type=str,
+        default="none",
         required=False,
         help="Job id for trainer job.",
     )
@@ -81,11 +82,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--best_theshold",
+        "--best_threshold",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
-        metavar="BEST_THESHOLD",
+        metavar="best_threshold",
         required=False,
         help="Enable or disable to use find the best thesholds. \
                         Use 'true' to enable and 'false' to disable.",
@@ -226,13 +227,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--model_regularization",
+        "--parent_conditioning",
         type=str,
         default="false",
-        choices=["residual", "soft", "false"],
-        metavar="MODEL_REGULARIZATION",
+        choices=["residual", "soft", "teacher_forcing", "none"],
+        metavar="PARENT_CONDITIONING",
         required=False,
-        help="Select or disable model regularization. \
+        help="Select or disable parent conditioning. \
             Use 'residual' or 'soft' to enable and 'false' to disable.",
     )
 
@@ -248,8 +249,8 @@ def get_parser():
     parser.add_argument(
         "--early_metric",
         type=str,
-        default="f1-score",
-        choices=["f1-score", "accuracy", "loss"],
+        default="avg-score",
+        choices=["f1-score", "avg-score"],
         metavar="EARLY_METRIC",
         required=False,
         help="Metric to use for early stopping.",
@@ -258,7 +259,7 @@ def get_parser():
     parser.add_argument(
         "--predict_test",
         type=str,
-        default="false",
+        default="true",
         choices=["true", "false"],
         metavar="PREDICT_TEST",
         required=False,

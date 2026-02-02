@@ -1,6 +1,6 @@
 from collections import defaultdict
 from itertools import chain
-
+import torch
 import keras
 import networkx as nx
 import numpy as np
@@ -29,9 +29,10 @@ class HMCDatasetArff:
         (
             self.X,
             self.Y,
+            self.Y_nodes,
             self.Y_local,
             self.A,
-            self.edges_matrix_dict,
+            self.edge_index,
             self.terms,
             self.g,
             self.levels,
@@ -52,6 +53,7 @@ def parse_arff(arff_file, is_go=False):
         read_data = False
         X = []
         Y = []
+        Y_nodes = []
         Y_local = []
         levels_size = defaultdict(int)
         levels = defaultdict(list)
@@ -69,15 +71,15 @@ def parse_arff(arff_file, is_go=False):
                 if l.startswith("@ATTRIBUTE class"):
                     h = l.split("hierarchical")[1].strip()
                     for branch in h.split(","):
-                        terms = branch.split("/")
+                        branch = branch.replace("/", ".")
+                        terms = branch.split(".")
                         all_terms.append(branch)
-                        level = branch.count(
-                            "/"
-                        )  # Count the number of '.' to determine the level
-                        levels[level].append(branch)
+
                         if is_go:
                             g.add_edge(terms[1], terms[0])
                         else:
+                            level = len(terms) - 1
+                            levels[level].append(branch)
                             if len(terms) == 1:
                                 g.add_edge(terms[0], "root")
                             else:
@@ -85,11 +87,6 @@ def parse_arff(arff_file, is_go=False):
                                     g.add_edge(
                                         ".".join(terms[:i]), ".".join(terms[: i - 1])
                                     )
-                    levels_size = {
-                        key: len(set(value)) for key, value in levels.items()
-                    }
-                    print(f"Levels size: {levels_size}")
-                    # print(f'Levels: {levels}')
                     nodes = sorted(
                         g.nodes(),
                         key=lambda x: (
@@ -100,6 +97,24 @@ def parse_arff(arff_file, is_go=False):
                     )
                     nodes_idx = dict(zip(nodes, range(len(nodes))))
                     g_t = g.reverse()
+                    if is_go:
+                        for label in nodes:
+                            if label != "root":
+                                level = (
+                                    nx.shortest_path_length(g_t, "root").get(label) - 1
+                                )
+                                # print(f"Label {label} level {level}")
+                                levels[level].append(label)
+
+                        levels_size = {
+                            key: len(set(value)) for key, value in levels.items()
+                        }
+                    else:
+                        levels_size = {
+                            key: len(set(value)) for key, value in levels.items()
+                        }
+                        max_depth = len(levels_size)
+
                     max_depth = len(levels_size)
                     local_nodes_idx = {
                         idx: dict(zip(level_nodes, range(len(level_nodes))))
@@ -131,6 +146,7 @@ def parse_arff(arff_file, is_go=False):
                 read_data = True
             elif read_data:
                 y_ = np.zeros(len(nodes))
+                y_nodes = []
                 sorted_keys = sorted(levels_size.keys())
                 y_local_ = [np.zeros(levels_size.get(key)) for key in sorted_keys]
                 d_line = l.split("%")[0].strip().split(",")
@@ -148,52 +164,96 @@ def parse_arff(arff_file, is_go=False):
                 )
 
                 for t in lab.split("@"):
-                    y_[
-                        [
-                            nodes_idx.get(a)
-                            for a in nx.ancestors(g_t, t.replace("/", "."))
-                        ]
-                    ] = 1
-                    y_[nodes_idx[t.replace("/", ".")]] = 1
+                    y_node = t.replace("/", ".")
+                    y_nodes.append(y_node)
+                    y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, y_node)]] = 1
+                    y_[nodes_idx[y_node]] = 1
 
-                    depth = t.count("/") + 1
+                    if is_go:
+                        depth = nx.shortest_path_length(g_t, "root").get(y_node) - 1
+                        y_local_[depth][local_nodes_idx[depth].get(y_node)] = 1
+                        for ancestor in nx.ancestors(g_t, y_node):
+                            if ancestor != "root":
+                                depth = (
+                                    nx.shortest_path_length(g_t, "root").get(ancestor)
+                                    - 1
+                                )
+                                y_local_[depth][
+                                    local_nodes_idx[depth].get(ancestor)
+                                ] = 1
 
-                    assert depth is not None
+                    else:
+                        depth = y_node.count(".") + 1
 
-                    for index in range(depth, 0, -1):
-                        local_terms = t.split("/")[:index]
-                        local_label = "/".join(local_terms)
-                        local_depth = local_label.count("/")
+                        assert depth is not None
 
-                        y_local_[local_depth][
-                            local_nodes_idx.get(local_depth).get(local_label)
-                        ] = 1
+                        for index in range(depth, 0, -1):
+                            local_terms = y_node.split(".")[:index]
+                            local_label = ".".join(local_terms)
+                            local_depth = len(local_terms) - 1
+                            y_local_[local_depth][
+                                local_nodes_idx.get(local_depth).get(local_label)
+                            ] = 1
 
                 Y.append(y_)
+                Y_nodes.append(y_nodes)
                 Y_local.append([np.stack(y) for y in y_local_])
         X = np.array(X)
         Y = np.stack(Y)
-        edges_matrix_dict = {}
-        for idx, level_nodes in enumerate(levels.values()):
-            if idx != 0:
-                level_nodes = [node.replace("/", ".") for node in level_nodes]
-                edges_matrix_dict[idx] = np.array(
-                    nx.to_numpy_array(g, nodelist=level_nodes)
-                )
+        level_nodes_list = list(levels.values())
+        edge_index = {}
+        for idx, current_level_nodes in enumerate(level_nodes_list):
+            if idx == 0:
+                # Level 0 has no ancestor; the Constraint Layer starts from level 1.
+                continue
+            # 1. Identify Previous Level (Ancestor) and Current Level (Child)
+            prev_level_nodes = level_nodes_list[idx - 1]
+            # 2. Format node names (adjust for your case with 'replace')
+            # The R_sub matrix should contain all nodes from the previous level (rows)
+            # and all nodes from the current level (columns).
+            # Replace '/' with '.' if necessary (this depends on how your graph 'g' is labeled)
+            ancestral_nodelist = prev_level_nodes
+            child_nodelist = current_level_nodes
+            # 3. Build the N_previous x N_current adjacency matrix
+            # row_order (nodelist): defines the ROWS (Ancestors / Previous Level)
+            # column_order: defines the COLUMNS (Children / Current Level)
+            # nx.to_numpy_array will create the matrix A[i, j] where:
+            # A[i, j] = 1 if there is an edge from row_order[i] to column_order[j]
+            # 2. Criar matriz vazia com o shape CORRETO: (N_Pais, N_Filhos)
+            # Exemplo: Se tem 18 pais e 80 filhos -> Shape (18, 80)
+
+            shape = (len(ancestral_nodelist), len(child_nodelist))
+            matrix = np.zeros(shape, dtype=np.float32)
+            
+            # 3. Preencher a matriz de forma eficiente
+            # Criamos um mapa para achar o índice da coluna (filho) rapidamente
+            child_map = {node: i for i, node in enumerate(child_nodelist)}
+            parent_map = {node: i for i, node in enumerate(ancestral_nodelist)}
+
+            for c_node in child_nodelist:
+                if g.has_node(c_node):
+                    p_node = list(g.successors(c_node))  # Get the parent node
+                    for p in p_node:
+                        a = parent_map.get(p, None)
+                        b = child_map.get(c_node, None)
+                        if a is not None and b is not None:
+                            matrix[a, b] = 1.0          
+            edge_index[idx] = matrix
 
         logger.info(
             "Shape of edges matrix: %s",
-            {k: v.shape for k, v in edges_matrix_dict.items()},
+            {k: v.shape for k, v in edge_index.items()},
         )
         logger.info("Parsed ARFF file: %s", arff_file)
-        logger.info("Number of matrix: %d", len(edges_matrix_dict))
+        logger.info("Number of matrix: %d", len(edge_index))
 
         return (
             X,
             Y,
+            Y_nodes,
             Y_local,
             np.array(nx.to_numpy_array(g, nodelist=nodes)),
-            edges_matrix_dict,
+            edge_index,
             nodes,
             g,
             levels,

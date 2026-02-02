@@ -173,3 +173,6 @@ data/
 /data
 gene-ontology-original.zip
 .continue/
+
+# Uv
+uv.lock

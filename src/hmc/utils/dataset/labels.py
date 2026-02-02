@@ -130,27 +130,25 @@ def local_to_global_predictions(
     threshold=0.2,
 ):
     """
-    Converte previsões de nível local para vetores globais de scores e predições binárias.
+    Converts local-level predictions to global vectors of scores and binary predictions.
 
-    Esta função processa as previsões locais uma única vez e retorna tanto os scores
-    contínuos quanto as predições binarizadas baseadas em um limiar.
-
+    This function processes local predictions and returns both the continuous scores and
+    binarized predictions based on a threshold.
     Args:
-        local_labels (list of np.array): Lista onde cada elemento é um array de shape
-                                         [n_samples, n_classes_at_level], contendo
-                                         os scores locais.
-        local_nodes_idx (dict): Dicionário mapeando nomes de níveis para seus índices de nós locais.
-        nodes_idx (dict): Dicionário mapeando nomes de nós globais para seus índices globais.
-        g_t: Parâmetro não utilizado nesta implementação, mantido para compatibilidade.
-        threshold (float): O limiar a ser usado para converter scores em predições
-                           binárias (0 ou 1). Padrão: 0.5.
+        local_labels (list of np.ndarray): List where each element is an array of shape
+                                           [n_samples, n_classes_at_level] containing
+                                           local scores.
+        local_nodes_idx (dict): Dictionary mapping level names to their local node indices.
+        nodes_idx (dict): Dictionary mapping global node names to their global indices.
+        threshold (float): The threshold to use for converting scores to binary
+                           predictions (0 or 1). Default: 0.2.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: Uma tupla contendo dois arrays:
-            - global_scores (np.ndarray): Matriz de shape [n_samples, n_global_labels]
-                                          com os scores contínuos.
-            - global_binary_preds (np.ndarray): Matriz de shape [n_samples, n_global_labels]
-                                                com as predições binárias (0 ou 1).
+        tuple[np.ndarray, np.ndarray]: A tuple containing two arrays:
+            - global_scores (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+                                          with the continuous scores.
+            - global_binary_preds (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+                                                with the binary predictions (0 or 1).
     """
     if not local_labels:
         return np.array([]), np.array([])
@@ -158,20 +156,20 @@ def local_to_global_predictions(
     n_samples = local_labels[0].shape[0]
     n_global_labels = len(nodes_idx)
 
-    # Inicializa ambas as matrizes de saída
+    # Initialize both output matrices
     global_scores = np.zeros((n_samples, n_global_labels))
     global_binary_preds = np.zeros((n_samples, n_global_labels), dtype=int)
 
-    # Cria um mapeamento reverso de índice local para nome do nó para facilitar a busca
+    # Create a reverse mapping of local index to node name for easier lookup
     sorted_levels = sorted(local_nodes_idx.keys())
     local_nodes_reverse = {
         level: {v: k for k, v in local_nodes_idx[level].items()}
         for level in sorted_levels
     }
 
-    logging.info(f"Processando {n_samples} exemplos com threshold de {threshold}...")
+    logging.info(f"Processing {n_samples} samples with threshold {threshold}...")
 
-    # Itera através de cada nível hierárquico
+    # Iterate through each hierarchical level
     for level_index, level in enumerate(sorted_levels):
         level_preds = local_labels[level_index]
 
@@ -187,20 +185,24 @@ def local_to_global_predictions(
                 global_idx = nodes_idx.get(key)
 
                 if global_idx is None:
-                    continue  # O warning para isso pode ser muito verboso
+                    continue  # Warning for this may be too verbose
 
-                # 1. Atribui o score original à matriz de scores
+                # 1. Assign original score to scores matrix
                 score = sample_scores[local_idx]
+                global_scores[idx_example, global_idx] = score
 
-                # 2. Binariza o score e atribui à matriz de predições binárias
+                # 2. Binarize score and assign to binary predictions matrix
                 if score >= threshold:
                     global_binary_preds[idx_example, global_idx] = 1
-                    global_scores[idx_example, global_idx] = score
 
     return global_scores, global_binary_preds
 
 
-def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
+def global_to_local_predictions(
+    global_preds,
+    local_nodes_idx,
+    nodes_idx,
+):
     """
     Parâmetros:
         global_preds: np.array [n_samples, n_global_labels] \
@@ -228,9 +230,9 @@ def global_to_local_predictions(global_preds, local_nodes_idx, nodes_idx):
             # Quais globais estão ativados neste sample
             active_globals = np.where(global_preds[sample_idx] == 1)[0]
             for global_idx in active_globals:
-                node_name = idx_to_node[global_idx]
+                node_name_local = idx_to_node[global_idx]
                 # Ajustar para nomes locais, se necessário
-                node_name_local = node_name.replace(".", "/")
+                # node_name_local = node_name.replace(".", "/")
                 # Verifica se é nó deste nível
                 if node_name_local in node_to_local_idx:
                     local_idx = node_to_local_idx[node_name_local]

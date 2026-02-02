@@ -32,7 +32,7 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
             "20",
             "--hpo",
             "false",
-            "--datasets",
+            "--dataset_name",
             "seq_FUN",
         ]
 
@@ -47,31 +47,31 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
                 self.assertIn("avg_precision", result)
 
                 self.assertAlmostEqual(
-                    result["f1score"],
-                    0.2357,
+                    round(result["f1score"], 4),
+                    0.3347,
                     places=4,
-                    msg=f"f1-score expected 0.2357, get {result['f1score']}",
+                    msg=f"f1-score expected 0.3347, get {result['f1score']}",
                 )
 
                 self.assertAlmostEqual(
-                    result["avg_precision"],
+                    round(result["avg_precision"], 4),
                     0.2931,
                     places=4,
                     msg=f"avg_precision expected 0.2931, get {result['avg_precision']}",
                 )
 
                 self.assertAlmostEqual(
-                    result["precision"],
-                    0.5534,
+                    round(result["precision"], 4),
+                    0.3512,
                     places=4,
-                    msg=f"precision expected 0.5534, get {result['precision']}",
+                    msg=f"precision expected 0.3512, get {result['precision']}",
                 )
 
                 self.assertAlmostEqual(
-                    result["recall"],
-                    0.1498,
+                    round(result["recall"], 4),
+                    0.3196,
                     places=4,
-                    msg=f"recall expected 0.1498, get {result['recall']}",
+                    msg=f"recall expected 0.3196, get {result['recall']}",
                 )
 
             except SystemExit as e:

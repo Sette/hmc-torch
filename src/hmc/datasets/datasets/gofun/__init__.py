@@ -33,13 +33,16 @@ def get_dataset_paths(dataset_path="./data", dataset_type="arff"):
             "cellcycle_FUN": (
                 False,
                 os.path.join(
-                    dataset_path, "HMC_data_arff/datasets_FUN/cellcycle_FUN/arff"
+                    dataset_path,
+                    "HMC_data_arff/datasets_FUN/cellcycle_FUN/cellcycle_FUN.train.arff",
                 ),
                 os.path.join(
-                    dataset_path, "HMC_data_arff/datasets_FUN/cellcycle_FUN/arff"
+                    dataset_path,
+                    "HMC_data_arff/datasets_FUN/cellcycle_FUN/cellcycle_FUN.valid.arff",
                 ),
                 os.path.join(
-                    dataset_path, "HMC_data_arff/datasets_FUN/cellcycle_FUN/arff"
+                    dataset_path,
+                    "HMC_data_arff/datasets_FUN/cellcycle_FUN/cellcycle_FUN.test.arff",
                 ),
             ),
             "derisi_FUN": (

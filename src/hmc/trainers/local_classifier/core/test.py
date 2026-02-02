@@ -13,6 +13,8 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
+from tqdm import tqdm
+
 
 def test_step(args):
     """
@@ -79,11 +81,9 @@ def test_step(args):
         for _, level in enumerate(args.active_levels)
     }
 
-    # args.best_theshold = False
-
-    if args.best_theshold:
+    if args.best_threshold:
         logging.info("find best theshold")
-        best_thresholds = {level: None for _, level in enumerate(args.active_levels)}
+        best_thresholds = {level: 0 for _, level in enumerate(args.active_levels)}
         thresholds = np.linspace(0.1, 0.9, 17)
         best_scores = {
             level: {
@@ -100,9 +100,6 @@ def test_step(args):
             y_true = local_inputs[level].to("cpu").int().numpy()
             for actual_threshold in thresholds:
                 y_pred_binary = y_pred > actual_threshold
-
-                # all_y_pred_binary.append(y_pred_binary)
-                # y_pred_binary = (local_outputs[idx] > threshold).astype(int)
 
                 score = precision_recall_fscore_support(
                     y_true,
@@ -121,7 +118,7 @@ def test_step(args):
                 recall = score[1]
                 f1_score = score[2]
 
-                if avg_score > best_scores[level]["average_precision_score"]:
+                if f1_score > best_scores[level]["f1score"]:
                     best_thresholds[level] = actual_threshold
                     best_scores[level] = {
                         "precision": precision,
@@ -130,16 +127,44 @@ def test_step(args):
                         "average_precision_score": avg_score,
                     }
 
-        print("Best thresholds per level:")
+        logging.info("Best thresholds per level:")
         for idx in args.active_levels:
-            print(f"Level {idx}: threshold={best_thresholds[idx]:.2f}, ")
+            logging.info(f"Level {idx}: threshold={best_thresholds[idx]:.2f}")
     else:
         best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
 
     all_y_pred = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
+
+    print(args.hmc_dataset.all_matrix_r)
+    
     for idx in args.active_levels:
         y_pred = local_outputs[idx].to("cpu").numpy()
+        # --- INÍCIO DA CORREÇÃO DE INCONSISTÊNCIA ---
+        # Só aplicamos a correção se NÃO for o primeiro nível (raiz)
+        # if args.parent_conditioning == "teacher_forcing":
+        #     lambda_factor = 0.2 # Teste 0.2, 0.5, 0.8
+        #     if idx > 0: 
+        #         # Pegamos as predições do nível imediatamente anterior (já corrigidas)
+        #         # all_y_pred[-1] refere-se ao output do loop anterior
+                
+        #         parents_pred = all_y_pred[idx-1]
+                
+        #         edge_matrix = args.hmc_dataset.edges_matrix_dict[idx]
+                
+        #         # 1. Projeção (Mapeamento)
+        #         # Multiplicamos as probabilidades dos pais pela matriz.
+        #         # Isso cria um array do tamanho dos FILHOS, mas contendo a probabilidade dos PAIS correspondentes.
+        #         probs_pai_projetado = np.matmul(parents_pred, edge_matrix)
+
+        #         probs_pai_suave = np.power(probs_pai_projetado, lambda_factor)
+
+        #         # 2. Correção (Regra do Produto)
+        #         # Agora que os tamanhos batem e estão alinhados, multiplicamos elemento a elemento.
+        #         y_pred = y_pred * probs_pai_suave
+            
+            # --- FIM DA CORREÇÃO ---
+
         all_y_pred.append(y_pred)
         y_pred_binary = y_pred > best_thresholds[idx]
 
@@ -173,11 +198,82 @@ def test_step(args):
 
     # Concat global targets
     y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
+    best_threshold = 0.5
+    if args.best_threshold:
+        logging.info("finding best threshold")
+
+        thresholds = np.linspace(0.1, 0.9, 17)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                all_y_pred,
+                args.hmc_dataset.local_nodes_idx,
+                args.hmc_dataset.nodes_idx,
+                threshold=actual_threshold,
+            )
+            score = precision_recall_fscore_support(
+                y_true_global_original[:, args.hmc_dataset.to_eval],
+                y_pred_global_binary[:, args.hmc_dataset.to_eval],
+                average="micro",
+                zero_division=0,
+            )
+            
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+
+        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                all_y_pred,
+                args.hmc_dataset.local_nodes_idx,
+                args.hmc_dataset.nodes_idx,
+                threshold=actual_threshold,
+            )
+            score = precision_recall_fscore_support(
+                y_true_global_original[:, args.hmc_dataset.to_eval],
+                y_pred_global_binary[:, args.hmc_dataset.to_eval],
+                average="micro",
+                zero_division=0,
+            )
+
+
+            avg_score = average_precision_score(
+                y_true_global_original[:, args.hmc_dataset.to_eval],
+                y_pred_global[:, args.hmc_dataset.to_eval],
+                average="micro",
+            )
+
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                    "average_precision_score": avg_score,
+                }
 
     y_pred_global, y_pred_global_binary = local_to_global_predictions(
         all_y_pred,
         args.hmc_dataset.local_nodes_idx,
         args.hmc_dataset.nodes_idx,
+        threshold=best_threshold,
     )
     # logging.info("Y true")
     # print(y_true_global_original[0].tolist())
@@ -190,15 +286,10 @@ def test_step(args):
         average="micro",
         zero_division=0,
     )
-    logging.info("Global evaluation score:")
+    logging.info("Global evaluation score with best threshold %.3f", best_threshold)
     logging.info(
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
-
-    print("pred:")
-    print(y_pred_global)
-    print("true:")
-    print(y_true_global_original)
 
     avg_score = average_precision_score(
         y_true_global_original[:, args.hmc_dataset.to_eval],
@@ -206,14 +297,20 @@ def test_step(args):
         average="micro",
     )
 
-    print("Average precision score: %.4f" % avg_score)
+    logging.info("Average precision score: %.4f", avg_score)
 
     local_test_score["global"] = {
         "precision": score[0],
         "recall": score[1],
         "f1score": score[2],
         "avgscore": avg_score,
+        "threshold": best_threshold,
     }
+
+    local_test_score["usage"] = args.usage
+    local_test_score["training_time_seconds"] = args.training_time_seconds
+
+    args.score = score[2]  # F1-score
 
     local_test_score["metadata"] = {
         "dataset": args.dataset_name,

@@ -7,7 +7,7 @@ packages = [{ include = "hmc", from = "src" }]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 tqdm = ">=4.66.4"
 numpy = "2.0"
 torch = { version = "2.5.1", source = "pytorch-gpu" }
@@ -18,13 +18,12 @@ dataset = ">=1.6.2"
 scikit-learn = ">=1.2.2"
 lightning = {extras = ["extra"], version = ">=2.0.9"}
 tensorflow = ">=2.12.0"
-
-
-
-# Fontes do PyTorch (ajustadas no deploy.sh)
 litmodels = "^0.1.7"
 optuna = "^4.3.0"
 logging = "^0.4.9.6"
+jq = "^1.10.0"
+yq = "^3.4.3"
+torch-geometric = "^2.7.0"
 
 
 [[tool.poetry.source]]
@@ -40,3 +39,4 @@ pylama = "^8.4.1"
 isort = "^6.0.1"
 pre-commit = "^4.2.0"
 pylint = "^3.3.7"
+pytest = "^9.0.2"
