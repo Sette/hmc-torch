@@ -24,6 +24,49 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
+def get_train_methods(x, by_level=True):
+    if by_level:
+        from hmc.trainers.local_classifier.hpo.hpo_local_level import (
+            optimize_hyperparameters,
+        )
+    else:
+        from hmc.trainers.local_classifier.hpo.hpo_local import optimize_hyperparameters
+
+    match x:
+        case "local_constraint":
+            return {
+                "model": HMCLocalModelConstraint,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local_mask":
+            return {
+                "model": HMCLocalModel,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_step,
+                "train_step": train_step,
+            }
+        case "local_test":
+            return {
+                "model": HMCLocalModel,
+                "test_step": test_step,
+            }
+        case "global":
+            return {
+                "train_step": train_global,
+            }
+        case _:
+            raise ValueError(f"Método '{x}' não reconhecido.")
+
+
 def main():
     # Training settings
     parser = get_parser()

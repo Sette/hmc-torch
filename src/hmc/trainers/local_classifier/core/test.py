@@ -275,6 +275,10 @@ def test_step(args):
         args.hmc_dataset.nodes_idx,
         threshold=best_threshold,
     )
+    # logging.info("Y true")
+    # print(y_true_global_original[0].tolist())
+    # logging.info("Y pred")
+    # print(y_pred_global_binary[0].tolist())
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],
