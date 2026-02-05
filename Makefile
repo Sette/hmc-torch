@@ -1,11 +1,6 @@
 
 VERSION="0.0.8"
 
-install-dependencies:
-	@echo "--> Installing Python dependencies"
-	@pip --disable-pip-version-check install -r requirements.txt
-	@echo ""
-
 lint-check:
 	@echo "--> Running linter check"
 	autopep8 --in-place --recursive src
@@ -24,6 +19,7 @@ lint:
 	black **/*.py
 	flake8 **/*.py
 	isort **/*.py
+	pylint **/*.py
 
 dvc:
 	@dvc pull
