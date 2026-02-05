@@ -1,6 +1,6 @@
+import sys
 import unittest
 from unittest import mock
-import sys
 
 from hmc.main import main
 

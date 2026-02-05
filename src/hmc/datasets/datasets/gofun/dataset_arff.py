@@ -224,7 +224,7 @@ def parse_arff(arff_file, is_go=False):
 
             shape = (len(ancestral_nodelist), len(child_nodelist))
             matrix = np.zeros(shape, dtype=np.float32)
-            
+
             # 3. Preencher a matriz de forma eficiente
             # Criamos um mapa para achar o índice da coluna (filho) rapidamente
             child_map = {node: i for i, node in enumerate(child_nodelist)}
@@ -237,7 +237,7 @@ def parse_arff(arff_file, is_go=False):
                         a = parent_map.get(p, None)
                         b = child_map.get(c_node, None)
                         if a is not None and b is not None:
-                            matrix[a, b] = 1.0          
+                            matrix[a, b] = 1.0
             edge_index[idx] = matrix
 
         logger.info(

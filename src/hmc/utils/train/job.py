@@ -58,14 +58,14 @@ def log_gpu_memory(device):
     if torch.cuda.is_available():
         prop = torch.cuda.get_device_properties(device)
         total_mib = prop.total_memory / (1024**2)  # Total em MiB
-        
+
         allocated_mib = torch.cuda.memory_allocated(device) / 1024**2
         reserved_mib = torch.cuda.memory_reserved(device) / (1024**2)  # MiB como nvidia-smi
         peak_mib = torch.cuda.max_memory_allocated(device) / 1024**2
-        
+
         # SOMA alocado + reservado (em MiB)
         soma_mib = (torch.cuda.memory_allocated(device) + torch.cuda.memory_reserved(device)) / (1024**2)
-        
+
         result.update({
             'total_mib': total_mib,
             'allocated_mib': allocated_mib,
@@ -73,7 +73,7 @@ def log_gpu_memory(device):
             'peak_mib': peak_mib,
             'soma_allocated_reserved_mib': soma_mib
         })
-        
+
     torch.cuda.empty_cache()
     return result
 

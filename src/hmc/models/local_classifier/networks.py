@@ -49,14 +49,14 @@ class ClassificationNetwork(nn.Module):
 
         layers = []
         current_size = input_size
-        
+
         # ============================================
         # 3. GCNConv (real, PyG)
         # ============================================
         if self.gcn:
             # 1 camada GCN antes da MLP
             layers.append(GCNConv(current_size, current_size))
-            
+
         if self.gat:
             layers.append(GATConv(
                 in_channels=current_size,
@@ -73,7 +73,7 @@ class ClassificationNetwork(nn.Module):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-        
+
             layers.append(nn.Linear(current_size, hidden_size))
             layers.append(nn.ReLU())
 
@@ -90,7 +90,7 @@ class ClassificationNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network."""
-        
+
         return self.network(x)
 
 
@@ -134,7 +134,7 @@ class BuildClassification(nn.Module):
             hidden_size = (
                 hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
             )
-        
+
             layers.append(nn.Linear(current_size, hidden_size))
             layers.append(nn.ReLU())
 
@@ -197,12 +197,12 @@ class BuildClassification(nn.Module):
                 raise ValueError("edge_index must be provided for GCNConv")
             if self.level != 0:
                 local_edge_index = edge_index[self.level]
-                
+
                 local_edge_index = torch.tensor(edge_index[self.level])
-                
+
                 x = self.gcn_layer(x, local_edge_index)
                 x = F.relu(x)
-            
+
         # =====================================================
         # GATConv
         # =====================================================
@@ -216,7 +216,7 @@ class BuildClassification(nn.Module):
 
                 edge_index = torch.tensor(edge_index[self.level], dtype=torch.long)
                 edge_index_expanded = edge_index.unsqueeze(0).repeat(2, 1, 1).to(x.device)
-                
+
                 x = self.gat_layer(x, edge_index_expanded)
                 x = F.relu(x)
 
@@ -235,7 +235,6 @@ class BuildClassification(nn.Module):
         # Pure MLP
         # =====================================================
         return self.mpl(x)
-
 
 
 class LocalLevelAttentionBlock(nn.Module):

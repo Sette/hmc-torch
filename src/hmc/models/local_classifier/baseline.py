@@ -107,7 +107,7 @@ class HMCLocalModel(HierarchicalModel):
             results_path=results_path,
             active_levels=active_levels,
         )
-        
+
         self.attention = attention
         self.gcn = gcn
         self.gat = gat
@@ -155,9 +155,9 @@ class HMCLocalModel(HierarchicalModel):
             )
 
     def forward(
-            self, 
-            x: torch.Tensor, 
-            ) -> Dict[int, torch.Tensor]:
+            self,
+            x: torch.Tensor,
+    ) -> Dict[int, torch.Tensor]:
         """
         Forward pass with optional residual connections.
 

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def _calculate_local_loss(output, target, criterion, parent_conditioning=None, p_output=None, matrix_r=None):
     loss = criterion(output.double(), target)
     lambda_factor = 0.2
@@ -103,7 +104,6 @@ class MaskedBCELoss(nn.Module):
             return torch.tensor(0.0, requires_grad=True).to(outputs[0].device)
 
 
-
 class MultiLabelFocalLoss(nn.Module):
     def __init__(self, alpha=0.25, gamma=2, reduction='mean'):
         """
@@ -123,19 +123,19 @@ class MultiLabelFocalLoss(nn.Module):
         inputs: Tensores de logits (sem sigmoid aplicada) com shape (Batch, Num_Classes)
         targets: Tensores float (0 ou 1) com shape (Batch, Num_Classes)
         """
-        
+
         # 1. Calcular BCE com logits (Mais estável numericamente que sigmoid + log)
         # reduction='none' mantém o shape (Batch, Num_Classes) para podermos aplicar os pesos element-wise
         bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-        
+
         # 2. Calcular pt (probabilidade da classe verdadeira)
         # Se target=1, pt = p. Se target=0, pt = 1-p.
         # Matematicamente: BCE = -log(pt), logo pt = exp(-BCE)
         pt = torch.exp(-bce_loss)
-        
+
         # 3. Calcular termo de Focal: (1 - pt)^gamma * BCE
         focal_term = (1 - pt) ** self.gamma * bce_loss
-        
+
         # 4. Aplicar Alpha ponderado
         # Se alpha for definido, aplica alpha para targets=1 e (1-alpha) para targets=0
         if self.alpha is not None:
@@ -151,7 +151,6 @@ class MultiLabelFocalLoss(nn.Module):
             return loss.sum()
         else:
             return loss
-        
 
 
 class WeightedMultiLabelFocalLoss(nn.Module):
@@ -188,7 +187,7 @@ class WeightedMultiLabelFocalLoss(nn.Module):
         focal_loss = (1 - pt) ** self.gamma * bce_loss
 
         # 4. Aplicação dos Pesos (Alpha ou Pos_Weight)
-        
+
         if self.pos_weight is not None:
             # Cria uma matriz de pesos onde:
             # Se target == 1: usa pos_weight daquela classe
@@ -196,7 +195,7 @@ class WeightedMultiLabelFocalLoss(nn.Module):
             # Isso foca agressivamente em recuperar os positivos raros da Gene Ontology
             weights = targets * self.pos_weight + (1 - targets)
             focal_loss = focal_loss * weights
-            
+
         elif self.alpha is not None:
             # Fallback para o alpha escalar simples se pos_weight não for fornecido
             alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)

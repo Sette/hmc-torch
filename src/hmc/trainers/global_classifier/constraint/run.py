@@ -32,6 +32,7 @@ from hmc.utils.dataset.labels import global_to_local_predictions
 
 from hmc.utils.train.job import log_system_info
 
+
 def train_global(dataset_name, args):
     print(".......................................")
     print("Experiment with {} dataset ".format(dataset_name))
@@ -187,8 +188,6 @@ def train_global(dataset_name, args):
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
 
-                
-
             # predicted = constr_output.data > best_threshold
 
             # Total number of labels
@@ -249,8 +248,7 @@ def train_global(dataset_name, args):
                 average="micro",
                 zero_division=0,
             )
-            
-            
+
             if score[2] > best_scores["f1score"]:
                 best_threshold = actual_threshold
                 best_scores = {
@@ -258,7 +256,7 @@ def train_global(dataset_name, args):
                     "recall": score[1],
                     "f1score": score[2],
                 }
-                
+
         thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
         best_scores = {
             "precision": 0,
@@ -274,7 +272,7 @@ def train_global(dataset_name, args):
                 average="micro",
                 zero_division=0,
             )
-            
+
             if score[2] > best_scores["f1score"]:
                 best_threshold = actual_threshold
                 best_scores = {
@@ -282,7 +280,7 @@ def train_global(dataset_name, args):
                     "recall": score[1],
                     "f1score": score[2],
                 }
-                
+
     Y_pred_local_binary = global_to_local_predictions(
         constr_test.data > best_threshold,
         hmc_dataset.train.local_nodes_idx,
@@ -318,14 +316,13 @@ def train_global(dataset_name, args):
             % (level, score[0], score[1], score[2])
         )
 
-
     score = precision_recall_fscore_support(
-            y_test[:, to_eval],
-            constr_test.data[:, to_eval] > best_threshold,
-            average="micro",
-            zero_division=0,
-        )
-    
+        y_test[:, to_eval],
+        constr_test.data[:, to_eval] > best_threshold,
+        average="micro",
+        zero_division=0,
+    )
+
     local_test_score["global"] = {"f1score": None, "precision": None, "recall": None}
     local_test_score["global"]["precision"] = score[0]  # Precision
     local_test_score["global"]["recall"] = score[1]  # Recall
@@ -349,7 +346,7 @@ def train_global(dataset_name, args):
         local_test_score,
         f"{results_path}/test-scores.json",
     )
-    
+
     print("Average precision score: %.4f" % local_test_score["global"]["avg_precision"])
 
     args.score = local_test_score["global"]

@@ -504,7 +504,7 @@ def test_local(args):
         args.hidden_dims,
         args.num_layers_values,
         args.weight_decay_values,
-    )   
+    )
 
     params = {
         "levels_size": args.hmc_dataset.levels_size,
