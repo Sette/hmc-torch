@@ -17,9 +17,6 @@ import sys
 import unittest
 from unittest import mock
 
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
 from hmc.main import main
 
 
