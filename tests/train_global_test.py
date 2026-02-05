@@ -1,6 +1,24 @@
+"""
+Integration test module for training global sequential FUN models.
+
+This module contains integration tests that validate the complete training pipeline
+for hierarchical multi-class classification using the global sequential FUN approach.
+The tests verify that the main training function executes successfully and produces
+expected performance metrics within acceptable tolerance ranges.
+
+Classes:
+    TestTrainGlobalSeqFUN: Test case for global sequential FUN model training.
+
+The tests use mocked command-line arguments to simulate real training scenarios
+and validate the output metrics against expected benchmark values.
+"""
+
 import sys
 import unittest
 from unittest import mock
+
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from hmc.main import main
 

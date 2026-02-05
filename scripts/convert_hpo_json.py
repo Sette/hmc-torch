@@ -1,8 +1,26 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""
+HPO Results Processing Module
 
-# In[5]:
+This module provides functionality to extract and consolidate hyperparameter optimization
+(HPO) results from multiple datasets into a unified YAML configuration file.
 
+The module processes JSON files containing HPO trial results and aggregates the
+hyperparameter values across all trials for each dataset, creating a structured
+output suitable for further analysis or configuration purposes.
+
+Main Functions:
+    get_hpo_values(): Processes HPO results and generates consolidated YAML output
+    __load_json__(path): Utility function for loading and parsing JSON files
+
+Dependencies:
+    - json: For parsing JSON files
+    - os: For file system operations
+    - yaml: For generating YAML output
+
+Output:
+    Creates 'datasets_params.yaml' file containing aggregated hyperparameter values
+    organized by dataset name.
+"""
 
 import json
 import os
@@ -25,7 +43,11 @@ def __load_json__(path):
     return tmp
 
 
-# In[25]:
+def _get_hpo_values(dataset_name, hpo_path):
+    dataset_path = os.path.join(hpo_path, dataset_name)
+    hpo_train_path = os.path.join(dataset_path, os.listdir(dataset_path)[0])
+    json_file_path = os.path.join(hpo_train_path, f"best_params_{dataset_name}.json")
+    return json_file_path
 
 
 def get_hpo_values():
@@ -59,21 +81,12 @@ def get_hpo_values():
             }
         }
     """
-
-    def _get_hpo_values(dataset_name):
-        dataset_path = os.path.join(hpo_path, dataset_name)
-        hpo_train_path = os.path.join(dataset_path, os.listdir(dataset_path)[0])
-        json_file_path = os.path.join(
-            hpo_train_path, f"best_params_{dataset_name}.json"
-        )
-        return json_file_path
-
     hpo_path = "/home/bruno/Projetos/git/hmc-torch/results/hpo/local"
     datasets = os.listdir(hpo_path)
 
     datasets_params = {}
     for dataset_name in datasets:
-        json_file = _get_hpo_values(dataset_name)
+        json_file = _get_hpo_values(dataset_name, hpo_path)
         print(json_file)
         if not os.path.exists(json_file):
             print(f"Arquivo não encontrado para dataset: {dataset_name}")
