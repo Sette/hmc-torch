@@ -15,7 +15,7 @@ from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
     get_constr_out,
 )
-from hmc.utils.path.dir import create_dir
+from hmc.utils.path.files import create_dir
 
 from hmc.utils.train.job import (
     create_job_id_name,

@@ -12,7 +12,7 @@ from hmc.trainers.utils import (
     show_global_loss,
     show_local_losses,
 )
-from hmc.utils.path.dir import create_dir
+from hmc.utils.path.files import create_dir
 
 
 def optimize_hyperparameters(args):

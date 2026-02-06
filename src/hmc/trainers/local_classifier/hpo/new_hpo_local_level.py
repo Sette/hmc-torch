@@ -10,7 +10,7 @@ from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 from hmc.utils.dataset.labels import (
     show_local_losses,
 )
-from hmc.utils.path.dir import create_dir
+from hmc.utils.path.files import create_dir
 from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,

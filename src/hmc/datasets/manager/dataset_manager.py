@@ -9,7 +9,7 @@ from hmc.datasets.datasets.gofun import get_dataset_paths, to_skip
 from hmc.datasets.datasets.gofun.dataset_arff import HMCDatasetArff
 from hmc.datasets.datasets.gofun.dataset_csv import HMCDatasetCsv
 from hmc.datasets.datasets.gofun.dataset_torch import HMCDatasetTorch
-from hmc.utils.path.dir import __load_json__
+from hmc.utils.path.files import __load_json__
 
 # Set a logger config
 logging.basicConfig(

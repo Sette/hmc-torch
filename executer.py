@@ -5,7 +5,7 @@ from datetime import UTC
 from datetime import datetime as dt
 
 from hmc.models import train
-from hmc.utils.path.dir import create_dir, create_job_id
+from hmc.utils.path.files import create_dir, create_job_id
 
 # %%
 base_path = "/home/bruno/storage/data/fma/trains"

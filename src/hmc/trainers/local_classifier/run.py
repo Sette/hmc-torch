@@ -57,7 +57,7 @@ from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.utils.train.job import parse_str_flags
-from hmc.utils.path.dir import create_dir
+from hmc.utils.path.files import create_dir
 
 
 def get_train_methods(x):
