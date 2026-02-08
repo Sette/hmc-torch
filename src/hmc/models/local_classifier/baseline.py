@@ -44,17 +44,36 @@ class EncoderBlock(nn.Module):
         )
         self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
+    
+    def _generate_causal_mask(self, seq_len: int, device: torch.device) -> torch.Tensor:
+        # True acima da diagonal principal → bloqueia futuro
+        mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=device), diagonal=1)
+        return mask  # [L, L], bool
 
     def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Run the encoder block.
 
         Note: key_padding_mask uses True for positions that should be ignored (padded).
         """
+        # Se não veio key_padding_mask:
+        if key_padding_mask is None:
+            key_padding_mask = (x == 0).all(dim=-1).to(x.device)   # [B, L], bool
+        else:
+            key_padding_mask = key_padding_mask.to(x.device)
+
+        # Se não veio attn_mask e você quer causal:
+        if attn_mask is None:
+            attn_mask = self._generate_causal_mask(x.size(0), x.device).to(x.device)
+        else:
+            attn_mask = attn_mask.to(x.device)
         # Self-attention residual
         attn_out, _ = self.mha(x, x, x, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+        
+        attn_out = attn_out.to(x.device)
         x = self.norm1(x + self.dropout(attn_out))
         # Feed-forward residual
         ff_out = self.ff(x)
+        ff_out = ff_out.to(x.device)
         x = self.norm2(x + self.dropout(ff_out))
         return x
 
@@ -63,6 +82,9 @@ class EncoderBlock(nn.Module):
 # CHILD CLASS 1 - Local Classification Model
 # ============================================================================
 
+def _get_divisible_dim(dim: int, divisor: int) -> int:
+    """Próximo múltiplo de divisor >= dim. Ex: _get_divisible_dim(529, 8) → 536"""
+    return ((dim + divisor - 1) // divisor) * divisor
 
 class HMCLocalModel(HierarchicalModel):
     """
@@ -85,8 +107,12 @@ class HMCLocalModel(HierarchicalModel):
         attention: bool = False,
         gcn: bool = False,
         gat: bool = False,
-        num_heads: int = 1,
-        edges_index=None,
+        encoder_block: bool = False,
+        num_heads: int = 8,
+        encoder_heads: Optional[List[int]] = None,  # heads por nível para EncoderBlock
+        edges_index: Optional[Dict[int, torch.Tensor]] = None,  # dict {level: edge_index}
+        encoder_ff_dim: int = 1024,  # FFN dim no EncoderBlock
+        encoder_layers: int = 1,  # quantos EncoderBlock empilhados por nível
     ):
         """
         Initialize local classification model.
@@ -111,8 +137,13 @@ class HMCLocalModel(HierarchicalModel):
         self.attention = attention
         self.gcn = gcn
         self.gat = gat
+        self.encoder_block = encoder_block
         self.num_heads = num_heads
-        self.edges_index = edges_index
+        self.encoder_heads = encoder_heads or [num_heads // 2] * len(levels_size)  # default menor que GAT
+        self.edges_index = edges_index or {}
+        self.encoder_ff_dim = encoder_ff_dim
+        self.encoder_layers = encoder_layers
+        self.residual = residual
 
         # Set defaults
         if num_layers is None:
@@ -126,37 +157,67 @@ class HMCLocalModel(HierarchicalModel):
         self.residual = residual
 
         # Create level modules
-        self.levels = nn.ModuleDict()
+        self.classifiers = nn.ModuleDict()  # dict {level_idx: {'encoder': ModuleList, 'classifier': BuildClassification}}
+        self.encoders = nn.ModuleDict()  # dict {level_idx: ModuleList of EncoderBlocks}
+        self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'classifier': BuildClassification}}
+        
+        if self.encoder_block:
+            self.effective_embed_dim = _get_divisible_dim(self.input_size, self.num_heads)
+            self.embed_proj = nn.Linear(self.input_size, self.effective_embed_dim)
+            self.input_size = self.effective_embed_dim
         self._build_levels()
 
     def _build_levels(self):
         """Build classification networks for each active level."""
-        for index in self.active_levels:
+        for level_idx in self.active_levels:
             # Input size depends on residual connections
             current_input_size = self.input_size
+            if self.encoder_block:
+                # EncoderBlock(s) para refinamento local (self-attention)
+                encoder_blocks = nn.ModuleList()
+                for encoder_index in range(self.encoder_layers):
+                    encoder_blocks.append(
+                        EncoderBlock(
+                            embed_dim=current_input_size,
+                            num_heads=self.encoder_heads[encoder_index],
+                            ff_dim=self.encoder_ff_dim,
+                            dropout=self.dropouts[encoder_index],
+                        )
+                    )
 
-            # Create classification network
-            self.levels[str(index)] = BuildClassification(
+            classifier = BuildClassification(
                 input_size=current_input_size,
-                hidden_dims=self.hidden_dims[index],
-                output_size=self.levels_size[index],
-                num_layers=self.num_layers[index],
-                dropout=self.dropouts[index],
-                attention=self.attention and index > 3,  # attention from level 4 onwards
+                hidden_dims=self.hidden_dims[level_idx],
+                output_size=self.levels_size[level_idx],
+                num_layers=self.num_layers[level_idx],
+                dropout=self.dropouts[level_idx],
+                attention=self.attention and level_idx > 3,  # attention from level 4 onwards
                 gcn=self.gcn,
                 gat=self.gat,
                 num_heads=self.num_heads,
-                level=index,
+                level=level_idx,
             )
 
-            logging.debug(
+            # Create classification network
+            self.classifiers[str(level_idx)] = classifier
+            if self.encoder_block:
+                self.encoders[str(level_idx)] = encoder_blocks
+            
+            self.levels[level_idx] = {
+                'encoder': encoder_blocks if self.encoder_block else None,
+                'classifier': classifier
+            }
+
+            logging.info(
                 "Level %d: input_size=%d, output_size=%d",
-                index, current_input_size, self.levels_size[index]
+                level_idx, current_input_size, self.levels_size[level_idx]
             )
 
     def forward(
             self,
-            x: torch.Tensor,
+            x: torch.Tensor, 
+            key_padding_mask: Optional[torch.Tensor] = None, 
+            attn_mask: Optional[torch.Tensor] = None
     ) -> Dict[int, torch.Tensor]:
         """
         Forward pass with optional residual connections.
@@ -169,6 +230,9 @@ class HMCLocalModel(HierarchicalModel):
         """
         outputs = {}
         current_input = x
+        if hasattr(self, 'embed_proj'):
+            current_input = self.embed_proj(current_input)  # 529 → 536
+            
 
         for level_idx, level_module in self.levels.items():
             level_idx = int(level_idx)
@@ -177,15 +241,21 @@ class HMCLocalModel(HierarchicalModel):
             if not self.level_active[level_idx]:
                 self._load_checkpoint(level_idx)
 
-            # Add residual connection
+            # === RESIDUAL CONNECTION ===
             if self.residual and level_idx > 0:
                 previous_output = outputs[level_idx - 1]
                 # Thresholding: treat as binary (0 or 1)
                 previous_output_binary = (previous_output > 0.5).float()
                 current_input = torch.cat((x, previous_output_binary), dim=1)
+            if self.encoder_block:
+                # === ENCODERBLOCK LOCAL (self-attention refinamento) ===
+                encoder_out = current_input
+                for encoder_block in level_module['encoder']:
+                    encoder_out = encoder_block(encoder_out, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+                    current_input = encoder_out  # output do último EncoderBlock é a entrada para o classificador
 
             # Forward through level
-            level_output = level_module(current_input, edge_index=self.edges_index)
+            level_output = level_module['classifier'](current_input, edge_index=self.edges_index)
             outputs[level_idx] = level_output
 
         return outputs
@@ -198,7 +268,7 @@ class HMCLocalModel(HierarchicalModel):
 
         if os.path.exists(checkpoint_path):
             # logging.info(f"Loading checkpoint: {checkpoint_path}")
-            self.levels[str(level_idx)].load_state_dict(
+            self.levels[level_idx]['classifier'].load_state_dict(
                 torch.load(checkpoint_path, weights_only=True)
             )
             return True

@@ -518,6 +518,8 @@ def test_local(args):
         "attention": args.level_model_type == "attention",
         "gcn": args.level_model_type == "gcn",
         "gat": args.level_model_type == "gat",
+        "encoder_block": args.encoder_block,
+        "edges_index": hmc_dataset.edge_index,
     }
 
     if args.method == "local_constrained":

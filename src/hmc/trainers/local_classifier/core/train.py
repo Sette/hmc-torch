@@ -88,7 +88,7 @@ def train_step(args):
 
     args.optimizers = [
         torch.optim.Adam(
-            args.model.levels[str(level)].parameters(),
+            args.model.levels[level]['classifier'].parameters(),
             lr=args.lr_values[level],
             weight_decay=args.weight_decay_values[level],
         )
@@ -120,7 +120,7 @@ def train_step(args):
         for inputs, targets, _ in args.train_loader:
             inputs = inputs.to(args.device)
             targets = [target.to(args.device) for target in targets]
-
+            
             outputs = args.model(inputs.float())
 
             for level, optimizer in enumerate(args.optimizers):

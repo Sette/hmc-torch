@@ -335,11 +335,20 @@ def get_parser():
     parser.add_argument(
         "--patience",
         type=int,
-        default=15,
+        default=5,
         metavar="PATIENCE",
         required=False,
         help="Number of epochs with no improvement \
             after which training will be stopped.",
+    )
+
+    parser.add_argument(
+        "--encoder_block",
+        type=int,
+        default=True,
+        metavar="ENCODER_BLOCK",
+        required=False,
+        help="Active Encoder Block in the model.",
     )
 
     parser.add_argument(
