@@ -182,7 +182,7 @@ def train_local(args):
 
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
-
+    
     # Set seed
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -351,6 +351,7 @@ def train_local(args):
             "attention": args.level_model_type == "attention",
             "gcn": args.level_model_type == "gcn",
             "gat": args.level_model_type == "gat",
+            "encoder_block": args.encoder_block,
             "edges_index": hmc_dataset.edge_index,
         }
 

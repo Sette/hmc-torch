@@ -344,7 +344,7 @@ def get_parser():
 
     parser.add_argument(
         "--encoder_block",
-        type=int,
+        type=bool,
         default=True,
         metavar="ENCODER_BLOCK",
         required=False,
