@@ -8,7 +8,7 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constraint.run import train_global
-from hmc.trainers.local_classifier.main import train_local, test_local
+from hmc.trainers.local_classifier.main import train_local
 
 from hmc.utils.train.job import create_job_id_name
 
@@ -191,15 +191,12 @@ def main():
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     match args.method:
-        case "local" | "local_constrained" | "local_mask":
+        case "local" | "local_constrained" | "local_mask" | "local_test":
             logging.info("Local method selected")
             train_local(args)
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset_name, args)
-        case "local_test":
-            logging.info("Local test method selected")
-            test_local(args)
         case _:  # Default case (like 'default' in other languages
             print("Invalid option for method. Please select a valid method.")
     return args.score

@@ -6,7 +6,6 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import ModuleList
 
 from hmc.models.base import HierarchicalModel
 from hmc.models.local_classifier.networks import BuildClassification
@@ -15,7 +14,12 @@ from hmc.models.local_classifier.networks import BuildClassification
 class MultiHeadAttentionLayer(nn.Module):
     """Multi-head attention for GO classification"""
 
-    def __init__(self, d_model: int, num_heads: int, dropout: float = 0.2, device = 'cuda'):
+    def __init__(self,
+                d_model: int, 
+                num_heads: int, 
+                dropout: float = 0.2, 
+                device = 'cuda',
+        ):
         super().__init__()
         assert d_model % num_heads == 0, "d_model deve ser divisível por num_heads"
 
@@ -234,7 +238,7 @@ class HMCLocalModel(HierarchicalModel):
         self.num_layers = num_layers
         self.dropouts = dropouts
         # Create level modules
-        self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'classifier': BuildClassification}}
+        self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'level_classifier': BuildClassification}}
         
         # if self.encoder_block:
         #     self.effective_embed_dim = _get_divisible_dim(self.input_size, self.num_heads)
@@ -335,7 +339,7 @@ class HMCLocalModel(HierarchicalModel):
 
         if os.path.exists(checkpoint_path):
             # logging.info(f"Loading checkpoint: {checkpoint_path}")
-            self.levels[level_idx]['classifier'].load_state_dict(
+            self.levels[level_idx]['level_classifier'].load_state_dict(
                 torch.load(checkpoint_path, weights_only=True)
             )
             return True

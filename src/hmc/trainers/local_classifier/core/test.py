@@ -46,7 +46,7 @@ def test_step(args):
     local_outputs = {level: [] for _, level in enumerate(args.active_levels)}
 
     for level in args.active_levels:
-        args.model.levels[level]['classifier'].load_state_dict(
+        args.model.levels[level]['level_classifier'].load_state_dict(
             torch.load(
                 os.path.join(args.results_path, f"best_model_level_{level}.pth"),
                 weights_only=True,
