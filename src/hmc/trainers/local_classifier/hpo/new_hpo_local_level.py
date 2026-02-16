@@ -5,7 +5,7 @@ import optuna
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.models.local_classifier.baseline import HMCLocalModel
+from hmc.models.local_classifier.model import HMCLocalModel
 from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 from hmc.utils.dataset.labels import (
     show_local_losses,

@@ -52,7 +52,7 @@ from hmc.trainers.local_classifier.core.train import (
 
 from hmc.utils.train.job import log_system_info
 
-from hmc.models.local_classifier.baseline import HMCLocalModel
+from hmc.models.local_classifier.model import HMCLocalModel
 from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments

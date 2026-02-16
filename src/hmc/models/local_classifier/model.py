@@ -1,82 +1,71 @@
 import os
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn import ModuleList
 
 from hmc.models.base import HierarchicalModel
 from hmc.models.local_classifier.networks import BuildClassification
 
 
-class EncoderBlock(nn.Module):
-    """Encoder block with multi-head self-attention and a feed-forward sublayer.
+class MultiHeadAttentionLayer(nn.Module):
+    """Multi-head attention for GO classification"""
 
-    This block follows the Transformer-style residual pattern:
-    1) Multi-head self-attention + dropout + residual + layer norm
-    2) Feed-forward network + dropout + residual + layer norm
-
-    Args:
-        embed_dim: Dimensionality of input embeddings.
-        num_heads: Number of attention heads.
-        ff_dim: Inner dimension of the feed-forward network.
-        dropout: Dropout probability applied after attention and in FFN.
-
-    Forward shapes:
-        x: (batch_size, seq_len, embed_dim)
-        key_padding_mask: optional mask of shape (batch_size, seq_len) with True for padded positions
-        attn_mask: optional attention mask (seq_len, seq_len) or (batch_size, seq_len, seq_len)
-
-    Returns:
-        Tensor of shape (batch_size, seq_len, embed_dim)
-    """
-
-    def __init__(self, embed_dim: int, num_heads: int, ff_dim: int = 1024, dropout: float = 0.1):
+    def __init__(self, input_dim: int, num_heads: int, dropout: float = 0.2):
         super().__init__()
-        # batch_first=True: inputs are (batch, seq, embed_dim)
-        self.mha = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.ff = nn.Sequential(
-            nn.Linear(embed_dim, ff_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(ff_dim, embed_dim),
-        )
-        self.norm2 = nn.LayerNorm(embed_dim)
+        assert input_dim % num_heads == 0, "input_dim must be divisible by num_heads"
+
+        self.input_dim = input_dim
+        self.num_heads = num_heads
+        self.head_dim = input_dim // num_heads
+
+        self.W_q = nn.Linear(input_dim, input_dim)
+        self.W_k = nn.Linear(input_dim, input_dim)
+        self.W_v = nn.Linear(input_dim, input_dim)
+        self.W_o = nn.Linear(input_dim, input_dim)
+
+        self.scale = torch.sqrt(torch.tensor(self.head_dim, dtype=torch.float32))
         self.dropout = nn.Dropout(dropout)
-    
-    def _generate_causal_mask(self, seq_len: int, device: torch.device) -> torch.Tensor:
-        # True acima da diagonal principal → bloqueia futuro
-        mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=device), diagonal=1)
-        return mask  # [L, L], bool
 
-    def forward(self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Run the encoder block.
-
-        Note: key_padding_mask uses True for positions that should be ignored (padded).
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        # Se não veio key_padding_mask:
-        if key_padding_mask is None:
-            key_padding_mask = (x == 0).all(dim=-1).to(x.device)   # [B, L], bool
-        else:
-            key_padding_mask = key_padding_mask.to(x.device)
+        Args:
+            x: (batch_size, seq_len, input_dim)
+        Returns:
+            output: (batch_size, seq_len, input_dim)
+            attention_weights: (batch_size, num_heads, seq_len, seq_len)
+        """
+        batch_size, seq_len, _ = x.shape
 
-        # Se não veio attn_mask e você quer causal:
-        if attn_mask is None:
-            attn_mask = self._generate_causal_mask(x.size(0), x.device).to(x.device)
-        else:
-            attn_mask = attn_mask.to(x.device)
-        # Self-attention residual
-        attn_out, _ = self.mha(x, x, x, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
-        
-        attn_out = attn_out.to(x.device)
-        x = self.norm1(x + self.dropout(attn_out))
-        # Feed-forward residual
-        ff_out = self.ff(x)
-        ff_out = ff_out.to(x.device)
-        x = self.norm2(x + self.dropout(ff_out))
-        return x
+        # Linear projections
+        Q = self.W_q(x)  # (batch, seq_len, input_dim)
+        K = self.W_k(x)
+        V = self.W_v(x)
 
+        # Reshape for multi-head: (batch, seq_len, num_heads, head_dim) -> (batch, num_heads, seq_len, head_dim)
+        Q = Q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        K = K.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        V = V.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # Attention scores
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale  # (batch, num_heads, seq_len, seq_len)
+        attention_weights = F.softmax(scores, dim=-1)
+        attention_weights = self.dropout(attention_weights)
+
+        # Apply attention to values
+        context = torch.matmul(attention_weights, V)  # (batch, num_heads, seq_len, head_dim)
+
+        # Concatenate heads
+        context = context.transpose(1, 2).contiguous()  # (batch, seq_len, num_heads, head_dim)
+        context = context.view(batch_size, seq_len, self.input_dim)
+
+        # Final linear projection
+        output = self.W_o(context)
+
+        return output, attention_weights
 
 # ============================================================================
 # CHILD CLASS 1 - Local Classification Model
@@ -157,8 +146,6 @@ class HMCLocalModel(HierarchicalModel):
         self.residual = residual
 
         # Create level modules
-        self.classifiers = nn.ModuleDict()  # dict {level_idx: {'encoder': ModuleList, 'classifier': BuildClassification}}
-        self.encoders = nn.ModuleDict()  # dict {level_idx: ModuleList of EncoderBlocks}
         self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'classifier': BuildClassification}}
         
         if self.encoder_block:
@@ -167,27 +154,24 @@ class HMCLocalModel(HierarchicalModel):
             self.input_size = self.effective_embed_dim
         self._build_levels()
 
+    # noinspection PyGlobalUndefined
     def _build_levels(self):
         """Build classification networks for each active level."""
         for level_idx in self.active_levels:
+            global multihead_attention_list
             # Input size depends on residual connections
             current_input_size = self.input_size
             if self.encoder_block:
-                # EncoderBlock(s) para refinamento local (self-attention)
-                encoder_blocks = nn.ModuleList()
+                multihead_attention_list: ModuleList = nn.ModuleList()
                 for encoder_index in range(self.encoder_layers):
-                    encoder_blocks.append(
-                        EncoderBlock(
-                            embed_dim=current_input_size,
-                            num_heads=self.encoder_heads[encoder_index],
-                            ff_dim=self.encoder_ff_dim,
-                            dropout=self.dropouts[encoder_index],
-                        )
+                    multihead_attention_list.append(
+                        MultiHeadAttentionLayer(current_input_size,
+                                                self.encoder_heads[encoder_index],
+                                                self.dropouts[encoder_index])
                     )
 
-            classifier = BuildClassification(
+            level_classifier = BuildClassification(
                 input_size=current_input_size,
-                hidden_dims=self.hidden_dims[level_idx],
                 output_size=self.levels_size[level_idx],
                 num_layers=self.num_layers[level_idx],
                 dropout=self.dropouts[level_idx],
@@ -198,14 +182,10 @@ class HMCLocalModel(HierarchicalModel):
                 level=level_idx,
             )
 
-            # Create classification network
-            self.classifiers[str(level_idx)] = classifier
-            if self.encoder_block:
-                self.encoders[str(level_idx)] = encoder_blocks
             
             self.levels[level_idx] = {
-                'encoder': encoder_blocks if self.encoder_block else None,
-                'classifier': classifier
+                'multihead_attention': multihead_attention_list if self.encoder_block else None,
+                'level_classifier': level_classifier
             }
 
             logging.info(
@@ -215,10 +195,8 @@ class HMCLocalModel(HierarchicalModel):
 
     def forward(
             self,
-            x: torch.Tensor, 
-            key_padding_mask: Optional[torch.Tensor] = None, 
-            attn_mask: Optional[torch.Tensor] = None
-    ) -> Dict[int, torch.Tensor]:
+            x: torch.Tensor
+    ) -> Tuple[Dict[int, torch.Tensor], List[torch.Tensor]]:
         """
         Forward pass with optional residual connections.
 
@@ -229,10 +207,11 @@ class HMCLocalModel(HierarchicalModel):
             Dictionary {level_idx: output_tensor}
         """
         outputs = {}
+        attention_maps = []
         current_input = x
         if hasattr(self, 'embed_proj'):
             current_input = self.embed_proj(current_input)  # 529 → 536
-            
+
 
         for level_idx, level_module in self.levels.items():
             level_idx = int(level_idx)
@@ -248,17 +227,30 @@ class HMCLocalModel(HierarchicalModel):
                 previous_output_binary = (previous_output > 0.5).float()
                 current_input = torch.cat((x, previous_output_binary), dim=1)
             if self.encoder_block:
-                # === ENCODERBLOCK LOCAL (self-attention refinamento) ===
-                encoder_out = current_input
-                for encoder_block in level_module['encoder']:
-                    encoder_out = encoder_block(encoder_out, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
-                    current_input = encoder_out  # output do último EncoderBlock é a entrada para o classificador
+                # Multi-head attention
+                attn_output, attn_weights = level_module['multihead_attention'](current_input)
+                attention_maps.append(attn_weights)
 
-            # Forward through level
-            level_output = level_module['classifier'](current_input, edge_index=self.edges_index)
-            outputs[level_idx] = level_output
+                # Residual connection + Layer norm
+                current = level_module['level_classifier'](current_input + attn_output)
 
-        return outputs
+                # Feed-forward network
+                ff_output = level_module['level_classifier'](current)
+                current = level_module['level_classifier'](current + ff_output)
+
+                # Average pooling over sequence dimension for classification
+                pooled = current.mean(dim=1)  # (batch_size, input_dim)
+
+                # Classification for this level
+                logits = level_module['level_classifier'](pooled)
+                outputs[level_idx] = logits
+
+            else:
+                # Forward through level
+                level_output = level_module['level_classifier'](current_input)
+                outputs[level_idx] = level_output
+
+        return outputs, attention_maps
 
     def _load_checkpoint(self, level_idx: int) -> bool:
         """Load a saved checkpoint for a specific level."""
