@@ -1,5 +1,8 @@
 #!/bin/zsh
 
+sudo apt-get install jq yq -y
+
+
 # Verifica se foi passado um argumento (cuda ou cpu)
 if [ "$#" -ne 1 ]; then
     echo "Uso: $0 [cuda | cpu]"

@@ -162,7 +162,7 @@ class HMCLocalModel(HierarchicalModel):
             # Input size depends on residual connections
             current_input_size = self.input_size
             if self.encoder_block:
-                multihead_attention_list: ModuleList = nn.ModuleList()
+                multihead_attention_list = nn.ModuleList()
                 for encoder_index in range(self.encoder_layers):
                     multihead_attention_list.append(
                         MultiHeadAttentionLayer(current_input_size,
