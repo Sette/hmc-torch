@@ -175,10 +175,6 @@ class HMCLocalModel(HierarchicalModel):
                 output_size=self.levels_size[level_idx],
                 num_layers=self.num_layers[level_idx],
                 dropout=self.dropouts[level_idx],
-                attention=self.attention and level_idx > 3,  # attention from level 4 onwards
-                gcn=self.gcn,
-                gat=self.gat,
-                num_heads=self.num_heads,
                 level=level_idx,
             )
 
