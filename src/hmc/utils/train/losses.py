@@ -45,7 +45,7 @@ def calculate_local_loss(output, target, args):
     loss = _calculate_local_loss(
         output,
         target,
-        args.criterions[args.current_level],
+        args.criterion_list[args.current_level],
         parent_conditioning=args.parent_conditioning,
     )
 
@@ -68,7 +68,7 @@ def calculate_hierarchical_local_loss(output, target, p_output, matrix_r, args):
     loss = _calculate_local_loss(
         output,
         target,
-        args.criterions[args.current_level],
+        args.criterion_list[args.current_level],
         parent_conditioning=args.parent_conditioning,
         p_output=p_output,
         matrix_r=matrix_r,

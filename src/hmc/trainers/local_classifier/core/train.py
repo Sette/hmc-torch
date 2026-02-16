@@ -37,7 +37,7 @@ def train_step(args):
     Executes the training loop for a hierarchical multi-class (HMC) local \
         classifier model.
     This function performs the following steps:
-    - Moves the model and loss criterions to the specified device.
+    - Moves the model and loss criterion to the specified device.
     - Initializes early stopping parameters and tracking variables for \
         each level of the hierarchy.
     - Sets up optimizers for each model level with individual learning rates \
@@ -54,7 +54,7 @@ def train_step(args):
         args: An object containing all necessary training parameters and \
             objects, including:
             - model: The hierarchical model with per-level submodules.
-            - criterions: List of loss functions for each level.
+            - criterion_list: List of loss functions for each level.
             - device: Device to run computations on.
             - hmc_dataset: Dataset object with max_depth attribute.
             - active_levels: List of currently active levels for training.
@@ -68,7 +68,7 @@ def train_step(args):
     """
 
     args.model = args.model.to(args.device)
-    args.criterions = [criterion.to(args.device) for criterion in args.criterions]
+    args.criterion_list = [criterion.to(args.device) for criterion in args.criterion_list]
 
     args.early_stopping_patience = args.patience
     args.early_stopping_patience_score = args.patience_score
@@ -88,7 +88,7 @@ def train_step(args):
 
     args.optimizers = [
         torch.optim.Adam(
-            args.model.levels[level]['classifier'].parameters(),
+            args.model.levels[level]['level_classifier'].parameters(),
             lr=args.lr_values[level],
             weight_decay=args.weight_decay_values[level],
         )

@@ -53,7 +53,7 @@ from hmc.trainers.local_classifier.core.train import (
 from hmc.utils.train.job import log_system_info
 
 from hmc.models.local_classifier.model import HMCLocalModel
-from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
+from hmc.models.local_classifier.hat.model import HATForMaskedLM
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.utils.train.job import parse_str_flags
@@ -78,16 +78,16 @@ def get_train_methods(x):
         ValueError: If an unknown method string is provided.
     """
     match x:
-        case "local_constrained":
+        case "local" | "local_mask" | "local_test":
             return {
-                "model": HMCLocalModelConstraint,
+                "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step_core,
                 "train_step": train_step_core,
             }
-        case "local" | "local_mask" | "local_test":
+        case "local_hat":
             return {
-                "model": HMCLocalModel,
+                "model": HATForMaskedLM,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step_core,
                 "train_step": train_step_core,
@@ -143,8 +143,23 @@ def assert_hyperparameter_lengths(
     else:
         print("One or more hyperparameter lists have the wrong length.")
 
+def create_dataset(data, scaler, imp_mean, args):
+    data.X = (
+        torch.tensor(scaler.transform(imp_mean.transform(data.X)))
+        .clone()
+        .detach()
+        .to(args.device)
+    )
+    data.Y = torch.tensor(data.Y).clone().detach().to(args.device)
+    # Create loaders using local (per-level) y labels
+    dataset = [
+        (x, y_levels, y)
+        for (x, y_levels, y) in zip(data.X, data.Y_local, data.Y)
+    ]
 
-def train_local(args):
+    return dataset
+
+def main(args):
     """
     Trains a local hierarchical multi-label classifier using the specified \
         arguments.
@@ -232,45 +247,45 @@ def train_local(args):
     )
     data_train, data_valid, data_test = hmc_dataset.get_datasets()
 
-    scaler = preprocessing.StandardScaler().fit(
+    scaler: object = preprocessing.StandardScaler().fit(
         np.concatenate((data_train.X, data_valid.X))
     )
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
         np.concatenate((data_train.X, data_valid.X))
     )
-    data_valid.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(data_valid.X)))
-        .clone()
-        .detach()
-        .to(args.device)
-    )
-    data_train.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
-        .clone()
-        .detach()
-        .to(args.device)
-    )
+
+    if args.nethod != "local_test":
+        val_dataset = create_dataset(data_valid,
+                                     scaler=scaler,
+                                     imp_mean=imp_mean,
+                                     args=args,
+        )
+        train_dataset = create_dataset(data_valid, scaler, imp_mean, args)
+        data_train.X = (
+            torch.tensor(scaler.transform(imp_mean.transform(data_train.X)))
+            .clone()
+            .detach()
+            .to(args.device)
+        )
+
+        data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
+
+        # Create loaders using local (per-level) y labels
+        train_dataset = [
+            (x, y_levels, y)
+            for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
+        ]
+
+
     data_test.X = (
         torch.as_tensor(scaler.transform(imp_mean.transform(data_test.X)))
         .clone()
         .detach()
         .to(args.device)
     )
-
     data_test.Y = torch.as_tensor(data_test.Y).clone().detach().to(args.device)
-    data_valid.Y = torch.tensor(data_valid.Y).clone().detach().to(args.device)
-    data_train.Y = torch.tensor(data_train.Y).clone().detach().to(args.device)
 
-    # Create loaders using local (per-level) y labels
-    train_dataset = [
-        (x, y_levels, y)
-        for (x, y_levels, y) in zip(data_train.X, data_train.Y_local, data_train.Y)
-    ]
 
-    val_dataset = [
-        (x, y_levels, y)
-        for (x, y_levels, y) in zip(data_valid.X, data_valid.Y_local, data_valid.Y)
-    ]
 
     test_dataset = [
         (x, y_levels, y)
@@ -313,8 +328,7 @@ def train_local(args):
         args.active_levels = [int(x) for x in args.active_levels]
     logging.info("Active levels: %s", args.active_levels)
 
-    criterions = [nn.BCELoss() for _ in hmc_dataset.levels_size]
-    args.criterions = criterions
+    args.criterion_list = [nn.BCELoss() for _ in hmc_dataset.levels_size]
 
     if args.hpo:
         logging.info("Hyperparameter optimization")
@@ -347,12 +361,7 @@ def train_local(args):
             "dropouts": args.dropout_values,
             "active_levels": args.active_levels,
             "results_path": args.results_path,
-            "residual": args.parent_conditioning == "residual",
-            "attention": args.level_model_type == "attention",
-            "gcn": args.level_model_type == "gcn",
-            "gat": args.level_model_type == "gat",
             "encoder_block": args.encoder_block,
-            "edges_index": hmc_dataset.edge_index,
         }
 
         if args.method == "local_constrained":
@@ -515,12 +524,7 @@ def test_local(args):
         "dropouts": args.dropout_values,
         "active_levels": args.active_levels,
         "results_path": args.results_path,
-        "residual": args.parent_conditioning == "residual",
-        "attention": args.level_model_type == "attention",
-        "gcn": args.level_model_type == "gcn",
-        "gat": args.level_model_type == "gat",
         "encoder_block": args.encoder_block,
-        "edges_index": hmc_dataset.edge_index,
     }
 
     if args.method == "local_constrained":

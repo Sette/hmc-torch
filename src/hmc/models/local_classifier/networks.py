@@ -80,11 +80,12 @@ class BuildClassification(nn.Module):
     def __init__(
         self,
         input_size: int,
-        hidden_dims: List[int],
+        hidden_dim: int,
         output_size: int,
         num_layers: int = 2,
         dropout: float = 0.0,
         level: int = 0,
+        device: str = 'cuda',
     ):
         super().__init__()
 
@@ -92,25 +93,24 @@ class BuildClassification(nn.Module):
         layers = []
         current_size = input_size
 
+        print(input_size)
+        print(hidden_dim)
+
         # Build hidden layers
         for i in range(num_layers):
-            hidden_size = (
-                hidden_dims[i] if isinstance(hidden_dims, list) else hidden_dims
-            )
-
-            layers.append(nn.Linear(current_size, hidden_size))
+            layers.append(nn.Linear(current_size, hidden_dim[i]))
             layers.append(nn.ReLU())
 
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
 
-            current_size = hidden_size
+            current_size = hidden_dim[i]
 
         # Output layer
         layers.append(nn.Linear(current_size, output_size))
         layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
-        self.mpl = nn.Sequential(*layers)
+        self.mpl = nn.Sequential(*layers).to(device)
 
 
     # ======================================================================

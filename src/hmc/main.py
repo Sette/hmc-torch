@@ -8,7 +8,7 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.trainers.global_classifier.constraint.run import train_global
-from hmc.trainers.local_classifier.run import train_local, test_local
+from hmc.trainers.local_classifier.main import train_local, test_local
 
 from hmc.utils.train.job import create_job_id_name
 

@@ -345,7 +345,7 @@ def get_parser():
     parser.add_argument(
         "--encoder_block",
         type=bool,
-        default=True,
+        default=False,
         metavar="ENCODER_BLOCK",
         required=False,
         help="Active Encoder Block in the model.",
