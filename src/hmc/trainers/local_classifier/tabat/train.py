@@ -21,6 +21,10 @@ Functions:
 import logging
 
 import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from hmc.trainers.local_classifier.core.valid import valid_step
 from hmc.utils.dataset.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
@@ -29,8 +33,29 @@ from hmc.utils.train.job import (
 )
 from hmc.utils.train.losses import calculate_hierarchical_local_loss
 
+def compute_loss(model, batch, criterion, device):
+    x = batch[0].float().to(device)
+    inputs = batch[1]
 
-def train_step(args):
+    logits, attn_weights = model(x)
+    local_losses = {}
+    local_outputs = {}
+
+    loss = 0.0
+    for level_idx, logits in logits.items():
+        # targets multi-label em float (0/1)
+        y = inputs[level_idx].to(device).float()
+        loss_level = criterion(logits, y)
+        local_outputs[level_idx] = logits
+        local_losses[level_idx] = loss_level
+        loss = loss + loss_level
+
+
+    return loss, attn_weights, local_losses, local_outputs
+
+
+
+def train_local_tabat(args):
     """
     Executes the training loop for a hierarchical multi-class (HMC) local \
         classifier model.
@@ -84,14 +109,16 @@ def train_step(args):
     args.job_id = create_job_id_name(prefix="test")
     logging.info("Best val loss created %s", args.best_val_loss)
 
-    args.optimizers = [
-        torch.optim.Adam(
-            args.model.levels[level]['level_classifier'].parameters(),
-            lr=args.lr_values[level],
-            weight_decay=args.weight_decay_values[level],
-        )
-        for level in args.active_levels
-    ]
+    # Loss multi-label por nível
+    args.criterion = nn.BCEWithLogitsLoss()
+
+    # Pesos por nível (pode ajustar depois)
+    args.level_weights = {k: 1.0 for k in args.model.levels.keys()}
+
+    # Peso global para FunCat vs GO (ex.: dar mais peso a GO)
+    args.lambda_funcat = 1.0
+
+    args.optimizer = optim.Adam(args.model.parameters(), lr=1e-3)
 
     args.model.train()
 
@@ -109,50 +136,22 @@ def train_step(args):
     start = start_timer()
     for epoch in range(1, args.epochs + 1):
         args.epoch = epoch
-        local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         logging.info(
             "Level active: %s",
             [level for level, level_bool in enumerate(args.level_active) if level_bool],
         )
 
-        for inputs, targets, _ in args.train_loader:
-            inputs = inputs.to(args.device)
-            targets = [target.to(args.device) for target in targets]
+        for batch in args.train_loader:
             
-            outputs = args.model(inputs.float())
+            args.optimizer.zero_grad()
 
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.zero_grad()
+            loss, attn_w, local_losses, local_outputs = compute_loss(args.model, batch, args.criterion, args.device)
 
-            total_loss = 0.0
+            loss.backward()
+            args.optimizer.step()
 
-            for level in args.active_levels:
-                if args.level_active[level]:
-                    args.current_level = level
-                    loss = calculate_hierarchical_local_loss(
-                        outputs[level],
-                        targets[level],
-                        outputs[level - 1] if level > 0 else None,
-                        matrix_r=args.hmc_dataset.edge_index[level] if level > 0 else None,
-                        args=args,
-                    )
-
-                    local_train_losses[level] += loss.item()
-                    total_loss += loss
-
-            total_loss.backward()
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.step()
-
-        for level, local_train_loss in enumerate(local_train_losses):
-            if args.level_active[level]:
-                local_train_losses[level] = local_train_loss / len(args.train_loader)
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        show_local_losses(local_train_losses, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
             args.train_methods["valid_step"](args)

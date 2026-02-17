@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
-
+from transformers import Trainer
 import torch
 import torch.nn as nn
 from transformers import PretrainedConfig
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
 from transformers.activations import NewGELUActivation
 from transformers.modeling_outputs import MaskedLMOutput, ModelOutput
 from transformers.modeling_utils import PreTrainedModel
@@ -13,6 +15,81 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaOutput,
 )
 
+class DataCollatorLM:
+    def __init__(self, config, embedding, mlm = True, mlm_probability = 0.15):
+        self.config = config
+        self.embedding = embedding
+        self.embed_shape = embedding.shape
+        self.mlm = mlm
+        self.mlm_probability = mlm_probability
+    def __call__(self, batch):
+
+        seq_ids = [item['seq_ids'] for item in batch]
+        cluster_ids = [item['cluster_ids'] for item in batch]
+
+        seq_ids = pad_sequence(seq_ids, batch_first=True, padding_value=self.config.pad_token_id)
+        cluster_ids = pad_sequence(cluster_ids, batch_first=True, padding_value=self.config.pad_token_id)
+
+
+        masked_seq_ids = seq_ids.clone()
+        inputs_embeds, labels = self.mask_tokens(masked_seq_ids, cluster_ids)
+        attention_mask = (cluster_ids != self.config.pad_token_id).long()
+        return {'inputs_embeds': inputs_embeds, 'attention_mask': attention_mask, 'labels': labels, 'cluster_ids': cluster_ids}
+
+    def mask_tokens(self, inputs, clusters):
+        labels = clusters.clone()
+        
+        probability_matrix = torch.full(labels.shape, self.mlm_probability)
+        special_tokens_mask = labels < self.config.num_special_tokens
+
+        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)            
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+        
+        labels[~masked_indices] = -100  # We only compute loss on masked tokens, -100 is default for CE compute
+
+        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        inputs[indices_replaced] = self.config.pad_token_id
+
+        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+        random_words = torch.randint(0, self.embed_shape[0], labels.shape, dtype=torch.long)
+        inputs[indices_random] = random_words[indices_random]
+        
+        inputs_adjusted = inputs
+        
+        valid_indices = inputs_adjusted >= 0
+        
+        inputs_clipped = torch.clamp(inputs_adjusted, min=0)
+        
+        inputs_embeds = self.embedding[inputs_clipped]
+        
+        inputs_embeds[~valid_indices] = 0
+
+        return torch.tensor(inputs_embeds), labels
+
+class CustomTrainer(Trainer):
+    def _remove_unused_columns(self, dataset, description=None):
+        return dataset
+    def get_train_dataloader(self):
+        train_dataset = self.train_dataset
+
+        return DataLoader(
+            train_dataset,
+            batch_size=self.args.train_batch_size,
+            shuffle=True,
+            collate_fn=self.data_collator,
+            num_workers=8
+        )
+
+    def get_eval_dataloader(self, eval_dataset=None):
+        eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
+
+        return DataLoader(
+            eval_dataset,
+            batch_size=self.args.eval_batch_size,
+            shuffle=False,
+            collate_fn=self.data_collator,
+            num_workers=8
+        )
 
 # HAT-prefixed classes are shared across genome pretraining and downstream prediction code.
 # The configuration deviates slightly from standard transformer settings.

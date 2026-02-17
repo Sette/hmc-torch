@@ -7,6 +7,13 @@ datasets, and training configurations.
 """
 import json
 import argparse
+# from dataclasses import dataclass
+
+
+# @dataclass
+# class MyArgs:
+#     level_active: list[bool]
+
 
 
 def get_parser():
@@ -157,7 +164,8 @@ def get_parser():
             "globalLM",
             "global_baseline",
             "local_constraint",
-            "local_mask",
+            "local_hat",
+            "local_tabat",
             "local_test",
         ],
         metavar="METHOD",

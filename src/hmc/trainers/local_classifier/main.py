@@ -35,38 +35,45 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+from typing import Union
+from collections.abc import Sequence
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
+from transformers import TrainingArguments
 
-from hmc.trainers.local_classifier.hpo.hpo_local_level import (
-    optimize_hyperparameters,
-)
-
-from hmc.trainers.local_classifier.core.test import (
-    test_step as test_step_core,
-)
-
-from hmc.trainers.local_classifier.core.train import (
-    train_step as train_step_core,
-)
-
+from hmc.trainers.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
+from hmc.trainers.local_classifier.core.test import test_step
+from hmc.trainers.local_classifier.core.train import train_step
+from hmc.trainers.local_classifier.core.valid import valid_step
+from hmc.trainers.local_classifier.tabat.train import train_local_tabat
+from hmc.trainers.local_classifier.tabat.valid import valid_local_tabat
+from hmc.trainers.local_classifier.tabat.test import test_local_tabat
 from hmc.utils.train.job import log_system_info
 
-from hmc.models.local_classifier.model import HMCLocalModel
-from hmc.models.local_classifier.hat.model import HATForMaskedLM
+from hmc.models.local_classifier.baseline.model import HMCLocalModel
+from hmc.models.local_classifier.hat.model import (
+    CustomTrainer,
+    DataCollatorLM,
+    HATForMaskedLM,
+    HATConfig,
+)
+
+from hmc.models.local_classifier.tabat.model import (
+    LocalAttentionClassifier,
+)
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.utils.train.job import parse_str_flags
 from hmc.utils.path.files import create_dir
 
 
-def get_train_methods(x):
+def get_train_methods(method: str) -> dict[str, object]:
     """
     Given a local classifier method string, returns a mapping of train/test/model/HPO methods.
 
     Args:
-        x (str): Type of local classifier. Options:
+        method (str): Type of local classifier. Options:
             - "local_constrained": Constrained local classifier (per level, constraints enforced)
             - "local": Standard per-level classifier
             - "local_mask": Standard per-level classifier with mask variant
@@ -78,33 +85,45 @@ def get_train_methods(x):
     Raises:
         ValueError: If an unknown method string is provided.
     """
-    match x:
+    model_functions: dict[str, object] = {}
+    match method:
         case "local" | "local_mask" | "local_test":
-            return {
+            model_functions = {
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step_core,
-                "train_step": train_step_core,
+                "test_step": test_step,
+                "valid_step": valid_step,
+                "train_step": train_step,
             }
         case "local_hat":
-            return {
+            model_functions = {
                 "model": HATForMaskedLM,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step_core,
-                "train_step": train_step_core,
+                "test_step": test_step,
+                "valid_step": valid_step,
+                "train_step": train_step,
+            }
+        case "local_tabat":
+            model_functions = {
+                "model": LocalAttentionClassifier,
+                "optimize_hyperparameters": optimize_hyperparameters,
+                "test_step": test_local_tabat,
+                "valid_step": valid_local_tabat,
+                "train_step": train_local_tabat,
             }
         case _:
-            raise ValueError(f"Método '{x}' não reconhecido.")
+            raise ValueError("Método %s não reconhecido.", method)
 
+    return model_functions
 
 def assert_hyperparameter_lengths(
-    args,
-    lr_values,
-    dropout_values,
-    hidden_dims,
-    num_layers_values,
-    weight_decay_values,
-):
+    args: object,
+    lr_values: list[float],
+    dropout_values: list[float],
+    hidden_dims: list[int],
+    num_layers_values: list[int],
+    weight_decay_values: list[float],
+) -> None:
     """
     Validates that all hyperparameter lists have a length equal to the maximum depth of the hierarchy.
 
@@ -122,7 +141,7 @@ def assert_hyperparameter_lengths(
     Raises:
         AssertionError: If any list does not have a length equal to args.max_depth.
     """
-    checks = {
+    checks: dict[str, Sequence[int | float]] = {
         "lr_values": lr_values,
         "dropout_values": dropout_values,
         "hidden_dims": hidden_dims,
@@ -245,6 +264,7 @@ def train_local(args):
     # Check how many GPUs are available
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
+    print(f"Learning values: {args.lr_values}")
 
     args = parse_str_flags(args)
 
@@ -339,34 +359,43 @@ def train_local(args):
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
         logging.info(best_params)
     else:
-        if args.lr_values:
-            args.lr_values = [float(x) for x in args.lr_values]
-            args.dropout_values = [float(x) for x in args.dropout_values]
-            # hidden_dims = [int(x) for x in args.hidden_dims]
-            args.num_layers_values = [int(x) for x in args.num_layers_values]
-            args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+        args.lr_values = [float(x) for x in args.lr_values]
+        args.dropout_values = [float(x) for x in args.dropout_values]
+        # hidden_dims = [int(x) for x in args.hidden_dims]
+        args.num_layers_values = [int(x) for x in args.num_layers_values]
+        args.weight_decay_values = [float(x) for x in args.weight_decay_values]
 
-            # Ensure all hyperparameter lists have the same length as 'max_depth'
-            assert_hyperparameter_lengths(
-                args,
-                args.lr_values,
-                args.dropout_values,
-                args.hidden_dims,
-                args.num_layers_values,
-                args.weight_decay_values,
-            )
-
-        params = {
-            "levels_size": args.hmc_dataset.levels_size,
-            "input_size": args.input_dims[args.data],
-            "hidden_dims": args.hidden_dims,
-            "num_layers": args.num_layers_values,
-            "dropouts": args.dropout_values,
-            "active_levels": args.active_levels,
-            "results_path": args.results_path,
-            "encoder_block": args.encoder_block,
-        }
-        
+        # Ensure all hyperparameter lists have the same length as 'max_depth'
+        assert_hyperparameter_lengths(
+            args,
+            args.lr_values,
+            args.dropout_values,
+            args.hidden_dims,
+            args.num_layers_values,
+            args.weight_decay_values,
+        )
+        if args.method == "local_tabat":
+            params = {
+                "levels_size": args.hmc_dataset.levels_size,
+                "input_size": args.input_dims[args.data],
+                "d_model": 64,
+                "num_heads": 4,
+                "attn_dropout": 0.2,
+                "mlp_hidden_dim": 128,
+                "mlp_dropout": 0.3,
+                "pooling": "mean",
+            }
+        else:
+            params = {
+                "levels_size": args.hmc_dataset.levels_size,
+                "input_size": args.input_dims[args.data],
+                "hidden_dims": args.hidden_dims,
+                "num_layers": args.num_layers_values,
+                "dropouts": args.dropout_values,
+                "active_levels": args.active_levels,
+                "results_path": args.results_path,
+            }
+            
         model = args.train_methods["model"](**params)
         args.model = model
         logging.info(model)
@@ -378,4 +407,3 @@ def train_local(args):
             args.training_time_seconds = end_train - start_train
             print("Tempo de treino: %f segundos", args.training_time_seconds)
         args.train_methods["test_step"](args)
-

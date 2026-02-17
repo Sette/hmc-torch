@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
+from typing import cast
 from hmc.trainers.global_classifier.constraint.run import train_global
 from hmc.trainers.local_classifier.main import train_local
 
@@ -28,6 +29,9 @@ def main():
     # Training settings
     parser = get_parser()
     args = parser.parse_args()
+    print(f"Learning rates: {args.lr_values}")
+    args.score = 0.0
+    # args.seed = int(args.seed)
 
     # Dictionaries with number of features and number of labels for each dataset
     args.input_dims = {
@@ -190,15 +194,21 @@ def main():
 
     # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+    # args = cast(MyArgs, parser.parse_args())
     match args.method:
-        case "local" | "local_constrained" | "local_mask" | "local_test":
+        case "local" | "local_tabat" | "local_hat" | "local_test":
             logging.info("Local method selected")
+            train_local(args)
+        case "local_tabat":
+            logging.info("Local TabAt method selected")
             train_local(args)
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset_name, args)
         case _:  # Default case (like 'default' in other languages
             print("Invalid option for method. Please select a valid method.")
+
+
     return args.score
 
 
