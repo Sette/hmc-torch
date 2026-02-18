@@ -3,6 +3,8 @@ import torch
 from typing import Dict, Tuple
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Dict, List, Optional, Tuple
+from hmc.models.local_classifier.networks import BuildClassification
 
 
 class MultiHeadAttentionLayer(nn.Module):
@@ -163,18 +165,28 @@ class LocalAttentionClassifier(nn.Module):
         self,
         input_size: int,          # dimensão do vetor de entrada
         levels_size: Dict[str, int],   # ex.: {"go_l1": 20, "go_l2": 150, ...}
-        d_model: int = 64,
+        num_layers: Optional[List[int]],
+        dropouts: Optional[List[float]],
+        hidden_dims: Optional[List[int]],
+        d_model: int = 128,
         num_heads: int = 4,
         attn_dropout: float = 0.2,
-        mlp_hidden_dim: int = 128,
+        mlp_hidden_dim: int = 512,
         mlp_dropout: float = 0.3,
         pooling: str = "mean",
     ):
         super().__init__()
-        # Create level modules
-        self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'level_classifier': BuildClassification}}
         self.levels_size = levels_size
         self.level_active = [True] * len(levels_size)
+        if num_layers is None:
+            num_layers = [2] * len(levels_size)
+        if dropouts is None:
+            dropouts = [0.0] * len(levels_size)
+        if hidden_dims is None:
+            hidden_dims = [64] * len(levels_size)
+        self.num_layers = num_layers
+        self.dropouts = dropouts
+        self.hidden_dims = hidden_dims
         
         # 1) Bloco de atenção tabular (tipo TabTransformer)
         self.tab_attn = TabularMultiHeadAttention(
@@ -189,8 +201,8 @@ class LocalAttentionClassifier(nn.Module):
 
         # 2) MLP compartilhado para extrair representação global
         self.mlp = nn.Sequential(
-            nn.LayerNorm(attn_out_dim),
-            nn.Linear(attn_out_dim, mlp_hidden_dim),
+            nn.LayerNorm(input_size + attn_out_dim),
+            nn.Linear(input_size + attn_out_dim, mlp_hidden_dim),
             nn.ReLU(),
             nn.Dropout(mlp_dropout),
             nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
@@ -200,8 +212,15 @@ class LocalAttentionClassifier(nn.Module):
 
         # 3) Cabeças locais por nível GO
         self.heads = nn.ModuleList()
-        for num_classes in levels_size.values():
-            level_classifier = nn.Linear(mlp_hidden_dim, num_classes)
+        for i, num_classes in enumerate(levels_size.values()):
+            level_classifier = BuildClassification(
+                input_size=mlp_hidden_dim,
+                output_size=num_classes,
+                num_layers=self.num_layers[i],
+                dropout=self.dropouts[i],
+                hidden_dim=self.hidden_dims[i],
+                level=i,
+            )
             self.heads.append(level_classifier)
 
 
@@ -210,22 +229,24 @@ class LocalAttentionClassifier(nn.Module):
         x: (batch_size, num_features)
 
         returns:
-            go_logits: dict[level_name] -> (batch, num_classes_nivel)
+            logits: dict[level_name] -> (batch, num_classes_nivel)
             attn_weights: (batch, num_heads, num_features, num_features)
         """
         h = x
-        if mode == "attention":
+        attn_out = None
+        if mode == "attention" or mode == "levels":
             logits = {
                     level_idx: 0
                     for level_idx in self.levels_size
                 }
             # 1) Atenção entre features
             attn_out, attn_weights = self.tab_attn(x)  # attn_out: (batch, attn_out_dim)
-
-            # 2) Representação global compartilhada
-            h = self.mlp(attn_out)  # (batch, mlp_hidden_dim)
+            
 
         if mode == "levels":
+            # 2) Representação global compartilhada
+            combined = torch.cat([x, attn_out], dim=-1)
+            h = self.mlp(combined)  # (batch, mlp_hidden_dim)
             # 3) Saídas por nível
             logits = {
                 level_idx: head(h)

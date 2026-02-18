@@ -378,6 +378,9 @@ def train_local(args):
             params = {
                 "levels_size": args.hmc_dataset.levels_size,
                 "input_size": args.input_dims[args.data],
+                "hidden_dims": args.hidden_dims,
+                "num_layers": args.num_layers_values,
+                "dropouts": args.dropout_values,
                 "d_model": 64,
                 "num_heads": 4,
                 "attn_dropout": 0.2,

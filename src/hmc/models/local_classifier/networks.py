@@ -72,7 +72,6 @@ class BuildClassification(nn.Module):
     """
     Unified classifier supporting:
     - Pure MLP
-    - Attention MLP
     - GCNConv (PyTorch Geometric)
     - GATConv (PyTorch Geometric, multi-head)
     """
@@ -118,10 +117,8 @@ class BuildClassification(nn.Module):
     # ======================================================================
     def forward(self, x):
         """
-        x :
+        x : Feature vector of shape (batch_size, input_size)
 
-        edge_index :
-            Only required for GCN or GAT
         """
 
         # =====================================================

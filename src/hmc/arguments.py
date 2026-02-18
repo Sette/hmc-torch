@@ -146,6 +146,25 @@ def get_parser():
         required=False,
         help="Total number of training epochs.",
     )
+
+    parser.add_argument(
+        "--epochs_attention",
+        type=int,
+        default=200,
+        metavar="EPOCHS_ATTENTION",
+        required=False,
+        help="Total number of training epochs for attention.",
+    )
+
+    parser.add_argument(
+        "--epochs_level",
+        type=int,
+        default=2000,
+        metavar="EPOCHS_LEVEL",
+        required=False,
+        help="Total number of training epochs for level.",
+    )
+
     parser.add_argument(
         "--seed",
         type=int,

@@ -33,25 +33,21 @@ from hmc.utils.train.job import (
 )
 from hmc.utils.train.losses import calculate_hierarchical_local_loss
 
-def compute_loss(model, batch, criterion, device):
-    x = batch[0].float().to(device)
-    inputs = batch[1]
-
-    logits, attn_weights = model(x)
+def compute_loss(logits, y, criterion, device):
     local_losses = {}
     local_outputs = {}
 
     loss = 0.0
-    for level_idx, logits in logits.items():
+    for level_idx, local_logits in logits.items():
         # targets multi-label em float (0/1)
-        y = inputs[level_idx].to(device).float()
-        loss_level = criterion(logits, y)
-        local_outputs[level_idx] = logits
+        y_level = y[level_idx].to(device).float()
+        loss_level = criterion(local_logits, y_level)
+        local_outputs[level_idx] = local_logits
         local_losses[level_idx] = loss_level
         loss = loss + loss_level
 
 
-    return loss, attn_weights, local_losses, local_outputs
+    return loss, local_losses, local_outputs
 
 
 
@@ -112,9 +108,6 @@ def train_local_tabat(args):
     # Loss multi-label por nível
     args.criterion = nn.BCEWithLogitsLoss()
 
-    # Pesos por nível (pode ajustar depois)
-    args.level_weights = {k: 1.0 for k in args.model.levels.keys()}
-
     # Peso global para FunCat vs GO (ex.: dar mais peso a GO)
     args.lambda_funcat = 1.0
 
@@ -134,7 +127,11 @@ def train_local_tabat(args):
         next_level = len(args.active_levels)
 
     start = start_timer()
+
+    mode = "attention"
     for epoch in range(1, args.epochs + 1):
+        if epoch > args.epochs_attention:
+            mode = "levels"
         args.epoch = epoch
         logging.info(
             "Level active: %s",
@@ -144,26 +141,24 @@ def train_local_tabat(args):
         for batch in args.train_loader:
             
             args.optimizer.zero_grad()
+            x = batch[0].float().to(args.device)
+            y = batch[1]
 
-            loss, attn_w, local_losses, local_outputs = compute_loss(args.model, batch, args.criterion, args.device)
+            logits, _ = args.model(x, mode=mode)
 
-            loss.backward()
-            args.optimizer.step()
+            if mode == "levels":
+                loss, _, _ = compute_loss(logits, y, args.criterion, args.device)
+                loss.backward()
+                args.optimizer.step()
 
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
 
-        if epoch % args.epochs_to_evaluate == 0:
+        if epoch % args.epochs_to_evaluate == 0 and mode == "levels":
             args.train_methods["valid_step"](args)
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
                 args.total_time = end_timer(start)
                 break
 
-        if epoch % args.n_warmup_epochs == 0 and next_level < args.max_depth:
-            if next_level < args.max_depth:
-                args.level_active[next_level] = True
-                logging.info("Activating level %d", next_level)
-                next_level += 1
-                args.n_warmup_epochs += args.n_warmup_epochs_increment
     args.total_time = end_timer(start)
