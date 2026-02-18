@@ -213,15 +213,17 @@ class LocalAttentionClassifier(nn.Module):
             go_logits: dict[level_name] -> (batch, num_classes_nivel)
             attn_weights: (batch, num_heads, num_features, num_features)
         """
-        logits = {
-                level_idx: 0
-                for level_idx in self.levels_size
-            }
-        # 1) Atenção entre features
-        attn_out, attn_weights = self.tab_attn(x)  # attn_out: (batch, attn_out_dim)
+        h = x
+        if mode == "attention":
+            logits = {
+                    level_idx: 0
+                    for level_idx in self.levels_size
+                }
+            # 1) Atenção entre features
+            attn_out, attn_weights = self.tab_attn(x)  # attn_out: (batch, attn_out_dim)
 
-        # 2) Representação global compartilhada
-        h = self.mlp(attn_out)  # (batch, mlp_hidden_dim)
+            # 2) Representação global compartilhada
+            h = self.mlp(attn_out)  # (batch, mlp_hidden_dim)
 
         if mode == "levels":
             # 3) Saídas por nível
