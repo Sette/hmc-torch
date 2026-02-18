@@ -173,6 +173,7 @@ class LocalAttentionClassifier(nn.Module):
         super().__init__()
         # Create level modules
         self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'level_classifier': BuildClassification}}
+        self.levels_size = levels_size
         self.level_active = [True] * len(levels_size)
         
         # 1) Bloco de atenção tabular (tipo TabTransformer)
