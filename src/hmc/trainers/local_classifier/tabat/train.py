@@ -108,28 +108,23 @@ def train_local_tabat(args):
     # Loss multi-label por nível
     args.criterion = nn.BCEWithLogitsLoss()
 
-    # Peso global para FunCat vs GO (ex.: dar mais peso a GO)
-    args.lambda_funcat = 1.0
+    args.optimizers = [
+        torch.optim.Adam(
+            args.model.heads[level].parameters(),
+            lr=args.lr_values[level],
+            weight_decay=args.weight_decay_values[level],
+        )
+        for level in args.active_levels
+    ]
 
-    args.optimizer = optim.Adam(args.model.parameters(), lr=1e-3)
+    # args.optimizer = optim.Adam(args.model.parameters(), lr=1e-3)
 
     args.model.train()
-
-    # args.r = args.hmc_dataset.R.to(args.device)
-    if args.warmup:
-        args.level_active = [False] * len(args.level_active)
-        args.level_active[0] = True
-        next_level = 1
-        logging.info(
-            "Using %s with %d warm-up epochs", args.parent_conditioning, args.n_warmup_epochs
-        )
-    else:
-        next_level = len(args.active_levels)
-
     start = start_timer()
 
     mode = "attention"
     for epoch in range(1, args.epochs + 1):
+        local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
         if epoch > args.epochs_attention:
             mode = "levels"
         args.epoch = epoch
@@ -139,18 +134,42 @@ def train_local_tabat(args):
         )
 
         for batch in args.train_loader:
-            
-            args.optimizer.zero_grad()
             x = batch[0].float().to(args.device)
-            y = batch[1]
+            targets = batch[1]
 
             logits, _ = args.model(x, mode=mode)
 
-            if mode == "levels":
-                loss, _, _ = compute_loss(logits, y, args.criterion, args.device)
-                loss.backward()
-                args.optimizer.step()
+            for level, optimizer in enumerate(args.optimizers):
+                if args.level_active[level]:
+                    optimizer.zero_grad()
 
+            total_loss = 0.0
+
+            if mode == "levels":
+                for level in args.active_levels:
+                    if args.level_active[level]:
+                        args.current_level = level
+                        loss = calculate_hierarchical_local_loss(
+                            logits[level],
+                            targets[level],
+                            args.criterion_list[level],
+                        )
+
+                        local_train_losses[level] += loss.item()
+                        total_loss += loss
+
+                total_loss.backward()
+
+                for level, optimizer in enumerate(args.optimizers):
+                    if args.level_active[level]:
+                        optimizer.step()
+
+        for level, local_train_loss in enumerate(local_train_losses):
+            if args.level_active[level]:
+                local_train_losses[level] = local_train_loss / len(args.train_loader)
+
+        logging.info("Epoch %d/%d", epoch, args.epochs)
+        show_local_losses(local_train_losses, dataset="Train")
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
 

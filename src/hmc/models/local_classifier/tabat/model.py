@@ -168,10 +168,10 @@ class LocalAttentionClassifier(nn.Module):
         num_layers: Optional[List[int]],
         dropouts: Optional[List[float]],
         hidden_dims: Optional[List[int]],
-        d_model: int = 128,
-        num_heads: int = 4,
-        attn_dropout: float = 0.2,
-        mlp_hidden_dim: int = 512,
+        d_model: int = 512,
+        num_heads: int = 8,
+        attn_dropout: float = 0.3,
+        mlp_hidden_dim: int = 1024,
         mlp_dropout: float = 0.3,
         pooling: str = "mean",
     ):
@@ -187,6 +187,9 @@ class LocalAttentionClassifier(nn.Module):
         self.num_layers = num_layers
         self.dropouts = dropouts
         self.hidden_dims = hidden_dims
+        d_model = input_size * 2
+        if d_model % num_heads != 0:
+            d_model = d_model - (d_model % num_heads)
         
         # 1) Bloco de atenção tabular (tipo TabTransformer)
         self.tab_attn = TabularMultiHeadAttention(
@@ -196,6 +199,8 @@ class LocalAttentionClassifier(nn.Module):
             dropout=attn_dropout,
             pooling=pooling,
         )
+
+        mlp_hidden_dim = input_size * 2
 
         attn_out_dim = self.tab_attn.output_dim  # d_model ou d_model * num_features
 

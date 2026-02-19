@@ -150,7 +150,7 @@ def get_parser():
     parser.add_argument(
         "--epochs_attention",
         type=int,
-        default=200,
+        default=100,
         metavar="EPOCHS_ATTENTION",
         required=False,
         help="Total number of training epochs for attention.",
