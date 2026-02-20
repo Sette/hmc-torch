@@ -20,7 +20,7 @@ def calculate_local_loss(output, target, criterion):
 
 
 
-def calculate_hierarchical_localw_loss(output, target, criterion):
+def calculate_hierarchical_local_loss(output, target, criterion):
     """
     Calculates the local loss using a specific criterion based on the current computation level.
 
