@@ -31,24 +31,7 @@ from hmc.utils.train.job import (
     end_timer,
     start_timer,
 )
-from hmc.utils.train.losses import calculate_hierarchical_local_loss
-
-def compute_loss(logits, y, criterion, device):
-    local_losses = {}
-    local_outputs = {}
-
-    loss = 0.0
-    for level_idx, local_logits in logits.items():
-        # targets multi-label em float (0/1)
-        y_level = y[level_idx].to(device).float()
-        loss_level = criterion(local_logits, y_level)
-        local_outputs[level_idx] = local_logits
-        local_losses[level_idx] = loss_level
-        loss = loss + loss_level
-
-
-    return loss, local_losses, local_outputs
-
+from hmc.utils.train.losses import compute_loss
 
 
 def train_local_tabat(args):
@@ -122,11 +105,9 @@ def train_local_tabat(args):
     args.model.train()
     start = start_timer()
 
-    mode = "attention"
     for epoch in range(1, args.epochs + 1):
         local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-        if epoch > args.epochs_attention:
-            mode = "levels"
+
         args.epoch = epoch
         logging.info(
             "Level active: %s",
@@ -134,36 +115,11 @@ def train_local_tabat(args):
         )
 
         for batch in args.train_loader:
-            x = batch[0].float().to(args.device)
-            targets = batch[1]
-
-            logits, _ = args.model(x, mode=mode)
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.zero_grad()
-
-            total_loss = 0.0
-
-            if mode == "levels":
-                for level in args.active_levels:
-                    if args.level_active[level]:
-                        args.current_level = level
-                        loss = calculate_hierarchical_local_loss(
-                            logits[level],
-                            targets[level],
-                            args.criterion_list[level],
-                        )
-
-                        local_train_losses[level] += loss.item()
-                        total_loss += loss
-
-                total_loss.backward()
-
-                for level, optimizer in enumerate(args.optimizers):
-                    if args.level_active[level]:
-                        optimizer.step()
-
+            local_train_losses, _, _ = compute_loss(
+                batch,
+                args,
+                step="train",
+            )
         for level, local_train_loss in enumerate(local_train_losses):
             if args.level_active[level]:
                 local_train_losses[level] = local_train_loss / len(args.train_loader)
@@ -171,9 +127,7 @@ def train_local_tabat(args):
         logging.info("Epoch %d/%d", epoch, args.epochs)
         show_local_losses(local_train_losses, dataset="Train")
 
-        logging.info("Epoch %d/%d", epoch, args.epochs)
-
-        if epoch % args.epochs_to_evaluate == 0 and mode == "levels":
+        if epoch % args.epochs_to_evaluate == 0:
             args.train_methods["valid_step"](args)
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def calculate_local_loss(output, target, criterion):
+def calculate_local_loss(output, target, criterion, device="cpu"):
     """
     Calculates the local loss using a specific criterion based on the current computation level.
 
@@ -15,31 +15,59 @@ def calculate_local_loss(output, target, criterion):
         torch.Tensor: The calculated loss.
     """
 
-    loss = criterion(output.double(), target.to(output.device))
+    loss = criterion(output.to(device).double(), target.to(device))
     return loss
 
 
+def compute_loss(batch, args, step="train"):
+    x = batch[0].float().to(args.device)
+    targets = batch[1]
+    if args.method == "local_tabat":
+        outputs, _ = args.model(x)
+    else:
+        outputs = args.model(x)
 
-def calculate_hierarchical_local_loss(output, target, criterion):
-    """
-    Calculates the local loss using a specific criterion based on the current computation level.
+    local_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
 
-    Args:
-        output (torch.Tensor): The output tensor from the model.
-        target (torch.Tensor): The ground truth tensor.
-        p_output (torch.Tensor): The output tensor from the previous level.
-        args (Namespace): An object containing the current computation level and the criterions.
-    Returns:
-        torch.Tensor: The calculated loss.
-    """
+    local_inputs = {
+        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
+    }
+    local_outputs = {
+        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
+    }
 
-    loss = calculate_local_loss(
-        output,
-        target,
-        criterion
-    )
+    total_loss = 0.0
+    for level in args.active_levels:
+        if args.level_active[level]:
+            loss = calculate_local_loss(
+                outputs[str(level)],
+                targets[level],
+                args.criterion_list[level],
+            )
+            local_losses[level] += loss.item()
+            total_loss += loss
 
-    return loss
+            if local_outputs[level].shape[0] == 0:
+                local_outputs[level] = outputs[str(level)]
+                local_inputs[level] = targets[level]
+            else:  # In subsequent iterations, concatenate along batch dimension
+                local_outputs[level] = torch.cat(
+                    (local_outputs[level], outputs[str(level)]),
+                    dim=0,
+                )
+                local_inputs[level] = torch.cat(
+                    (local_inputs[level], targets[level]),
+                    dim=0,
+                )
+
+    if step == "train":
+        total_loss.backward()
+
+        for level, optimizer in enumerate(args.optimizers):
+            if args.level_active[level]:
+                optimizer.step()
+
+    return local_losses, local_inputs, local_outputs
 
 
 class MaskedBCELoss(nn.Module):

@@ -58,20 +58,17 @@ class HMCLocalModel(HierarchicalModel):
         self.hidden_dims = hidden_dims
         self.num_layers = num_layers
         self.dropouts = dropouts
-        # Create level modules
-        self.levels = {}  # dict {level_idx: {'encoder': ModuleList, 'level_classifier': BuildClassification}}
+        self.levels = {}
         self.level_active = [True] * len(levels_size)
-        
-       
+
         self._build_levels()
 
     # noinspection PyGlobalUndefined
     def _build_levels(self):
         """Build classification networks for each active level."""
         for level_idx in self.active_levels:
-            # Input size depends on residual connections
             current_input_size = self.input_size
-            
+
             level_classifier = BuildClassification(
                 input_size=current_input_size,
                 output_size=self.levels_size[level_idx],

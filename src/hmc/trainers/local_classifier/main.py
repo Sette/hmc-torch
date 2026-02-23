@@ -60,7 +60,7 @@ from hmc.models.local_classifier.hat.model import (
 )
 
 from hmc.models.local_classifier.tabat.model import (
-    LocalAttentionClassifier,
+    TabATModel,
 )
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
@@ -105,7 +105,7 @@ def get_train_methods(method: str) -> dict[str, object]:
             }
         case "local_tabat":
             model_functions = {
-                "model": LocalAttentionClassifier,
+                "model": TabATModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_local_tabat,
                 "valid_step": valid_local_tabat,
@@ -115,6 +115,7 @@ def get_train_methods(method: str) -> dict[str, object]:
             raise ValueError("Método %s não reconhecido.", method)
 
     return model_functions
+
 
 def assert_hyperparameter_lengths(
     args: object,
@@ -165,12 +166,12 @@ def assert_hyperparameter_lengths(
 
 
 def create_dataloader(
-            data, 
-            scaler, 
-            imp_mean,
-            args,
-            is_test=False,                
-        ):
+    data,
+    scaler,
+    imp_mean,
+    args,
+    is_test=False,
+):
     """
     Creates a dataset by preprocessing features and labels.
 
@@ -207,10 +208,10 @@ def create_dataloader(
     ]
 
     data_loader = DataLoader(
-            dataset=dataset,
-            batch_size=args.batch_size,
-            shuffle=shuffle,
-        )
+        dataset=dataset,
+        batch_size=args.batch_size,
+        shuffle=shuffle,
+    )
 
     return data_loader
 
@@ -302,13 +303,9 @@ def train_local(args):
         is_global=False,
     )
     data_train, data_valid, data_test = hmc_dataset.get_datasets()
-
-    scaler: object = preprocessing.StandardScaler().fit(
-        np.concatenate((data_train.X, data_valid.X))
-    )
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((data_train.X, data_valid.X))
-    )
+    data_concat = np.concatenate((data_train.X, data_valid.X, data_test.X))
+    scaler = preprocessing.StandardScaler().fit(data_concat)
+    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
 
     if args.method != "local_test":
         val_dataloader = create_dataloader(
@@ -337,7 +334,7 @@ def train_local(args):
     if args.save_torch_dataset:
         # Save datasets in torch format
         torch.save(test_loader, test_path)
-    
+
     args.test_loader = test_loader
     args.hmc_dataset = hmc_dataset
     args.levels_size = hmc_dataset.levels_size
@@ -381,11 +378,8 @@ def train_local(args):
                 "hidden_dims": args.hidden_dims,
                 "num_layers": args.num_layers_values,
                 "dropouts": args.dropout_values,
-                "d_model": 64,
-                "num_heads": 4,
-                "attn_dropout": 0.2,
-                "mlp_hidden_dim": 128,
-                "mlp_dropout": 0.3,
+                "embed_dim": 512,
+                "num_heads": 8,
                 "pooling": "mean",
             }
         else:
@@ -398,7 +392,7 @@ def train_local(args):
                 "active_levels": args.active_levels,
                 "results_path": args.results_path,
             }
-            
+
         model = args.train_methods["model"](**params)
         args.model = model
         logging.info(model)

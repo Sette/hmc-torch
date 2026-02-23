@@ -7,30 +7,8 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from hmc.utils.train.early_stopping import (
     check_early_stopping_tabat,
 )
-from hmc.utils.train.losses import calculate_local_loss
+from hmc.utils.train.losses import compute_loss
 
-def compute_loss(model, batch, criterion, device):
-    x = batch[0].float().to(device)
-    inputs = batch[1]
-
-    logits, attn_weights = model(x)
-    local_losses = {}
-    local_outputs = {}
-    local_inputs = {}
-
-    loss = 0.0
-    for level_idx, logits in logits.items():
-        # targets multi-label em float (0/1)
-        y = inputs[level_idx].to(device).float()
-
-        loss_level = criterion(logits, y)
-        local_outputs[level_idx] = logits
-        local_inputs[level_idx] = y
-        local_losses[level_idx] = loss_level
-        loss = loss + loss_level
-
-
-    return loss, attn_weights, local_losses, local_inputs, local_outputs
 
 def valid_local_tabat(args):
     """
@@ -86,8 +64,11 @@ def valid_local_tabat(args):
 
     with torch.no_grad():
         for batch in args.val_loader:
-            loss, attn_weights, local_losses, local_inputs, local_outputs = compute_loss(args.model, batch, args.criterion, args.device)
-
+            local_val_losses, local_inputs, local_outputs = compute_loss(
+                batch,
+                args,
+                step="valid",
+            )
 
     for level in args.active_levels:
         if args.level_active[level]:
@@ -124,6 +105,6 @@ def valid_local_tabat(args):
                 args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
-        loss / len(args.val_loader) for loss in args.local_val_losses
+        loss / len(args.val_loader) for loss in local_val_losses
     ]
     check_early_stopping_tabat(args, args.active_levels)

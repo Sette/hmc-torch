@@ -27,7 +27,7 @@ from hmc.utils.train.job import (
     end_timer,
     start_timer,
 )
-from hmc.utils.train.losses import calculate_hierarchical_local_loss
+from hmc.utils.train.losses import calculate_local_loss
 
 
 def train_step(args):
@@ -130,7 +130,7 @@ def train_step(args):
             for level in args.active_levels:
                 if args.level_active[level]:
                     args.current_level = level
-                    loss = calculate_hierarchical_local_loss(
+                    loss = calculate_local_loss(
                         outputs[level],
                         targets[level],
                         args.criterion_list[level],

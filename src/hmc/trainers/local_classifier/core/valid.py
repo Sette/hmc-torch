@@ -75,7 +75,7 @@ def valid_step(args):
                     loss = calculate_local_loss(
                         outputs[level],
                         targets[level],
-                        args,
+                        args.criterion_list[level],
                     )
                     args.local_val_losses[level] += loss.item()
                     total_loss += loss

@@ -79,7 +79,7 @@ class BuildClassification(nn.Module):
     def __init__(
         self,
         input_size: int,
-        hidden_dim: int,
+        hidden_dims: List[int],
         output_size: int,
         num_layers: int = 2,
         dropout: float = 0.0,
@@ -91,30 +91,26 @@ class BuildClassification(nn.Module):
         self.level = level
         layers = []
         current_size = input_size
-
-        print(input_size)
-        print(hidden_dim)
-
         # Build hidden layers
         for i in range(num_layers):
-            layers.append(nn.Linear(current_size, hidden_dim[i]))
+            layers.append(nn.Linear(current_size, hidden_dims[i]))
             layers.append(nn.ReLU())
 
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
 
-            current_size = hidden_dim[i]
+            current_size = hidden_dims[i]
 
         # Output layer
         layers.append(nn.Linear(current_size, output_size))
         layers.append(nn.Sigmoid())  # Sigmoid for binary classification
 
-        self.mpl = nn.Sequential(*layers).to(device)
-
+        self.head = nn.Sequential(*layers).to(device)
 
     # ======================================================================
     # Forward
     # ======================================================================
+
     def forward(self, x):
         """
         x : Feature vector of shape (batch_size, input_size)
@@ -122,7 +118,6 @@ class BuildClassification(nn.Module):
         """
 
         # =====================================================
-        # Pure MLP
+        # Head Classifier
         # =====================================================
-        return self.mpl(x)
-
+        return self.head(x)
