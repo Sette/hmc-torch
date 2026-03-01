@@ -8,8 +8,8 @@ import torch
 
 from hmc.arguments import get_parser
 from typing import cast
-from hmc.trainers.global_classifier.constraint.run import train_global
-from hmc.trainers.local_classifier.main import train_local
+from hmc.pipeline.global_classifier.constraint.run import train_global
+from hmc.pipeline.local_classifier.main import train_local
 
 from hmc.utils.train.job import create_job_id_name
 

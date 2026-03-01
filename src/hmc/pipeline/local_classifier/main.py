@@ -21,7 +21,7 @@ Classes and functions:
     - train_local: Main training routine for local (and constrained local) HMC classifiers.
 
 Dependencies:
-    - torch, numpy, sklearn, hmc.utils, hmc.datasets, hmc.models, hmc.trainers
+    - torch, numpy, sklearn, hmc.utils, hmc.datasets, hmc.models, hmc.pipeline
 
 Intended for research and experimentation with HMC classifier benchmarks.
 
@@ -42,13 +42,13 @@ from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 from transformers import TrainingArguments
 
-from hmc.trainers.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
-from hmc.trainers.local_classifier.core.test import test_step
-from hmc.trainers.local_classifier.core.train import train_step
-from hmc.trainers.local_classifier.core.valid import valid_step
-from hmc.trainers.local_classifier.tabat.train import train_local_tabat
-from hmc.trainers.local_classifier.tabat.valid import valid_local_tabat
-from hmc.trainers.local_classifier.tabat.test import test_local_tabat
+from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
+from hmc.pipeline.local_classifier.core.test import test_step
+from hmc.pipeline.local_classifier.core.train import train_step
+from hmc.pipeline.local_classifier.core.valid import valid_step
+from hmc.pipeline.local_classifier.tabat.train import train_local_tabat
+from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
+from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
 from hmc.utils.train.job import log_system_info
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel

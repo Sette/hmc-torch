@@ -25,7 +25,7 @@ dvc:
 	@dvc pull
 
 run:
-	./run.sh --device cuda --dataset_path data/seq_FUN --output_path output --method local --epochs_to_evaluate 10 --hpo true
+	./run.sh --device cuda --dataset_name seq_FUN --output_path output --method local --epochs_to_evaluate 10 
 
 test:
 	@echo "--> Running Test"

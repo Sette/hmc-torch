@@ -147,7 +147,6 @@ def optimize_hyperparameters(args):
             "dropouts": dropouts,
             "active_levels": [level],
             "results_path": args.results_path,
-            "residual": args.parent_conditioning == "residual",
         }
 
         args.model = HMCLocalModel(**params).to(args.device)

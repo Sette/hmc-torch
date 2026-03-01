@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline_old.model import HMCLocalModel
-from hmc.trainers.utils import (
+from hmc.pipeline.utils import (
     create_job_id_name,
     save_dict_to_json,
     show_global_loss,

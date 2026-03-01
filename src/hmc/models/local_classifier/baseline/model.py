@@ -74,7 +74,7 @@ class HMCLocalModel(HierarchicalModel):
                 output_size=self.levels_size[level_idx],
                 num_layers=self.num_layers[level_idx],
                 dropout=self.dropouts[level_idx],
-                hidden_dim=self.hidden_dims[level_idx],
+                hidden_dims=self.hidden_dims[level_idx],
                 level=level_idx,
             )
 
