@@ -51,12 +51,12 @@ def check_early_stopping_normalized(
     for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:
-                args.best_model[level] = args.model.levels[level]['level_classifier'].state_dict()
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
                 logging.info("Level %d: initialized best model", level)
                 if save_model:
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
-                        args.model.levels[level]['level_classifier'].state_dict(),
+                        args.model.levels[str(level)].state_dict(),
                         os.path.join(
                             args.results_path, f"best_model_level_{level}.pth"
                         ),
@@ -123,13 +123,13 @@ def check_early_stopping_normalized(
                         level,
                     )
                     # ❄️ Congelar os parâmetros desse nível
-                    for param in args.model.levels[level]['level_classifier'].parameters():
+                    for param in args.model.levels[str(level)].parameters():
                         param.requires_grad = False
 
             if is_better_metric:
                 # Atualizar o melhor modelo e as melhores métricas
                 args.best_val_score[level] = round(args.local_val_scores[level], 4)
-                args.best_model[level] = args.model.levels[level]['level_classifier'].state_dict()
+                args.best_model[level] = args.model.levels[str(level)].state_dict()
                 args.patience_counters_score[level] = 0
                 logging.info(
                     "Level %d: improved (%s=%.4f)",
@@ -141,7 +141,7 @@ def check_early_stopping_normalized(
                     # Salvar em disco
                     logging.info("Saving best model for Level %d", level)
                     torch.save(
-                        args.model.levels[level]['level_classifier'].state_dict(),
+                        args.model.levels[str(level)].state_dict(),
                         os.path.join(
                             args.results_path, f"best_model_level_{level}.pth"
                         ),

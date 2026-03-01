@@ -63,12 +63,14 @@ def valid_local_tabat(args):
     args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
-        for batch in args.val_loader:
+        for level, batch in enumerate(args.val_loader):
             local_val_losses, local_inputs, local_outputs = compute_loss(
                 batch,
                 args,
                 step="valid",
             )
+
+            args.local_val_losses[level] = local_val_losses
 
     for level in args.active_levels:
         if args.level_active[level]:
@@ -105,6 +107,6 @@ def valid_local_tabat(args):
                 args.local_val_scores[level] = avg_score
 
     args.local_val_losses = [
-        loss / len(args.val_loader) for loss in local_val_losses
+        loss / len(args.val_loader) for loss in args.local_val_losses
     ]
     check_early_stopping_tabat(args, args.active_levels)

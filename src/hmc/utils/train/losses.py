@@ -22,21 +22,20 @@ def calculate_local_loss(output, target, criterion, device="cpu"):
 def compute_loss(batch, args, step="train"):
     x = batch[0].float().to(args.device)
     targets = batch[1]
+    
+    # Supondo que outputs seja o dict {str(level): logits}
     if args.method == "local_tabat":
-        outputs, _ = args.model(x)
+        outputs, attn_weights = args.model(x) # Pegamos attn_weights se precisar regularizar
     else:
         outputs = args.model(x)
 
     local_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
+    local_inputs = {level: torch.tensor([]) for level in args.active_levels}
+    local_outputs = {level: torch.tensor([]) for level in args.active_levels}
 
-    local_inputs = {
-        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
-    }
-    local_outputs = {
-        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
-    }
-
-    total_loss = 0.0
+    total_cls_loss = 0.0
+    
+    # 1. Cálculo da Loss de Classificação (BCE) por nível
     for level in args.active_levels:
         if args.level_active[level]:
             loss = calculate_local_loss(
@@ -45,27 +44,39 @@ def compute_loss(batch, args, step="train"):
                 args.criterion_list[level],
             )
             local_losses[level] += loss.item()
-            total_loss += loss
+            total_cls_loss += loss
 
+            # Armazenamento para métricas/validação
             if local_outputs[level].shape[0] == 0:
-                local_outputs[level] = outputs[str(level)]
+                local_outputs[level] = outputs[str(level)].detach() # detach para evitar acúmulo de grafo
                 local_inputs[level] = targets[level]
-            else:  # In subsequent iterations, concatenate along batch dimension
-                local_outputs[level] = torch.cat(
-                    (local_outputs[level], outputs[str(level)]),
-                    dim=0,
-                )
-                local_inputs[level] = torch.cat(
-                    (local_inputs[level], targets[level]),
-                    dim=0,
-                )
+            else:
+                local_outputs[level] = torch.cat((local_outputs[level], outputs[str(level)].detach()), dim=0)
+                local_inputs[level] = torch.cat((local_inputs[level], targets[level]), dim=0)
+
+    # 2. Cálculo da Hierarchical Consistency Loss (HCL)
+    # Certifique-se que args.hierarchy_map está no formato {(pai_lvl, pai_idx): [(filho_lvl, filho_idx)]}
+    loss_hier = 0.0
+    if hasattr(args.hmc_dataset, 'hierarchy_map') and args.hmc_dataset.hierarchy_map:
+        loss_hier = hierarchical_consistency_loss(outputs, args.hmc_dataset.hierarchy_map)
+
+    # 3. Loss Total
+    # O lambda_hier (ex: 0.1) controla o impacto da consistência
+    lambda_hier = getattr(args, 'lambda_hier', 0.5)
+    total_loss = total_cls_loss + (lambda_hier * loss_hier)
 
     if step == "train":
+        # Zera todos os otimizadores antes do backward
+        for opt in args.optimizers:
+            opt.zero_grad()
+            
         total_loss.backward()
 
+        # Step em todos os otimizadores ativos
         for level, optimizer in enumerate(args.optimizers):
             if args.level_active[level]:
                 optimizer.step()
+
 
     return local_losses, local_inputs, local_outputs
 
@@ -201,3 +212,32 @@ class WeightedMultiLabelFocalLoss(nn.Module):
             return focal_loss.sum()
         else:
             return focal_loss
+
+
+
+def hierarchical_consistency_loss(logits_dict, class_hierarchy):
+    """
+    Calculates the hierarchical consistency loss.
+    This loss penalizes the model for predicting child classes with higher probabilities than their parent classes.
+    Args:
+        logits_dict (dict): Dictionary mapping each level index to a tensor of logits.
+        class_hierarchy (dict): Dictionary mapping each parent class index to a list of child class indices.
+    Returns:
+        torch.Tensor: The calculated hierarchical consistency loss.
+    """
+    h_loss = 0
+    probs = {lvl: torch.sigmoid(l) for lvl, l in logits_dict.items()}
+
+    for (p_lvl, p_idx), children in class_hierarchy.items():
+        # Probabilidade da classe pai específica
+        # probs[p_lvl] tem shape (batch, num_classes_no_nivel)
+        prob_pai = probs[str(p_lvl)][:, p_idx] 
+        
+        for (c_lvl, c_idx) in children:
+            prob_filho = probs[str(c_lvl)][:, c_idx]
+            
+            # Penaliza se P(Filho) > P(Pai)
+            violation = torch.relu(prob_filho - prob_pai)
+            h_loss += torch.mean(violation)
+            
+    return h_loss

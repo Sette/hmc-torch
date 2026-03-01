@@ -27,7 +27,8 @@ from hmc.utils.train.job import (
     end_timer,
     start_timer,
 )
-from hmc.utils.train.losses import calculate_local_loss
+
+from hmc.utils.train.losses import compute_loss
 
 
 def train_step(args):
@@ -86,7 +87,7 @@ def train_step(args):
 
     args.optimizers = [
         torch.optim.Adam(
-            args.model.levels[level]['level_classifier'].parameters(),
+            args.model.levels[str(level)].parameters(),
             lr=args.lr_values[level],
             weight_decay=args.weight_decay_values[level],
         )
@@ -115,36 +116,12 @@ def train_step(args):
             [level for level, level_bool in enumerate(args.level_active) if level_bool],
         )
 
-        for inputs, targets, _ in args.train_loader:
-            inputs = inputs.to(args.device)
-            targets = [target.to(args.device) for target in targets]
-            
-            outputs = args.model(inputs.float())
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.zero_grad()
-
-            total_loss = 0.0
-
-            for level in args.active_levels:
-                if args.level_active[level]:
-                    args.current_level = level
-                    loss = calculate_local_loss(
-                        outputs[level],
-                        targets[level],
-                        args.criterion_list[level],
-                    )
-
-                    local_train_losses[level] += loss.item()
-                    total_loss += loss
-
-            total_loss.backward()
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.step()
-
+        for batch in args.train_loader:
+            local_train_losses, _, _ = compute_loss(
+                batch,
+                args,
+                step="train",
+            )
         for level, local_train_loss in enumerate(local_train_losses):
             if args.level_active[level]:
                 local_train_losses[level] = local_train_loss / len(args.train_loader)

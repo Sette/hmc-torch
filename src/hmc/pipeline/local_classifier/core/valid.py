@@ -7,7 +7,7 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
-from hmc.utils.train.losses import calculate_local_loss
+from hmc.utils.train.losses import compute_loss
 
 
 def valid_step(args):
@@ -63,36 +63,13 @@ def valid_step(args):
     args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
-        for i, (inputs, targets, _) in enumerate(args.val_loader):
-            inputs, targets = inputs.to(args.device), [
-                target.to(args.device) for target in targets
-            ]
-            outputs = args.model(inputs.float())
+        for batch in args.val_loader:
+            _, local_inputs, local_outputs = compute_loss(
+                batch,
+                args,
+                step="valid",
+            )
 
-            total_loss = 0.0
-            for level in args.active_levels:
-                if args.level_active[level]:
-                    loss = calculate_local_loss(
-                        outputs[level],
-                        targets[level],
-                        args.criterion_list[level],
-                    )
-                    args.local_val_losses[level] += loss.item()
-                    total_loss += loss
-
-                    if i == 0:  # First iteration: initialize tensor
-                        local_outputs[level] = outputs[level]
-                        local_inputs[level] = targets[level]
-
-                    else:  # In subsequent iterations, concatenate along batch dimension
-                        local_outputs[level] = torch.cat(
-                            (local_outputs[level], outputs[level]),
-                            dim=0,
-                        )
-                        local_inputs[level] = torch.cat(
-                            (local_inputs[level], targets[level]),
-                            dim=0,
-                        )
 
     for level in args.active_levels:
         if args.level_active[level]:

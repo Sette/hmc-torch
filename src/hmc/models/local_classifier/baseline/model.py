@@ -58,7 +58,7 @@ class HMCLocalModel(HierarchicalModel):
         self.hidden_dims = hidden_dims
         self.num_layers = num_layers
         self.dropouts = dropouts
-        self.levels = {}
+        self.levels = nn.ModuleDict()
         self.level_active = [True] * len(levels_size)
 
         self._build_levels()
@@ -78,9 +78,7 @@ class HMCLocalModel(HierarchicalModel):
                 level=level_idx,
             )
 
-            self.levels[level_idx] = {
-                'level_classifier': level_classifier
-            }
+            self.levels[str(level_idx)] = level_classifier
 
             logging.info(
                 "Level %d: input_size=%d, output_size=%d",
@@ -111,8 +109,8 @@ class HMCLocalModel(HierarchicalModel):
                 self._load_checkpoint(level_idx)
 
             # Forward through level
-            level_output = level_module['level_classifier'](current_input)
-            outputs[level_idx] = level_output
+            level_output = level_module(current_input)
+            outputs[str(level_idx)] = level_output
 
         return outputs
 
@@ -124,7 +122,7 @@ class HMCLocalModel(HierarchicalModel):
 
         if os.path.exists(checkpoint_path):
             # logging.info(f"Loading checkpoint: {checkpoint_path}")
-            self.levels[level_idx]['level_classifier'].load_state_dict(
+            self.levels[str(level_idx)].load_state_dict(
                 torch.load(checkpoint_path, weights_only=True)
             )
             return True

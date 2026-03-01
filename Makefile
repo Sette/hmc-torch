@@ -27,6 +27,9 @@ dvc:
 run:
 	./run.sh --device cuda --dataset_name seq_FUN --output_path output --method local --epochs_to_evaluate 10 
 
+run_tabat:
+	./run.sh --device cuda --dataset_name seq_FUN --output_path output --method local_tabat --epochs_to_evaluate 10 
+
 test:
 	@echo "--> Running Test"
 	@pytest --verbose --cov-report term-missing --cov-report xml --cov-report html --cov=. .

@@ -22,15 +22,14 @@ import logging
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
-from hmc.pipeline.local_classifier.core.valid import valid_step
 from hmc.utils.dataset.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
     end_timer,
     start_timer,
 )
+
 from hmc.utils.train.losses import compute_loss
 
 

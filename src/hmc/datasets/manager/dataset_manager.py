@@ -270,6 +270,7 @@ class HMCDatasetManager:
         self.edge_index = self.train.edge_index
         # self.R = self.compute_matrix_R(self.A)
         # self.compute_matrix_R_local()
+        self.build_hierarchy_map()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
         self.nodes_idx = self.train.nodes_idx
@@ -277,6 +278,16 @@ class HMCDatasetManager:
         self.max_depth = self.train.max_depth
         self.levels = self.train.levels
         self.levels_size = self.train.levels_size
+
+    def build_hierarchy_map(self):
+        """
+        Builds the hierarchy map.
+        """
+        self.hierarchy_map = {}
+        for parent in self.g.nodes():
+            children = list(self.g.successors(parent))
+            if children:
+                self.hierarchy_map[parent] = children
 
     def get_datasets(self):
         return self.train, self.valid, self.test
