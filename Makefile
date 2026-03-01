@@ -24,6 +24,9 @@ lint:
 dvc:
 	@dvc pull
 
+run:
+	./run.sh --device cuda --dataset_path data/seq_FUN --output_path output --method local --epochs_to_evaluate 10 --hpo true
+
 test:
 	@echo "--> Running Test"
 	@pytest --verbose --cov-report term-missing --cov-report xml --cov-report html --cov=. .
