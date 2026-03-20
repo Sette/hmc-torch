@@ -21,15 +21,14 @@ Functions:
 import logging
 
 import torch
-
-from hmc.trainers.local_classifier.core.valid import valid_step
 from hmc.utils.dataset.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
     end_timer,
     start_timer,
 )
-from hmc.utils.train.losses import calculate_hierarchical_local_loss
+
+from hmc.utils.train.losses import compute_loss
 
 
 def train_step(args):
@@ -37,7 +36,7 @@ def train_step(args):
     Executes the training loop for a hierarchical multi-class (HMC) local \
         classifier model.
     This function performs the following steps:
-    - Moves the model and loss criterions to the specified device.
+    - Moves the model and loss criterion to the specified device.
     - Initializes early stopping parameters and tracking variables for \
         each level of the hierarchy.
     - Sets up optimizers for each model level with individual learning rates \
@@ -54,7 +53,7 @@ def train_step(args):
         args: An object containing all necessary training parameters and \
             objects, including:
             - model: The hierarchical model with per-level submodules.
-            - criterions: List of loss functions for each level.
+            - criterion_list: List of loss functions for each level.
             - device: Device to run computations on.
             - hmc_dataset: Dataset object with max_depth attribute.
             - active_levels: List of currently active levels for training.
@@ -68,7 +67,7 @@ def train_step(args):
     """
 
     args.model = args.model.to(args.device)
-    args.criterions = [criterion.to(args.device) for criterion in args.criterions]
+    args.criterion_list = [criterion.to(args.device) for criterion in args.criterion_list]
 
     args.early_stopping_patience = args.patience
     args.early_stopping_patience_score = args.patience_score
@@ -117,38 +116,12 @@ def train_step(args):
             [level for level, level_bool in enumerate(args.level_active) if level_bool],
         )
 
-        for inputs, targets, _ in args.train_loader:
-            inputs = inputs.to(args.device)
-            targets = [target.to(args.device) for target in targets]
-
-            outputs = args.model(inputs.float())
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.zero_grad()
-
-            total_loss = 0.0
-
-            for level in args.active_levels:
-                if args.level_active[level]:
-                    args.current_level = level
-                    loss = calculate_hierarchical_local_loss(
-                        outputs[level],
-                        targets[level],
-                        outputs[level - 1] if level > 0 else None,
-                        matrix_r=args.hmc_dataset.edge_index[level] if level > 0 else None,
-                        args=args,
-                    )
-
-                    local_train_losses[level] += loss.item()
-                    total_loss += loss
-
-            total_loss.backward()
-
-            for level, optimizer in enumerate(args.optimizers):
-                if args.level_active[level]:
-                    optimizer.step()
-
+        for batch in args.train_loader:
+            local_train_losses, _, _ = compute_loss(
+                batch,
+                args,
+                step="train",
+            )
         for level, local_train_loss in enumerate(local_train_losses):
             if args.level_active[level]:
                 local_train_losses[level] = local_train_loss / len(args.train_loader)
@@ -157,7 +130,7 @@ def train_step(args):
         show_local_losses(local_train_losses, dataset="Train")
 
         if epoch % args.epochs_to_evaluate == 0:
-            valid_step(args)
+            args.train_methods["valid_step"](args)
             if not any(args.level_active):
                 logging.info("All levels have triggered early stopping.")
                 args.total_time = end_timer(start)

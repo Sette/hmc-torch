@@ -5,7 +5,7 @@ import optuna
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
-from hmc.models.local_classifier.baseline import HMCLocalModel
+from hmc.models.local_classifier.baseline.model import HMCLocalModel
 
 # from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
@@ -147,7 +147,6 @@ def optimize_hyperparameters(args):
             "dropouts": dropouts,
             "active_levels": [level],
             "results_path": args.results_path,
-            "residual": args.parent_conditioning == "residual",
         }
 
         args.model = HMCLocalModel(**params).to(args.device)

@@ -143,6 +143,7 @@ if [ "$DATASET_NAME" = "all" ]; then
 
         echo "Using dataset_name: $dataset_local"
         echo "Using hidden dimensions: $HIDDEN_DIMS"
+        echo "Using learning_rates: $LR_VALUES"
         cmd_dataset=$cmd
         if [ "$ACTIVE_LEVELS" ]; then
             cmd_dataset=cmd+" --active_levels $ACTIVE_LEVELS"
@@ -175,14 +176,14 @@ else
     WEIGHT_DECAY_VALUES=$(yq '.datasets_params.'"$DATASET_NAME"'.weight_decay_values[]' config.yaml | xargs)
 
     echo "Using hidden dimensions: $HIDDEN_DIMS"
-
+    echo "Using learning_rates: $LR_VALUES"
     cmd="$cmd --dataset_name $DATASET_NAME"
 
     if [ "$ACTIVE_LEVELS" ]; then
         cmd+=" --active_levels $ACTIVE_LEVELS"
     fi
 
-    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_constraint" ] || [ "$METHOD" = "local_mask" ]; }; then
+    if [ "$HPO" = "false" ] && { [ "$METHOD" = "local" ] || [ "$METHOD" = "local_test" ] || [ "$METHOD" = "local_tabat" ] || [ "$METHOD" = "local_mask" ]; }; then
         cmd+=" \
             --lr_values ${LR_VALUES[@]} \
             --dropout_values ${DROPOUT_VALUES[@]} \

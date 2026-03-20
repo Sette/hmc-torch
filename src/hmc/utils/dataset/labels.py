@@ -457,7 +457,7 @@ def show_local_losses(local_losses, dataset="Train"):
     """
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
-        if local_loss is not None and local_loss != 0.0:
+        if local_loss is not None:
             formatted_string += "level %d: %.4f // " % (
                 level,
                 local_loss,

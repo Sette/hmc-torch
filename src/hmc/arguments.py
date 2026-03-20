@@ -7,6 +7,13 @@ datasets, and training configurations.
 """
 import json
 import argparse
+# from dataclasses import dataclass
+
+
+# @dataclass
+# class MyArgs:
+#     level_active: list[bool]
+
 
 
 def get_parser():
@@ -139,6 +146,25 @@ def get_parser():
         required=False,
         help="Total number of training epochs.",
     )
+
+    parser.add_argument(
+        "--epochs_attention",
+        type=int,
+        default=100,
+        metavar="EPOCHS_ATTENTION",
+        required=False,
+        help="Total number of training epochs for attention.",
+    )
+
+    parser.add_argument(
+        "--epochs_level",
+        type=int,
+        default=2000,
+        metavar="EPOCHS_LEVEL",
+        required=False,
+        help="Total number of training epochs for level.",
+    )
+
     parser.add_argument(
         "--seed",
         type=int,
@@ -157,7 +183,8 @@ def get_parser():
             "globalLM",
             "global_baseline",
             "local_constraint",
-            "local_mask",
+            "local_hat",
+            "local_tabat",
             "local_test",
         ],
         metavar="METHOD",
@@ -335,11 +362,20 @@ def get_parser():
     parser.add_argument(
         "--patience",
         type=int,
-        default=15,
+        default=5,
         metavar="PATIENCE",
         required=False,
         help="Number of epochs with no improvement \
             after which training will be stopped.",
+    )
+
+    parser.add_argument(
+        "--encoder_block",
+        type=bool,
+        default=False,
+        metavar="ENCODER_BLOCK",
+        required=False,
+        help="Active Encoder Block in the model.",
     )
 
     parser.add_argument(

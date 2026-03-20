@@ -39,7 +39,7 @@ pip-delete-this-directory.txt
 # Train logs
 logs/
 lightning_logs/
-results/
+output/
 
 # Unit test / coverage reports
 htmlcov/
