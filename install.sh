@@ -96,15 +96,14 @@ fi
 
 
 # Ask the user if they want to install packages with poetry
-echo -n "Do you want to Poetry with pipx? (y/n): "
+echo -n "Do you want to Poetry with pip? (y/n): "
 read INSTALL_POETRY_CHOICE
 INSTALL_POETRY_CHOICE=$(echo "$INSTALL_POETRY_CHOICE" | tr '[:upper:]' '[:lower:]')
 
 # Check if the user wants to install Poetry using pip
 if [ "$INSTALL_POETRY_CHOICE" = "y" ]; then
-    echo "Installing Poetry with pip and pipx..."
-    uv pip install pipx
-    pipx install poetry
+    echo "Installing Poetry with pip..."
+    uv pip install poetry
 else
     echo "Skipping Poetry installation."
 fi
