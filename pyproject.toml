@@ -10,9 +10,9 @@ readme = "README.md"
 python = "^3.11"
 tqdm = ">=4.66.4"
 numpy = "^2.4.2"
-torch = { version = "2.5.1", source = "pytorch-gpu" }
-torchaudio = { version = "2.5.1", source = "pytorch-gpu" }
-torchvision = { version = "0.20.1", source = "pytorch-gpu" }
+torch = { version = "2.5.1", source = "pytorch" }
+torchaudio = { version = "2.5.1", source = "pytorch" }
+torchvision = { version = "0.20.1", source = "pytorch" }
 pandas = ">=1.5.0"
 dataset = ">=1.6.2"
 scikit-learn = ">=1.2.2"
@@ -28,11 +28,6 @@ transformers = "^5.1.0"
 tf-keras = "^2.20.1"
 
 
-[[tool.poetry.source]]
-name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"
-
 [tool.poetry.group.dev.dependencies]
 autopep8 = "^2.3.2"
 flake8 = "^7.2.0"
@@ -45,3 +40,9 @@ pytest = "^9.0.2"
 jupyterlab = "^4.5.3"
 jq = "^1.11.0"
 yq = "^3.4.3"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
