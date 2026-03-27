@@ -1,8 +1,8 @@
 import logging
 import os
-import torch
 
 import numpy as np
+import torch
 
 
 def check_metrics(
@@ -18,7 +18,8 @@ def check_metrics(
             Can be either "loss" (where lower is better) or "score" (where higher is better).
             Defaults to "loss".
     Returns:
-        bool: True if the current metric is better than the best metric based on the specified metric type, False otherwise.
+        bool: True if the current metric is better than the best metric
+            based on the specified metric type, False otherwise.
     """
     if np.isnan(best_metric):
         return True

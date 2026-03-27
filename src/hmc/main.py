@@ -1,17 +1,16 @@
+import logging
 import os
 import random
 import sys
 from pathlib import Path
-import logging
+
 import numpy as np
 import torch
 
 from hmc.arguments import get_parser
 from hmc.pipeline.global_classifier.constraint.run import train_global
 from hmc.pipeline.local_classifier.main import train_local
-
 from hmc.utils.train.job import create_job_id_name
-
 
 # Set a logger config
 logging.basicConfig(

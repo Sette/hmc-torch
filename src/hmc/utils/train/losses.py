@@ -234,7 +234,7 @@ def hierarchical_consistency_loss(logits_dict, class_hierarchy):
         torch.Tensor: The calculated hierarchical consistency loss.
     """
     h_loss = 0
-    probs = {lvl: torch.sigmoid(l) for lvl, l in logits_dict.items()}
+    probs = {lvl: torch.sigmoid(value) for lvl, value in logits_dict.items()}
 
     for (p_lvl, p_idx), children in class_hierarchy.items():
         # Probabilidade da classe pai específica

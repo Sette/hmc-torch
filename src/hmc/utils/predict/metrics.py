@@ -1,10 +1,12 @@
-import numpy as np
-from sklearn.metrics import precision_recall_fscore_support
-
 import os.path
 
+import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, f1_score
+from sklearn.metrics import (
+    classification_report,
+    f1_score,
+    precision_recall_fscore_support,
+)
 
 
 def custom_optimizers(n):

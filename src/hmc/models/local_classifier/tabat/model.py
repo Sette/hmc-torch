@@ -1,7 +1,8 @@
+from typing import Dict, List, Tuple
+
 import torch
-from typing import Dict, Tuple
 import torch.nn as nn
-from typing import List
+
 from hmc.models.local_classifier.networks import BuildClassification
 
 

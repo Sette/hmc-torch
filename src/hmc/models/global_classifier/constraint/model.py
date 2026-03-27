@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from lightning import LightningModule
 from sklearn.metrics import average_precision_score
+
 from hmc.models.global_classifier.constraint.utils import get_constr_out
 
 

@@ -7,13 +7,12 @@ from sklearn.metrics import (
     average_precision_score,
     precision_recall_fscore_support,
 )
+from tqdm import tqdm
 
 from hmc.utils.dataset.labels import local_to_global_predictions
 from hmc.utils.path.output import (
     save_dict_to_json,
 )
-
-from tqdm import tqdm
 
 
 def test_step(args):

@@ -29,7 +29,6 @@ from hmc.utils.train.job import (
     end_timer,
     start_timer,
 )
-
 from hmc.utils.train.losses import compute_loss
 
 

@@ -52,7 +52,8 @@ def group_labels_by_level(df, max_depth):
     Groups hierarchical labels in the DataFrame by each level, up to the specified max_depth.
 
     Args:
-        df (pd.DataFrame): DataFrame containing a column 'y_true', where each item is a list of hierarchical label lists per track.
+        df (pd.DataFrame): DataFrame containing a column 'y_true', where each item is a list of
+            hierarchical label lists per track.
         max_depth (int): Maximum number of hierarchy levels to consider.
 
     Returns:
@@ -86,7 +87,8 @@ def binarize_labels(dataset_df, args):
             - mlb_path (str): Path to save the list of fitted MultiLabelBinarizer objects.
 
     Returns:
-        pd.DataFrame: DataFrame with columns ['track_id', 'y_true', 'all_binarized'], where 'all_binarized' contains binarized label lists per level.
+        pd.DataFrame: DataFrame with columns ['track_id', 'y_true', 'all_binarized'],
+            where 'all_binarized' contains binarized label lists per level.
     """
     # Labels
     mlbs = []
@@ -297,9 +299,9 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
     R: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
     """
     # Expande dimensões para broadcast
-    batch = probs_nivel_ancestral.shape[0]
-    n_ancestrais = probs_nivel_ancestral.shape[1]
-    n_desc = probs_nivel_desc.shape[1]
+    # batch = probs_nivel_ancestral.shape[0]
+    # n_ancestrais = probs_nivel_ancestral.shape[1]
+    # n_desc = probs_nivel_desc.shape[1]
 
     probs_anc_exp = probs_nivel_ancestral.unsqueeze(2)  # [batch, n_ancestrais, 1]
     R_exp = R.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
@@ -351,7 +353,7 @@ def apply_hierarchy_consistency_old(outputs, labels, args):
             original outputs[level], and is placed on args.device.
     """
     new_outputs = {}
-    threshold = 0.2
+    # threshold = 0.2
     global_idxs = [[] for _ in range(args.max_depth)]
     r = args.r.squeeze(0).to(args.device)
 

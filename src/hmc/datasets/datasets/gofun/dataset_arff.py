@@ -1,9 +1,11 @@
+import logging
 from collections import defaultdict
 from itertools import chain
+
 import keras
 import networkx as nx
 import numpy as np
-import logging
+
 from hmc.datasets.datasets.gofun import to_skip
 
 # Set a logger config
@@ -65,10 +67,10 @@ def parse_arff(arff_file, is_go=False):
         local_nodes_idx = {}
         nodes_idx = {}
         nodes = []
-        for _, l in enumerate(f):
-            if l.startswith("@ATTRIBUTE"):
-                if l.startswith("@ATTRIBUTE class"):
-                    h = l.split("hierarchical")[1].strip()
+        for line in f:
+            if line.startswith("@ATTRIBUTE"):
+                if line.startswith("@ATTRIBUTE class"):
+                    h = line.split("hierarchical")[1].strip()
                     for branch in h.split(","):
                         branch = branch.replace("/", ".")
                         terms = branch.split(".")
@@ -120,7 +122,7 @@ def parse_arff(arff_file, is_go=False):
                         for idx, level_nodes in levels.items()
                     }
                 else:
-                    _, _, f_type = l.split()
+                    _, _, f_type = line.split()
 
                     if f_type == "numeric" or f_type == "NUMERIC":
                         d.append([])
@@ -141,14 +143,14 @@ def parse_arff(arff_file, is_go=False):
                         feature_types.append(
                             lambda x, i: d[i].get(x, [0.0] * cats_lens[i])
                         )
-            elif l.startswith("@DATA"):
+            elif line.startswith("@DATA"):
                 read_data = True
             elif read_data:
                 y_ = np.zeros(len(nodes))
                 y_nodes = []
                 sorted_keys = sorted(levels_size.keys())
                 y_local_ = [np.zeros(levels_size.get(key)) for key in sorted_keys]
-                d_line = l.split("%")[0].strip().split(",")
+                d_line = line.split("%")[0].strip().split(",")
                 lab = d_line[len(feature_types)].strip()
 
                 X.append(

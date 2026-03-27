@@ -28,39 +28,36 @@ Intended for research and experimentation with HMC classifier benchmarks.
 Authors: Bruno Sette
 """
 
-import time
 import logging
 import os
 import random
+import time
+from collections.abc import Sequence
+
 import numpy as np
 import torch
 import torch.nn as nn
-from collections.abc import Sequence
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
-from hmc.pipeline.local_classifier.core.test import test_step
-from hmc.pipeline.local_classifier.core.train import train_step
-from hmc.pipeline.local_classifier.core.valid import valid_step
-from hmc.pipeline.local_classifier.tabat.train import train_local_tabat
-from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
-from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
-from hmc.utils.train.job import log_system_info
-
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.models.local_classifier.hat.model import (
     HATForMaskedLM,
 )
-
 from hmc.models.local_classifier.tabat.model import (
     TabATModel,
 )
-
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
-from hmc.utils.train.job import parse_str_flags
+from hmc.pipeline.local_classifier.core.test import test_step
+from hmc.pipeline.local_classifier.core.train import train_step
+from hmc.pipeline.local_classifier.core.valid import valid_step
+from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
+from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
+from hmc.pipeline.local_classifier.tabat.train import train_local_tabat
+from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
 from hmc.utils.path.files import create_dir
+from hmc.utils.train.job import log_system_info, parse_str_flags
 
 
 def get_train_methods(method: str) -> dict[str, object]:

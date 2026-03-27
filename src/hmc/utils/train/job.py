@@ -8,10 +8,11 @@ This module provides:
 """
 
 import os
-import psutil
-import torch
 import time
 from datetime import datetime
+
+import psutil
+import torch
 
 
 def create_job_id_name(prefix="job"):

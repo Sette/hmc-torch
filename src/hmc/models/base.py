@@ -5,7 +5,6 @@ from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 
-
 # ============================================================================
 # PARENT CLASS - Base Model
 # ============================================================================

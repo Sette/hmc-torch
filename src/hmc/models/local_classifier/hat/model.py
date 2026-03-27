@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
-from transformers import Trainer
+
 import torch
 import torch.nn as nn
-from transformers import PretrainedConfig
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+from transformers import PretrainedConfig, Trainer
 from transformers.activations import NewGELUActivation
 from transformers.modeling_outputs import MaskedLMOutput, ModelOutput
 from transformers.modeling_utils import PreTrainedModel
