@@ -1,6 +1,5 @@
 from collections import defaultdict
 from itertools import chain
-import torch
 import keras
 import networkx as nx
 import numpy as np

@@ -15,60 +15,84 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaOutput,
 )
 
+
 class DataCollatorLM:
-    def __init__(self, config, embedding, mlm = True, mlm_probability = 0.15):
+    def __init__(self, config, embedding, mlm=True, mlm_probability=0.15):
         self.config = config
         self.embedding = embedding
         self.embed_shape = embedding.shape
         self.mlm = mlm
         self.mlm_probability = mlm_probability
+
     def __call__(self, batch):
 
-        seq_ids = [item['seq_ids'] for item in batch]
-        cluster_ids = [item['cluster_ids'] for item in batch]
+        seq_ids = [item["seq_ids"] for item in batch]
+        cluster_ids = [item["cluster_ids"] for item in batch]
 
-        seq_ids = pad_sequence(seq_ids, batch_first=True, padding_value=self.config.pad_token_id)
-        cluster_ids = pad_sequence(cluster_ids, batch_first=True, padding_value=self.config.pad_token_id)
-
+        seq_ids = pad_sequence(
+            seq_ids, batch_first=True, padding_value=self.config.pad_token_id
+        )
+        cluster_ids = pad_sequence(
+            cluster_ids, batch_first=True, padding_value=self.config.pad_token_id
+        )
 
         masked_seq_ids = seq_ids.clone()
         inputs_embeds, labels = self.mask_tokens(masked_seq_ids, cluster_ids)
         attention_mask = (cluster_ids != self.config.pad_token_id).long()
-        return {'inputs_embeds': inputs_embeds, 'attention_mask': attention_mask, 'labels': labels, 'cluster_ids': cluster_ids}
+        return {
+            "inputs_embeds": inputs_embeds,
+            "attention_mask": attention_mask,
+            "labels": labels,
+            "cluster_ids": cluster_ids,
+        }
 
     def mask_tokens(self, inputs, clusters):
         labels = clusters.clone()
-        
+
         probability_matrix = torch.full(labels.shape, self.mlm_probability)
         special_tokens_mask = labels < self.config.num_special_tokens
 
-        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)            
+        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
         masked_indices = torch.bernoulli(probability_matrix).bool()
-        
-        labels[~masked_indices] = -100  # We only compute loss on masked tokens, -100 is default for CE compute
 
-        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        labels[
+            ~masked_indices
+        ] = (
+            -100
+        )  # We only compute loss on masked tokens, -100 is default for CE compute
+
+        indices_replaced = (
+            torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        )
         inputs[indices_replaced] = self.config.pad_token_id
 
-        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
-        random_words = torch.randint(0, self.embed_shape[0], labels.shape, dtype=torch.long)
+        indices_random = (
+            torch.bernoulli(torch.full(labels.shape, 0.5)).bool()
+            & masked_indices
+            & ~indices_replaced
+        )
+        random_words = torch.randint(
+            0, self.embed_shape[0], labels.shape, dtype=torch.long
+        )
         inputs[indices_random] = random_words[indices_random]
-        
+
         inputs_adjusted = inputs
-        
+
         valid_indices = inputs_adjusted >= 0
-        
+
         inputs_clipped = torch.clamp(inputs_adjusted, min=0)
-        
+
         inputs_embeds = self.embedding[inputs_clipped]
-        
+
         inputs_embeds[~valid_indices] = 0
 
         return torch.tensor(inputs_embeds), labels
 
+
 class CustomTrainer(Trainer):
     def _remove_unused_columns(self, dataset, description=None):
         return dataset
+
     def get_train_dataloader(self):
         train_dataset = self.train_dataset
 
@@ -77,7 +101,7 @@ class CustomTrainer(Trainer):
             batch_size=self.args.train_batch_size,
             shuffle=True,
             collate_fn=self.data_collator,
-            num_workers=8
+            num_workers=8,
         )
 
     def get_eval_dataloader(self, eval_dataset=None):
@@ -88,43 +112,46 @@ class CustomTrainer(Trainer):
             batch_size=self.args.eval_batch_size,
             shuffle=False,
             collate_fn=self.data_collator,
-            num_workers=8
+            num_workers=8,
         )
+
 
 # HAT-prefixed classes are shared across genome pretraining and downstream prediction code.
 # The configuration deviates slightly from standard transformer settings.
 # The implementation is adapted from public HAT references with project-specific tweaks.
+
+
 class HATConfig(PretrainedConfig):
     model_type = "hierarchical-transformer"
 
     def __init__(
-            self,
-            hidden_size=640,
-            max_blocks=64,
-            block_size=128,
-            model_max_length=8192,
-            num_hidden_layers=6,
-            num_attention_heads=8,
-            intermediate_size=1280,
-            hidden_act="gelu_new",
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            max_position_embeddings=10000,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            pad_token_id=0,
-            cls_token_id=1,
-            sep_token_id=2,
-            unk_token_id=3,
-            mask_token_id=4,
-            type_vocab_size=2,
-            vocab_size=100005,
-            position_embedding_type=None,
-            encoder_layout=None,
-            use_cache=True,
-            classifier_dropout=None,
-            is_decoder=False,
-            **kwargs
+        self,
+        hidden_size=640,
+        max_blocks=64,
+        block_size=128,
+        model_max_length=8192,
+        num_hidden_layers=6,
+        num_attention_heads=8,
+        intermediate_size=1280,
+        hidden_act="gelu_new",
+        hidden_dropout_prob=0.1,
+        attention_probs_dropout_prob=0.1,
+        max_position_embeddings=10000,
+        initializer_range=0.02,
+        layer_norm_eps=1e-12,
+        pad_token_id=0,
+        cls_token_id=1,
+        sep_token_id=2,
+        unk_token_id=3,
+        mask_token_id=4,
+        type_vocab_size=2,
+        vocab_size=100005,
+        position_embedding_type=None,
+        encoder_layout=None,
+        use_cache=True,
+        classifier_dropout=None,
+        is_decoder=False,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.pad_token_id = pad_token_id
@@ -166,7 +193,7 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, position_ids):
     """
     # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
     mask = input_ids.ne(padding_idx).int()
-    return position_ids[:, :input_ids.size(1)].repeat(input_ids.size(0), 1) * mask
+    return position_ids[:, : input_ids.size(1)].repeat(input_ids.size(0), 1) * mask
 
 
 class HATEmbeddings(nn.Module):
@@ -179,32 +206,47 @@ class HATEmbeddings(nn.Module):
         self.padding_idx = config.pad_token_id
         # Inputs already arrive as ESM-2 embeddings, so replace token embedding lookup with a linear projection.
         self.word_embeddings = nn.Linear(inputs_embeds_shape, config.hidden_size)
-        self.position_embeddings = nn.Embedding(config.block_size + self.padding_idx + 1, config.hidden_size,
-                                                padding_idx=self.padding_idx)
-        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.position_embeddings = nn.Embedding(
+            config.block_size + self.padding_idx + 1,
+            config.hidden_size,
+            padding_idx=self.padding_idx,
+        )
+        self.token_type_embeddings = nn.Embedding(
+            config.type_vocab_size, config.hidden_size
+        )
 
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        self.register_buffer("position_ids", torch.arange(self.padding_idx + 1,
-                                                          config.block_size + self.padding_idx + 1).repeat(
-            config.max_blocks).expand((1, -1)))
-        self.register_buffer("token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long),
-                             persistent=False)
+        self.register_buffer(
+            "position_ids",
+            torch.arange(self.padding_idx + 1, config.block_size + self.padding_idx + 1)
+            .repeat(config.max_blocks)
+            .expand((1, -1)),
+        )
+        self.register_buffer(
+            "token_type_ids",
+            torch.zeros(self.position_ids.size(), dtype=torch.long),
+            persistent=False,
+        )
 
     def forward(
-            self,
-            input_ids=None,  # Kept for API compatibility; embedding path uses inputs_embeds.
-            token_type_ids=None,
-            position_ids=None,
-            inputs_embeds=None,
+        self,
+        input_ids=None,  # Kept for API compatibility; embedding path uses inputs_embeds.
+        token_type_ids=None,
+        position_ids=None,
+        inputs_embeds=None,
     ):
         if position_ids is None:
             if input_ids is not None:
                 # Create the position ids from the input token ids. Any padded tokens remain padded.
-                position_ids = create_position_ids_from_input_ids(input_ids, self.padding_idx, self.position_ids)
+                position_ids = create_position_ids_from_input_ids(
+                    input_ids, self.padding_idx, self.position_ids
+                )
             else:
-                position_ids = self.create_position_ids_from_inputs_embeds(inputs_embeds)
+                position_ids = self.create_position_ids_from_inputs_embeds(
+                    inputs_embeds
+                )
                 # print(position_ids, flush = True)
 
         if input_ids is not None:
@@ -217,10 +259,14 @@ class HATEmbeddings(nn.Module):
         if token_type_ids is None:
             if hasattr(self, "token_type_ids"):
                 buffered_token_type_ids = self.token_type_ids[:, :seq_length]
-                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(input_shape[0], seq_length)
+                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(
+                    input_shape[0], seq_length
+                )
                 token_type_ids = buffered_token_type_ids_expanded
             else:
-                token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
+                token_type_ids = torch.zeros(
+                    input_shape, dtype=torch.long, device=self.position_ids.device
+                )
 
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
@@ -246,7 +292,10 @@ class HATEmbeddings(nn.Module):
         sequence_length = input_shape[1]
 
         position_ids = torch.arange(
-            self.padding_idx + 1, sequence_length + self.padding_idx + 1, dtype=torch.long, device=inputs_embeds.device
+            self.padding_idx + 1,
+            sequence_length + self.padding_idx + 1,
+            dtype=torch.long,
+            device=inputs_embeds.device,
         )
         return position_ids.unsqueeze(0).expand(input_shape)
 
@@ -254,15 +303,17 @@ class HATEmbeddings(nn.Module):
 class TransformerLayer(nn.Module):
     def __init__(self, config, relative_position=True):
         super().__init__()
-        self.attention = RobertaAttention(config, "relative_key_query" if relative_position else None)
+        self.attention = RobertaAttention(
+            config, "relative_key_query" if relative_position else None
+        )
         self.intermediate = RobertaIntermediate(config)
         self.output = RobertaOutput(config)
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask=None,
-            output_attentions=False,
+        self,
+        hidden_states,
+        attention_mask=None,
+        output_attentions=False,
     ):
         self_attention_outputs = self.attention(
             hidden_states,
@@ -271,7 +322,9 @@ class TransformerLayer(nn.Module):
         )
         attention_output = self_attention_outputs[0]
 
-        outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+        outputs = self_attention_outputs[
+            1:
+        ]  # add self attentions if we output attention weights
 
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
@@ -282,31 +335,42 @@ class TransformerLayer(nn.Module):
 
 # Convert (seq_len * hidden) into (num_blocks * block_size * hidden).
 def transform_tokens2gene_blocks(hidden_states, num_blocks, block_size):
-    seg_hidden_states = torch.reshape(hidden_states,
-                                      (hidden_states.size(0), num_blocks, block_size, hidden_states.size(-1)))
+    seg_hidden_states = torch.reshape(
+        hidden_states,
+        (hidden_states.size(0), num_blocks, block_size, hidden_states.size(-1)),
+    )
 
-    hidden_states_reshape = seg_hidden_states.contiguous().view(hidden_states.size(0) * num_blocks,
-                                                                block_size, seg_hidden_states.size(-1))
+    hidden_states_reshape = seg_hidden_states.contiguous().view(
+        hidden_states.size(0) * num_blocks, block_size, seg_hidden_states.size(-1)
+    )
 
     return hidden_states_reshape
 
 
 def transform_masks2gene_blocks(hidden_states, num_blocks, block_size):
-    seg_hidden_states = torch.reshape(hidden_states, (hidden_states.size(0), 1, 1, num_blocks, block_size))
+    seg_hidden_states = torch.reshape(
+        hidden_states, (hidden_states.size(0), 1, 1, num_blocks, block_size)
+    )
 
-    hidden_states_reshape = seg_hidden_states.contiguous().view(hidden_states.size(0) * num_blocks,
-                                                                1, 1, seg_hidden_states.size(-1))
+    hidden_states_reshape = seg_hidden_states.contiguous().view(
+        hidden_states.size(0) * num_blocks, 1, 1, seg_hidden_states.size(-1)
+    )
 
     return hidden_states_reshape
 
 
 # Convert (num_blocks * block_size * hidden) back to (seq_len * hidden).
 def transform_gene_blocks2tokens(seg_hidden_states, num_blocks, block_size):
-    hidden_states = seg_hidden_states.contiguous().view(seg_hidden_states.size(0) // num_blocks, num_blocks,
-                                                        block_size, seg_hidden_states.size(-1))
+    hidden_states = seg_hidden_states.contiguous().view(
+        seg_hidden_states.size(0) // num_blocks,
+        num_blocks,
+        block_size,
+        seg_hidden_states.size(-1),
+    )
 
-    hidden_states = hidden_states.contiguous().view(hidden_states.size(0), num_blocks * block_size,
-                                                    hidden_states.size(-1))
+    hidden_states = hidden_states.contiguous().view(
+        hidden_states.size(0), num_blocks * block_size, hidden_states.size(-1)
+    )
     return hidden_states
 
 
@@ -324,31 +388,31 @@ class HATLayer(nn.Module):
             self.genome_encoder = TransformerLayer(config, False)
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask=None,
-            num_blocks=None,
-            output_attentions=False,
+        self,
+        hidden_states,
+        attention_mask=None,
+        num_blocks=None,
+        output_attentions=False,
     ):
 
         gene_block_outputs = (None, None)
         # Segment-wise encoder: split tokens/masks into blocks, encode, then stitch back together.
         if self.use_gene_block_encoder:
-            gene_block_inputs = transform_tokens2gene_blocks(hidden_states,
-                                                             num_blocks=num_blocks,
-                                                             block_size=self.block_size)
-            gene_block_masks = transform_masks2gene_blocks(attention_mask,
-                                                           num_blocks=num_blocks,
-                                                           block_size=self.block_size)
+            gene_block_inputs = transform_tokens2gene_blocks(
+                hidden_states, num_blocks=num_blocks, block_size=self.block_size
+            )
+            gene_block_masks = transform_masks2gene_blocks(
+                attention_mask, num_blocks=num_blocks, block_size=self.block_size
+            )
 
-            gene_block_outputs = self.gene_block_encoder(gene_block_inputs,
-                                                         gene_block_masks,
-                                                         output_attentions=output_attentions)
+            gene_block_outputs = self.gene_block_encoder(
+                gene_block_inputs, gene_block_masks, output_attentions=output_attentions
+            )
 
             # Restore block outputs back to the flattened token view.
-            outputs = transform_gene_blocks2tokens(gene_block_outputs[0],
-                                                   num_blocks=num_blocks,
-                                                   block_size=self.block_size)
+            outputs = transform_gene_blocks2tokens(
+                gene_block_outputs[0], num_blocks=num_blocks, block_size=self.block_size
+            )
 
         else:
             outputs = hidden_states
@@ -356,14 +420,18 @@ class HATLayer(nn.Module):
         genome_outputs = (None, None)
         # Cross-segment encoder consumes block-level CLS tokens and writes them back to the same slots.
         if self.use_genome_encoder:
-            gene_block_global_tokens = outputs[:, ::self.block_size].clone()
-            gene_block_attention_mask = attention_mask[:, :, :, ::self.block_size].clone()
+            gene_block_global_tokens = outputs[:, :: self.block_size].clone()
+            gene_block_attention_mask = attention_mask[
+                :, :, :, :: self.block_size
+            ].clone()
 
-            genome_outputs = self.genome_encoder(gene_block_global_tokens,
-                                                 gene_block_attention_mask,
-                                                 output_attentions=output_attentions)
+            genome_outputs = self.genome_encoder(
+                gene_block_global_tokens,
+                gene_block_attention_mask,
+                output_attentions=output_attentions,
+            )
 
-            outputs[:, ::self.block_size] = genome_outputs[0]
+            outputs[:, :: self.block_size] = genome_outputs[0]
 
         if output_attentions:
             return outputs, gene_block_outputs[1], genome_outputs[1]
@@ -384,22 +452,31 @@ class HATEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.layer = nn.ModuleList([HATLayer(config,
-                                             use_gene_block_encoder=self.config.encoder_layout[str(idx)][
-                                                 'gene_block_encoder'],
-                                             use_genome_encoder=self.config.encoder_layout[str(idx)]['genome_encoder'])
-                                    for idx in range(config.num_hidden_layers)])
+        self.layer = nn.ModuleList(
+            [
+                HATLayer(
+                    config,
+                    use_gene_block_encoder=self.config.encoder_layout[str(idx)][
+                        "gene_block_encoder"
+                    ],
+                    use_genome_encoder=self.config.encoder_layout[str(idx)][
+                        "genome_encoder"
+                    ],
+                )
+                for idx in range(config.num_hidden_layers)
+            ]
+        )
         self.gradient_checkpointing = False
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask=None,
-            num_blocks=None,
-            use_cache=None,
-            output_attentions=False,
-            output_hidden_states=False,
-            return_dict=True,
+        self,
+        hidden_states,
+        attention_mask=None,
+        num_blocks=None,
+        use_cache=None,
+        output_attentions=False,
+        output_hidden_states=False,
+        return_dict=True,
     ):
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -410,7 +487,6 @@ class HATEncoder(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
-
                 if use_cache:
                     use_cache = False
 
@@ -436,7 +512,9 @@ class HATEncoder(nn.Module):
             hidden_states = layer_outputs[0]
             if output_attentions:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
-                all_gene_block_attentions = all_gene_block_attentions + (layer_outputs[2],)
+                all_gene_block_attentions = all_gene_block_attentions + (
+                    layer_outputs[2],
+                )
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
@@ -448,7 +526,7 @@ class HATEncoder(nn.Module):
                     hidden_states,
                     all_hidden_states,
                     all_self_attentions,
-                    all_gene_block_attentions
+                    all_gene_block_attentions,
                 ]
                 if v is not None
             )
@@ -489,9 +567,13 @@ class HATPreTrainedModel(PreTrainedModel):
     def update_keys_to_ignore(self, config, del_keys_to_ignore):
         if not config.tie_word_embeddings:
             # must make a new list, or the class variable gets modified!
-            self._keys_to_ignore_on_save = [k for k in self._keys_to_ignore_on_save if k not in del_keys_to_ignore]
+            self._keys_to_ignore_on_save = [
+                k for k in self._keys_to_ignore_on_save if k not in del_keys_to_ignore
+            ]
             self._keys_to_ignore_on_load_missing = [
-                k for k in self._keys_to_ignore_on_load_missing if k not in del_keys_to_ignore
+                k
+                for k in self._keys_to_ignore_on_load_missing
+                if k not in del_keys_to_ignore
             ]
 
     @classmethod
@@ -513,10 +595,22 @@ class HATModel(HATPreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
-    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, inputs_embeds=None,
-                output_attentions=None, output_hidden_states=None, return_dict=None, cluster_ids=None):
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        inputs_embeds=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        cluster_ids=None,
+    ):
         if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+            raise ValueError(
+                "You cannot specify both input_ids and inputs_embeds at the same time"
+            )
         elif input_ids is not None:
             input_shape = input_ids.size()
         elif inputs_embeds is not None:
@@ -533,14 +627,20 @@ class HATModel(HATPreTrainedModel):
         if token_type_ids is None:
             if hasattr(self.embeddings, "token_type_ids"):
                 buffered_token_type_ids = self.embeddings.token_type_ids[:, :seq_length]
-                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
+                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(
+                    batch_size, seq_length
+                )
                 token_type_ids = buffered_token_type_ids_expanded
             else:
-                token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+                token_type_ids = torch.zeros(
+                    input_shape, dtype=torch.long, device=device
+                )
 
         # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case we just need to make it broadcastable to all heads.
-        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(attention_mask, input_shape, device)
+        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(
+            attention_mask, input_shape, device
+        )
 
         # Compute number of sentences
         num_blocks = input_shape[-1] // self.config.block_size
@@ -633,17 +733,17 @@ class HATForMaskedLM(HATPreTrainedModel):
         pass
 
     def forward(
-            self,
-            input_ids=None,
-            attention_mask=None,
-            token_type_ids=None,
-            position_ids=None,
-            inputs_embeds=None,
-            labels=None,
-            output_attentions=None,
-            output_hidden_states=None,
-            return_dict=None,
-            cluster_ids=None,
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        inputs_embeds=None,
+        labels=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        cluster_ids=None,
     ):
         r"""
         labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
@@ -653,7 +753,9 @@ class HATForMaskedLM(HATPreTrainedModel):
         kwargs (`Dict[str, any]`, optional, defaults to *{}*):
             Used to hide legacy arguments that have been deprecated.
         """
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         outputs = self.hi_transformer(
             input_ids,
@@ -672,11 +774,15 @@ class HATForMaskedLM(HATPreTrainedModel):
         masked_lm_loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
+            masked_lm_loss = loss_fct(
+                prediction_scores.view(-1, self.config.vocab_size), labels.view(-1)
+            )
 
         if not return_dict:
             output = (prediction_scores,) + outputs[2:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+            return (
+                ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+            )
 
         return MaskedLMOutput(
             loss=masked_lm_loss,

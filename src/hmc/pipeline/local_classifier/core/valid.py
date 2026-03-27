@@ -1,5 +1,4 @@
 import logging
-import os
 
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
@@ -69,7 +68,6 @@ def valid_step(args):
                 args,
                 step="valid",
             )
-
 
     for level in args.active_levels:
         if args.level_active[level]:

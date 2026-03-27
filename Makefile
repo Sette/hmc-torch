@@ -6,7 +6,7 @@ lint-check:
 	autopep8 --in-place --recursive src
 	flake8 **/*.py
 	black --check **/*.py
-	pylama **/*.py
+	ruff ckeck .
 	isort -c **/*.py
 	pylint **/*.py
 
@@ -16,8 +16,11 @@ pre-commit:
 
 lint:
 	@echo "--> Running linter"
-	black **/*.py
+	autopep8 --in-place --recursive src
 	flake8 **/*.py
+	black **/*.py
+	ruff format **/*.py
+	ruff check . --fix
 	isort **/*.py
 	pylint **/*.py
 

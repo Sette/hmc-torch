@@ -21,7 +21,14 @@ from hmc.main import main
 
 
 class TestTrainGlobalSeqFUN(unittest.TestCase):
+    """
+    Test class for global sequential FUN model training.
+    """
+
     def test_main_global_seq_fun_args(self):
+        """
+        Test the main function with global sequential FUN model training arguments.
+        """
         # monta a lista de argumentos exatamente como na linha de comando
         test_argv = [
             "hmc.trainers.main",  # argv[0] é o nome do programa

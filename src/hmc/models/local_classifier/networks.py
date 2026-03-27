@@ -2,8 +2,6 @@ from typing import List
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv
 
 # ============================================================================
 # UTILITY CLASS - Classification Network
@@ -84,7 +82,7 @@ class BuildClassification(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.0,
         level: int = 0,
-        device: str = 'cuda',
+        device: str = "cuda",
     ):
         super().__init__()
 

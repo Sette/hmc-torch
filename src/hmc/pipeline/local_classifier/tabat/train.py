@@ -69,7 +69,9 @@ def train_local_tabat(args):
     """
 
     args.model = args.model.to(args.device)
-    args.criterion_list = [criterion.to(args.device) for criterion in args.criterion_list]
+    args.criterion_list = [
+        criterion.to(args.device) for criterion in args.criterion_list
+    ]
 
     args.early_stopping_patience = args.patience
     args.early_stopping_patience_score = args.patience_score

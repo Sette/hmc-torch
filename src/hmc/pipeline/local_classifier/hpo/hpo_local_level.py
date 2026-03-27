@@ -330,9 +330,10 @@ def val_optimizer(args):
 
     with torch.no_grad():
         for i, (inputs, targets, _) in enumerate(args.val_loader):
-            inputs, targets = inputs.to(args.device), [
-                target.to(args.device) for target in targets
-            ]
+            inputs, targets = (
+                inputs.to(args.device),
+                [target.to(args.device) for target in targets],
+            )
             outputs = args.model(inputs.float())
 
             total_loss = 0.0

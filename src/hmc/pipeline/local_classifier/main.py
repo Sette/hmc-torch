@@ -35,12 +35,10 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Union
 from collections.abc import Sequence
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
-from transformers import TrainingArguments
 
 from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
 from hmc.pipeline.local_classifier.core.test import test_step
@@ -53,10 +51,7 @@ from hmc.utils.train.job import log_system_info
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.models.local_classifier.hat.model import (
-    CustomTrainer,
-    DataCollatorLM,
     HATForMaskedLM,
-    HATConfig,
 )
 
 from hmc.models.local_classifier.tabat.model import (
@@ -152,9 +147,9 @@ def assert_hyperparameter_lengths(
     all_passed = True
     for name, lst in checks.items():
         try:
-            assert (
-                len(lst) == args.max_depth
-            ), f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            assert len(lst) == args.max_depth, (
+                f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            )
         except AssertionError as e:
             print(f"Assert failed: {e}")
             all_passed = False

@@ -78,37 +78,7 @@ else
 fi
 
 
-
-# Ask the user if they want to create a local virtual environment
-echo -n "Do you want to create a local venv? (y/n): "
-read INSTALL_VENV_CHOICE
-INSTALL_VENV_CHOICE=$(echo "$INSTALL_VENV_CHOICE" | tr '[:upper:]' '[:lower:]')
-# Check if the user wants to install Poetry using pip
-if [ "$INSTALL_VENV_CHOICE" = "y" ]; then
-    echo "Creeating venv with python..."
-    uv venv
-    source .venv/bin/activate
-    echo "Venv created and activated."
-else
-    echo "Skipping venv installation."
-fi
-
-
-
-# Ask the user if they want to install packages with poetry
-echo -n "Do you want to Poetry with pip? (y/n): "
-read INSTALL_POETRY_CHOICE
-INSTALL_POETRY_CHOICE=$(echo "$INSTALL_POETRY_CHOICE" | tr '[:upper:]' '[:lower:]')
-
-# Check if the user wants to install Poetry using pip
-if [ "$INSTALL_POETRY_CHOICE" = "y" ]; then
-    echo "Installing Poetry with pip..."
-    uv pip install poetry
-else
-    echo "Skipping Poetry installation."
-fi
-
-echo -n "Do you want to install dependencies with Poetry? (y/n): "
+echo -n "Do you want to install dependencies with uv? (y/n): "
 read INSTALL_CHOICE
 INSTALL_CHOICE=$(echo "$INSTALL_CHOICE" | tr '[:upper:]' '[:lower:]')
 
@@ -118,14 +88,13 @@ source ~/.zshrc
 if [ "$INSTALL_CHOICE" = "y" ] && [ "$DEVICE" = "cuda" ]; then
     poetry source remove pytorch
     poetry source add pytorch https://download.pytorch.org/whl/cu130 --priority=explicit &&
-    poetry install --no-root &&
-    chmod +x run.sh
 fi
 
 if [ "$INSTALL_CHOICE" = "y" ] && [ "$DEVICE" = "cpu" ]; then
-    poetry source remove pytorch
-    poetry source add pytorch https://download.pytorch.org/whl/cpu --priority=explicit &&
-    poetry install --no-root &&
-    chmod +x run.sh
+    export UV_EXTRA_INDEX_URL="${UV_EXTRA_INDEX_URL:+$UV_EXTRA_INDEX_URL }https://download.pytorch.org/whl/cpu"
+    export PIP_EXTRA_INDEX_URL="${PIP_EXTRA_INDEX_URL:+$PIP_EXTRA_INDEX_URL }https://download.pytorch.org/whl/cpu"
 fi
 
+chmod +x run.sh
+uv sync
+source .venv/bin/activate

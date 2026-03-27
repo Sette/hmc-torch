@@ -22,10 +22,12 @@ def calculate_local_loss(output, target, criterion, device="cpu"):
 def compute_loss(batch, args, step="train"):
     x = batch[0].float().to(args.device)
     targets = batch[1]
-    
+
     # Supondo que outputs seja o dict {str(level): logits}
     if args.method == "local_tabat":
-        outputs, attn_weights = args.model(x) # Pegamos attn_weights se precisar regularizar
+        outputs, attn_weights = args.model(
+            x
+        )  # Pegamos attn_weights se precisar regularizar
     else:
         outputs = args.model(x)
 
@@ -34,7 +36,7 @@ def compute_loss(batch, args, step="train"):
     local_outputs = {level: torch.tensor([]) for level in args.active_levels}
 
     total_cls_loss = 0.0
-    
+
     # 1. Cálculo da Loss de Classificação (BCE) por nível
     for level in args.active_levels:
         if args.level_active[level]:
@@ -48,35 +50,42 @@ def compute_loss(batch, args, step="train"):
 
             # Armazenamento para métricas/validação
             if local_outputs[level].shape[0] == 0:
-                local_outputs[level] = outputs[str(level)].detach() # detach para evitar acúmulo de grafo
+                local_outputs[level] = outputs[
+                    str(level)
+                ].detach()  # detach para evitar acúmulo de grafo
                 local_inputs[level] = targets[level]
             else:
-                local_outputs[level] = torch.cat((local_outputs[level], outputs[str(level)].detach()), dim=0)
-                local_inputs[level] = torch.cat((local_inputs[level], targets[level]), dim=0)
+                local_outputs[level] = torch.cat(
+                    (local_outputs[level], outputs[str(level)].detach()), dim=0
+                )
+                local_inputs[level] = torch.cat(
+                    (local_inputs[level], targets[level]), dim=0
+                )
 
     # 2. Cálculo da Hierarchical Consistency Loss (HCL)
     # Certifique-se que args.hierarchy_map está no formato {(pai_lvl, pai_idx): [(filho_lvl, filho_idx)]}
     loss_hier = 0.0
-    if hasattr(args.hmc_dataset, 'hierarchy_map') and args.hmc_dataset.hierarchy_map:
-        loss_hier = hierarchical_consistency_loss(outputs, args.hmc_dataset.hierarchy_map)
+    if hasattr(args.hmc_dataset, "hierarchy_map") and args.hmc_dataset.hierarchy_map:
+        loss_hier = hierarchical_consistency_loss(
+            outputs, args.hmc_dataset.hierarchy_map
+        )
 
     # 3. Loss Total
     # O lambda_hier (ex: 0.1) controla o impacto da consistência
-    lambda_hier = getattr(args, 'lambda_hier', 0.5)
+    lambda_hier = getattr(args, "lambda_hier", 0.5)
     total_loss = total_cls_loss + (lambda_hier * loss_hier)
 
     if step == "train":
         # Zera todos os otimizadores antes do backward
         for opt in args.optimizers:
             opt.zero_grad()
-            
+
         total_loss.backward()
 
         # Step em todos os otimizadores ativos
         for level, optimizer in enumerate(args.optimizers):
             if args.level_active[level]:
                 optimizer.step()
-
 
     return local_losses, local_inputs, local_outputs
 
@@ -109,7 +118,7 @@ class MaskedBCELoss(nn.Module):
 
 
 class MultiLabelFocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2, reduction='mean'):
+    def __init__(self, alpha=0.25, gamma=2, reduction="mean"):
         """
         Args:
             alpha (float): Fator de balanceamento para a classe positiva (0 < alpha < 1).
@@ -130,7 +139,7 @@ class MultiLabelFocalLoss(nn.Module):
 
         # 1. Calcular BCE com logits (Mais estável numericamente que sigmoid + log)
         # reduction='none' mantém o shape (Batch, Num_Classes) para podermos aplicar os pesos element-wise
-        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
 
         # 2. Calcular pt (probabilidade da classe verdadeira)
         # Se target=1, pt = p. Se target=0, pt = 1-p.
@@ -149,16 +158,16 @@ class MultiLabelFocalLoss(nn.Module):
             loss = focal_term
 
         # 5. Redução final
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         else:
             return loss
 
 
 class WeightedMultiLabelFocalLoss(nn.Module):
-    def __init__(self, alpha=None, gamma=2, pos_weight=None, reduction='mean'):
+    def __init__(self, alpha=None, gamma=2, pos_weight=None, reduction="mean"):
         """
         Args:
             alpha (float, optional): Fator de balanceamento global. Se pos_weight for usado,
@@ -181,7 +190,7 @@ class WeightedMultiLabelFocalLoss(nn.Module):
             self.pos_weight = self.pos_weight.to(inputs.device)
 
         # 1. Calcular BCE Loss "crua" (sem redução) para obter a base logarítmica
-        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
 
         # 2. Calcular probabilidade pt (probabilidade da classe verdadeira)
         # pt = exp(-BCE) é numericamente estável
@@ -206,13 +215,12 @@ class WeightedMultiLabelFocalLoss(nn.Module):
             focal_loss = focal_loss * alpha_t
 
         # 5. Redução
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return focal_loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return focal_loss.sum()
         else:
             return focal_loss
-
 
 
 def hierarchical_consistency_loss(logits_dict, class_hierarchy):
@@ -231,13 +239,13 @@ def hierarchical_consistency_loss(logits_dict, class_hierarchy):
     for (p_lvl, p_idx), children in class_hierarchy.items():
         # Probabilidade da classe pai específica
         # probs[p_lvl] tem shape (batch, num_classes_no_nivel)
-        prob_pai = probs[str(p_lvl)][:, p_idx] 
-        
-        for (c_lvl, c_idx) in children:
+        prob_pai = probs[str(p_lvl)][:, p_idx]
+
+        for c_lvl, c_idx in children:
             prob_filho = probs[str(c_lvl)][:, c_idx]
-            
+
             # Penaliza se P(Filho) > P(Pai)
             violation = torch.relu(prob_filho - prob_pai)
             h_loss += torch.mean(violation)
-            
+
     return h_loss

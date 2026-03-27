@@ -1,9 +1,7 @@
-import math
 import torch
 from typing import Dict, Tuple
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Dict, List, Optional, Tuple
+from typing import List
 from hmc.models.local_classifier.networks import BuildClassification
 
 
@@ -21,9 +19,7 @@ class TabularAttention(nn.Module):
         # 2. Multi-Head Attention padrão (PyTorch)
         # batch_first=True para lidar com (batch, seq, feature)
         self.mha = nn.MultiheadAttention(
-            embed_dim=embed_dim,
-            num_heads=num_heads,
-            batch_first=True
+            embed_dim=embed_dim, num_heads=num_heads, batch_first=True
         )
 
         # 3. Layer Norm para estabilidade (essencial em redes profundas)
@@ -62,17 +58,18 @@ class TabularAttention(nn.Module):
 
 
 class TabATModel(nn.Module):
-    def __init__(self,
-                 input_size: int,
-                 levels_size: Dict[str, int],
-                 num_layers: List[int],
-                 dropouts: List[float],
-                 hidden_dims: List[int],
-                 embed_dim: int = 64,
-                 num_heads: int = 8,
-                 pooling: str = "mean",
-                 device: str = "cpu",
-                 ):
+    def __init__(
+        self,
+        input_size: int,
+        levels_size: Dict[str, int],
+        num_layers: List[int],
+        dropouts: List[float],
+        hidden_dims: List[int],
+        embed_dim: int = 64,
+        num_heads: int = 8,
+        pooling: str = "mean",
+        device: str = "cpu",
+    ):
         super().__init__()
         self.levels_size = levels_size  # Ex: {0: 10, 1: 50, 2: 100}
         self.input_size = input_size
@@ -85,14 +82,16 @@ class TabATModel(nn.Module):
         self.level_active = [True] * len(self.levels_size)
 
         # Uma cabeça de atenção para cada nível da hierarquia
-        self.attn_layers = nn.ModuleDict({
-            str(lvl): TabularAttention(
-                num_features=input_size,
-                embed_dim=embed_dim,
-                num_heads=num_heads,
-            ).to(device)
-            for lvl in levels_size
-        })
+        self.attn_layers = nn.ModuleDict(
+            {
+                str(lvl): TabularAttention(
+                    num_features=input_size,
+                    embed_dim=embed_dim,
+                    num_heads=num_heads,
+                ).to(device)
+                for lvl in levels_size
+            }
+        )
 
         # 3) Cabeças locais por nível GO
         self.heads = nn.ModuleList()
@@ -107,7 +106,9 @@ class TabATModel(nn.Module):
             ).to(device)
             self.heads.append(level_classifier)
 
-    def forward(self, x: torch.Tensor) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def forward(
+        self, x: torch.Tensor
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         logits = {}
         all_attn_weights = {}
 

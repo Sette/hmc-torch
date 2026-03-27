@@ -25,7 +25,6 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 
-from tqdm import tqdm
 
 
 from hmc.utils.dataset.labels import global_to_local_predictions
@@ -202,7 +201,6 @@ def train_global(dataset_name, args):
     total_time = end_train - start_train
     print("Tempo de treino: %f segundos", total_time)
     for i, (x, y) in enumerate(test_loader):
-
         model.eval()
 
         x = x.to(device)

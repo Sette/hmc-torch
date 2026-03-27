@@ -7,7 +7,6 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from typing import cast
 from hmc.pipeline.global_classifier.constraint.run import train_global
 from hmc.pipeline.local_classifier.main import train_local
 
@@ -207,7 +206,6 @@ def main():
             train_global(args.dataset_name, args)
         case _:  # Default case (like 'default' in other languages
             print("Invalid option for method. Please select a valid method.")
-
 
     return args.score
 

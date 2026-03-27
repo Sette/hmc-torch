@@ -67,7 +67,9 @@ def train_step(args):
     """
 
     args.model = args.model.to(args.device)
-    args.criterion_list = [criterion.to(args.device) for criterion in args.criterion_list]
+    args.criterion_list = [
+        criterion.to(args.device) for criterion in args.criterion_list
+    ]
 
     args.early_stopping_patience = args.patience
     args.early_stopping_patience_score = args.patience_score
@@ -102,7 +104,9 @@ def train_step(args):
         args.level_active[0] = True
         next_level = 1
         logging.info(
-            "Using %s with %d warm-up epochs", args.parent_conditioning, args.n_warmup_epochs
+            "Using %s with %d warm-up epochs",
+            args.parent_conditioning,
+            args.n_warmup_epochs,
         )
     else:
         next_level = len(args.active_levels)

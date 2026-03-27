@@ -6,16 +6,16 @@ import numpy as np
 
 
 def check_metrics(
-        metric: float, 
-        best_metric: float, 
-        metric_type: str = "loss",
-        ) -> bool:
-    """Checks if the current metric is better than the best metric based on the specified metric type.  
+    metric: float,
+    best_metric: float,
+    metric_type: str = "loss",
+) -> bool:
+    """Checks if the current metric is better than the best metric based on the specified metric type.
     Args:
         metric (float): The current metric value to compare.
         best_metric (float): The best metric value observed so far.
-        metric_type (str, optional): The type of metric being evaluated. 
-            Can be either "loss" (where lower is better) or "score" (where higher is better). 
+        metric_type (str, optional): The type of metric being evaluated.
+            Can be either "loss" (where lower is better) or "score" (where higher is better).
             Defaults to "loss".
     Returns:
         bool: True if the current metric is better than the best metric based on the specified metric type, False otherwise.
@@ -38,16 +38,16 @@ def check_metrics(
 
 
 def check_early_stopping_normalized(
-        args: object,
-        active_levels: list[int],
-        save_model: bool = True,
-        ) -> None:
+    args: object,
+    active_levels: list[int],
+    save_model: bool = True,
+) -> None:
     """
     Checks if early stopping criteria are met for each active level.
     Args:
         args: An object containing all necessary arguments and attributes.
     """
-    args.level_active = list(args.level_active)  
+    args.level_active = list(args.level_active)
     for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:
@@ -175,18 +175,17 @@ def check_early_stopping_normalized(
                         param.requires_grad = False
 
 
-
 def check_early_stopping_tabat(
-        args: object,
-        active_levels: list[int],
-        save_model: bool = True,
-        ) -> None:
+    args: object,
+    active_levels: list[int],
+    save_model: bool = True,
+) -> None:
     """
     Checks if early stopping criteria are met for each active level.
     Args:
         args: An object containing all necessary arguments and attributes.
     """
-    args.level_active = list(args.level_active)  
+    args.level_active = list(args.level_active)
     for level in active_levels:
         if args.level_active[level]:
             if args.best_model[level] is None:

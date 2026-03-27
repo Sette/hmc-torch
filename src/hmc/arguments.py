@@ -5,6 +5,7 @@ Classification (HMC) model. It defines all necessary arguments using argparse,
 allowing flexible and reproducible experimentation with different models,
 datasets, and training configurations.
 """
+
 import json
 import argparse
 # from dataclasses import dataclass
@@ -13,7 +14,6 @@ import argparse
 # @dataclass
 # class MyArgs:
 #     level_active: list[bool]
-
 
 
 def get_parser():

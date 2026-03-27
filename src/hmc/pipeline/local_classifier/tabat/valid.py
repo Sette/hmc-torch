@@ -1,5 +1,4 @@
 import logging
-import os
 
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
