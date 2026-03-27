@@ -8,7 +8,6 @@ from hmc.utils.path.files import create_dir
 from hmc.utils.train.job import create_job_id_name
 
 
-
 def optimize_hyperparameters(args):
     """
     Optimize hyperparameters for each active level of a hierarchical \
