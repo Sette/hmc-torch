@@ -163,9 +163,9 @@ def optimize_hyperparameters(args):
                         output = outputs[index]  # Preferencialmente float32
                         target = targets[index]
                         loss = args.criterions[index](output.double(), target)
-                        local_train_losses[index] += (
-                            loss.item()
-                        )  # Acumula média por batch
+                        local_train_losses[
+                            index
+                        ] += loss.item()  # Acumula média por batch
                         total_loss += loss  # Soma da loss para backward
 
                 # Após terminar loop dos níveis, execute backward

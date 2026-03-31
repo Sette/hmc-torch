@@ -20,7 +20,6 @@ from hmc.utils.train.losses import calculate_local_loss
 # from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
 
 
-
 def optimize_hyperparameters(args):
     """
     Optimize hyperparameters for each active level of a hierarchical \
