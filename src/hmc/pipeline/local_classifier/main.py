@@ -144,9 +144,9 @@ def assert_hyperparameter_lengths(
     all_passed = True
     for name, lst in checks.items():
         try:
-            assert (
-                len(lst) == args.max_depth
-            ), f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            assert len(lst) == args.max_depth, (
+                f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            )
         except AssertionError as e:
             print(f"Assert failed: {e}")
             all_passed = False

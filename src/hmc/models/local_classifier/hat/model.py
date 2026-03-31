@@ -55,7 +55,9 @@ class DataCollatorLM:
         probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
         masked_indices = torch.bernoulli(probability_matrix).bool()
 
-        labels[~masked_indices] = (
+        labels[
+            ~masked_indices
+        ] = (
             -100
         )  # We only compute loss on masked tokens, -100 is default for CE compute
 
