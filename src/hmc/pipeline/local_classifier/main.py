@@ -243,18 +243,6 @@ def train_local(args):
 
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
-    # Set seed
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    os.environ["PYTHONHASHSEED"] = str(args.seed)
-    random.seed(args.seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    # Check how many GPUs are available
-    num_gpus = torch.cuda.device_count()
-    print(f"Total de GPUs disponíveis: {num_gpus}")
-    print(f"Learning values: {args.lr_values}")
 
     args = parse_str_flags(args)
 
