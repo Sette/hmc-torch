@@ -94,21 +94,6 @@ class HMCDatasetManager:
 
         if dataset_type == "arff":
             self.is_go, self.train_file, self.valid_file, self.test_file = dataset
-        else:
-            self.train_file, self.valid_file, self.test_file, self.labels_file = dataset
-            # Infer dataset type
-            self.is_go = any(keyword in self.train_file for keyword in ["GO", "go"])
-            self.is_fma = any(keyword in self.train_file for keyword in ["fma", "FMA"])
-            # Load hierarchical structure
-            self.load_structure_from_json(self.labels_file)
-
-        if dataset_type == "csv":
-            self.load_csv_data()
-            self.to_eval = [t not in self.to_skip for t in self.nodes]
-        elif dataset_type == "torch":
-            self.load_torch_data()
-            self.to_eval = [t not in self.to_skip for t in self.nodes]
-        elif dataset_type == "arff":
             self.load_arff_data()
 
     def load_structure_from_json(self, labels_json):

@@ -436,7 +436,7 @@ class HATLayer(nn.Module):
         if output_attentions:
             return outputs, gene_block_outputs[1], genome_outputs[1]
 
-        return outputs, None
+        return outputs
 
 
 @dataclass

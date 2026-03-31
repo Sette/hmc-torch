@@ -135,35 +135,8 @@ def test_step(args):
     all_y_pred = []
     logging.info("Evaluating %d active levels...", len(args.active_levels))
 
-    print(args.hmc_dataset.all_matrix_r)
-
     for idx in args.active_levels:
         y_pred = local_outputs[idx].to("cpu").numpy()
-        # --- INÍCIO DA CORREÇÃO DE INCONSISTÊNCIA ---
-        # Só aplicamos a correção se NÃO for o primeiro nível (raiz)
-        # if args.parent_conditioning == "teacher_forcing":
-        #     lambda_factor = 0.2 # Teste 0.2, 0.5, 0.8
-        #     if idx > 0:
-        #         # Pegamos as predições do nível imediatamente anterior (já corrigidas)
-        #         # all_y_pred[-1] refere-se ao output do loop anterior
-
-        #         parents_pred = all_y_pred[idx-1]
-
-        #         edge_matrix = args.hmc_dataset.edges_matrix_dict[idx]
-
-        #         # 1. Projeção (Mapeamento)
-        #         # Multiplicamos as probabilidades dos pais pela matriz.
-        #         # Isso cria um array do tamanho dos FILHOS, mas contendo a probabilidade dos PAIS correspondentes.
-        #         probs_pai_projetado = np.matmul(parents_pred, edge_matrix)
-
-        #         probs_pai_suave = np.power(probs_pai_projetado, lambda_factor)
-
-        #         # 2. Correção (Regra do Produto)
-        #         # Agora que os tamanhos batem e estão alinhados, multiplicamos elemento a elemento.
-        #         y_pred = y_pred * probs_pai_suave
-
-        # --- FIM DA CORREÇÃO ---
-
         all_y_pred.append(y_pred)
         y_pred_binary = y_pred > best_thresholds[idx]
 
@@ -180,20 +153,10 @@ def test_step(args):
             average="micro",
         )
 
-        # score = average_precision_score(
-        #     local_inputs[idx], y_pred_binary, average="micro"
-        # )
         local_test_score[idx]["precision"] = score[0]  # Precision
         local_test_score[idx]["recall"] = score[1]  # Recall
         local_test_score[idx]["f1score"] = score[2]  # F1-score
         local_test_score[idx]["avg_precision_score"] = avg_score
-
-    # Save the trained model
-    # torch.save(
-    #     args.model.state_dict(),
-    #     f"results/train/{args.dataset_name}-{job_id}-state_dict.pt",
-    # )
-    # args.model.save(f"results/train/{args.dataset_name}-{job_id}.pt")
 
     # Concat global targets
     y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
@@ -273,10 +236,6 @@ def test_step(args):
         args.hmc_dataset.nodes_idx,
         threshold=best_threshold,
     )
-    # logging.info("Y true")
-    # print(y_true_global_original[0].tolist())
-    # logging.info("Y pred")
-    # print(y_pred_global_binary[0].tolist())
 
     score = precision_recall_fscore_support(
         y_true_global_original[:, args.hmc_dataset.to_eval],

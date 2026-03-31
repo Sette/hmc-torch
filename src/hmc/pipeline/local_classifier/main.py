@@ -54,7 +54,6 @@ from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.valid import valid_step
 from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
 from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
-from hmc.pipeline.local_classifier.tabat.train import train_local_tabat
 from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
 from hmc.utils.path.files import create_dir
 from hmc.utils.train.job import log_system_info, parse_str_flags
@@ -99,9 +98,9 @@ def get_train_methods(method: str) -> dict[str, object]:
             model_functions = {
                 "model": TabATModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_local_tabat,
-                "valid_step": valid_local_tabat,
-                "train_step": train_local_tabat,
+                "test_step": test_step,
+                "valid_step": valid_step,
+                "train_step": train_step,
             }
         case _:
             raise ValueError("Método %s não reconhecido.", method)
