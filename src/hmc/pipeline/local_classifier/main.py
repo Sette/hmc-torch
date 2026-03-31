@@ -52,9 +52,7 @@ from hmc.models.local_classifier.tabat.model import (
 from hmc.pipeline.local_classifier.core.test import test_step
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.valid import valid_step
-from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
-from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
-from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
+from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters
 from hmc.utils.path.files import create_dir
 from hmc.utils.train.job import log_system_info, parse_str_flags
 
