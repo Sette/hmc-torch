@@ -3,16 +3,11 @@ import os
 
 import numpy as np
 import torch
-from sklearn.metrics import (
-    average_precision_score,
-    precision_recall_fscore_support,
-)
 from tqdm import tqdm
 
 from hmc.utils.dataset.labels import local_to_global_predictions
-from hmc.utils.path.output import (
-    save_dict_to_json,
-)
+from hmc.utils.metrics.calculate_metrics import calculate_metrics
+from hmc.utils.path.output import save_dict_to_json
 
 
 def test_step(args):
@@ -99,36 +94,23 @@ def test_step(args):
             y_true = local_inputs[level].to("cpu").int().numpy()
             for actual_threshold in thresholds:
                 y_pred_binary = y_pred > actual_threshold
+                metrics = calculate_metrics(y_true, y_pred, y_pred_binary)
 
-                score = precision_recall_fscore_support(
-                    y_true,
-                    y_pred_binary,
-                    average="micro",
-                    zero_division=0,
-                )
-
-                avg_score = average_precision_score(
-                    y_true,
-                    y_pred,
-                    average="micro",
-                )
-
-                precision = score[0]
-                recall = score[1]
-                f1_score = score[2]
-
-                if f1_score > best_scores[level]["f1score"]:
+                if metrics["f1score"] > best_scores[level]["f1score"]:
                     best_thresholds[level] = actual_threshold
-                    best_scores[level] = {
-                        "precision": precision,
-                        "recall": recall,
-                        "f1score": f1_score,
-                        "average_precision_score": avg_score,
-                    }
+                    best_scores[level] = metrics
 
         logging.info("Best thresholds per level:")
         for idx in args.active_levels:
-            logging.info(f"Level {idx}: threshold={best_thresholds[idx]:.2f}")
+            logging.info(
+                "Level %d: threshold=%.2f, precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
+                idx,
+                best_thresholds[idx],
+                best_scores[idx]["precision"],
+                best_scores[idx]["recall"],
+                best_scores[idx]["f1score"],
+                best_scores[idx]["average_precision_score"],
+            )
     else:
         best_thresholds = {level: 0.5 for _, level in enumerate(args.active_levels)}
 

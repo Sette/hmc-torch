@@ -30,7 +30,6 @@ Authors: Bruno Sette
 
 import logging
 import os
-import random
 import time
 from collections.abc import Sequence
 
