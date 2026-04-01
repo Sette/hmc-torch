@@ -33,17 +33,21 @@ def get_from_df(genre_id, df_genres, output):
 
 def get_structure(genres_id, df_genres):
     """
-    Retrieve the hierarchical structure (ancestry) of each genre_id from the DataFrame.
+    Retrieve the hierarchical structure (ancestry)
+    of each genre_id from the DataFrame.
 
     Args:
-        genres_id (list or iterable): List of genre IDs to retrieve the structure for.
-        df_genres (pd.DataFrame): DataFrame containing the columns "genre_id" and "parent".
-            It is expected that "parent" is the parent genre_id for each genre.
+        genres_id (list or iterable): List of genre IDs to
+        retrieve the structure for.
+        df_genres (pd.DataFrame): DataFrame containing the columns
+        "genre_id" and "parent".
+        It is expected that "parent" is the parent genre_id for each genre.
 
     Returns:
-        list: A list where each element is a list of genre IDs representing the hierarchy (ancestry)
-              for the corresponding genre_id in `genres_id`. Each list starts from the genre_id and
-              recursively adds its parents up to the root (where parent is 0 or missing).
+        list: A list where each element is a list of genre IDs representing
+        the hierarchy (ancestry) for the corresponding genre_id in `genres_id`.
+        Each list starts from the genre_id and recursively adds its parents
+        up to the root (where parent is 0 or missing).
     """
     output_list = []
     for genre_id in genres_id:
@@ -53,15 +57,18 @@ def get_structure(genres_id, df_genres):
 
 def group_labels_by_level(df, max_depth):
     """
-    Groups hierarchical labels in the DataFrame by each level, up to the specified max_depth.
+    Groups hierarchical labels in the DataFrame by each level,
+    up to the specified max_depth.
 
     Args:
-        df (pd.DataFrame): DataFrame containing a column 'y_true', where each item is a list of
+        df (pd.DataFrame): DataFrame containing a column 'y_true',
+        where each item is a list of
             hierarchical label lists per track.
         max_depth (int): Maximum number of hierarchy levels to consider.
 
     Returns:
-        list: A list of length max_depth, where each element is a list of unique labels per example at that level.
+        list: A list of length max_depth, where each element
+        is a list of unique labels per example at that level.
     """
     # Initialize empty lists for each level based on max_depth
     levels = [[] for _ in range(max_depth)]
@@ -82,17 +89,21 @@ def group_labels_by_level(df, max_depth):
 
 def binarize_labels(dataset_df, args):
     """
-    Binarizes multi-level hierarchical labels in the dataset, using MultiLabelBinarizer per level.
+    Binarizes multi-level hierarchical labels in the dataset,
+    using MultiLabelBinarizer per level.
 
     Args:
-        dataset_df (pd.DataFrame): DataFrame containing 'y_true' column with hierarchical label lists.
+        dataset_df (pd.DataFrame): DataFrame containing 'y_true'
+        column with hierarchical label lists.
         args (Namespace): Arguments namespace with:
             - max_depth (int): Maximum hierarchy depth.
-            - mlb_path (str): Path to save the list of fitted MultiLabelBinarizer objects.
+            - mlb_path (str): Path to save the list of fitted
+            MultiLabelBinarizer objects.
 
     Returns:
-        pd.DataFrame: DataFrame with columns ['track_id', 'y_true', 'all_binarized'],
-            where 'all_binarized' contains binarized label lists per level.
+        pd.DataFrame: DataFrame with columns
+        ['track_id', 'y_true', 'all_binarized'],
+        where 'all_binarized' contains binarized label lists per level.
     """
     # Labels
     mlbs = []
@@ -314,7 +325,8 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, r_ma
     probs_anc_exp = probs_nivel_ancestral.unsqueeze(2)  # [batch, n_ancestrais, 1]
     r_exp = r_matrix.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
 
-    # Para cada descendente j, para cada sample, pegue probs do(s) ancestral(is) i, se houver relação.
+    # Para cada descendente j, para cada sample, pegue probs do(s)
+    # ancestral(is) i, se houver relação.
     masked_probs = torch.where(
         r_exp == 1, probs_anc_exp, float("-inf")
     )  # [batch, n_ancestrais, n_desc]
@@ -331,15 +343,19 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, r_ma
 
 def apply_hierarchy_consistency_old(outputs, labels, args):
     """
-    Apply hard hierarchy consistency to model outputs using an ancestral correlation matrix.
+    Apply hard hierarchy consistency to model outputs using an
+     ancestral correlation matrix.
 
-    This function ensures that predictions across hierarchical levels remain consistent:
-    a child class can only be active if at least one of its ancestor classes was active
+    This function ensures that predictions across hierarchical levels
+     remain consistent:
+    a child class can only be active if at least one of its ancestor
+    classes was active
     in the previous level.
 
     Args:
-        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy level index
-            to a tensor of predictions for that level. Each tensor has shape
+        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy
+            level index to a tensor of predictions for that level. Each tensor
+            has shape
             [n_samples, n_classes_at_level]. These predictions may already have sigmoid
             applied, depending on the model configuration.
         args: Object containing the following attributes:
@@ -348,7 +364,8 @@ def apply_hierarchy_consistency_old(outputs, labels, args):
                 • sorted_levels (list): list of level indices sorted by depth
                 • local_nodes_reverse (dict): mapping {level: {local_idx: node_name}}
                 • nodes_idx (dict): mapping {node_name: global_idx}
-            - r (torch.Tensor): Ancestral correlation matrix of shape [1, N, N] or [N, N],
+            - r (torch.Tensor): Ancestral correlation matrix of shape
+             [1, N, N] or [N, N],
               where r[i, j] = 1 if class i is a child (descendant) of class j.
             - device (torch.device): Target device for computation.
             - level_active (list[bool]): Flags indicating whether each level is active.

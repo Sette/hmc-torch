@@ -506,6 +506,21 @@ class HATEncoder(nn.Module):
         output_hidden_states=False,
         return_dict=True,
     ):
+        """
+        Forward pass for the HATEncoder model.
+
+        Args:
+            hidden_states: Input hidden states.
+            attention_mask: Attention mask.
+            num_blocks: Number of blocks.
+            use_cache: Whether to use cache.
+            output_attentions: Whether to output attentions.
+            output_hidden_states: Whether to output hidden states.
+            return_dict: Whether to return a dictionary.
+
+        Returns:
+            Tuple[torch.FloatTensor]: Tuple of hidden states, attentions, and gene block attentions.
+        """
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
         all_gene_block_attentions = () if output_attentions else None
@@ -715,6 +730,16 @@ class HATLMHead(nn.Module):
         self.decoder.bias = self.bias
 
     def forward(self, features, **kwargs):
+        """
+        Forward pass for the HATLMHead model.
+
+        Args:
+            features: Input features.
+            kwargs: Additional arguments.
+
+        Returns:
+            Output features.
+        """
         x = self.dense(features)
         x = self.activation(x)
         x = self.layer_norm(x)
@@ -729,6 +754,13 @@ class HATLMHead(nn.Module):
 
 # Genome masked language model built on top of the hierarchical encoder.
 class HATForMaskedLM(HATPreTrainedModel):
+    """
+    HAT model for masked language modeling.
+
+    Args:
+        config: Configuration for the HAT model.
+    """
+
     _keys_to_ignore_on_load_missing = [r"position_ids"]
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
 

@@ -5,12 +5,21 @@ This module contains the TabAT model implementation.
 from typing import Dict, List, Tuple
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from hmc.models.local_classifier.networks import BuildClassification
 
 
 class TabularAttention(nn.Module):
+    """
+    Tabular Attention module.
+
+    Args:
+        num_features: Number of input features.
+        embed_dim: Dimension of the embedding.
+        num_heads: Number of attention heads.
+    """
+
     def __init__(self, num_features: int, embed_dim: int = 64, num_heads: int = 1):
         super().__init__()
         self.num_features = num_features
@@ -129,6 +138,15 @@ class TabATModel(nn.Module):
     def forward(
         self, x: torch.Tensor
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """
+        Forward pass for the TabAT model.
+
+        Args:
+            x: Input tensor of shape (batch_size, input_size).
+
+        Returns:
+            Tuple of logits and attention weights.
+        """
         logits = {}
         all_attn_weights = {}
 
