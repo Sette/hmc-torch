@@ -5,8 +5,10 @@ Classification (HMC) model. It defines all necessary arguments using argparse,
 allowing flexible and reproducible experimentation with different models,
 datasets, and training configurations.
 """
-import json
+
 import argparse
+import json
+
 # from dataclasses import dataclass
 
 
@@ -15,10 +17,10 @@ import argparse
 #     level_active: list[bool]
 
 
-
 def get_parser():
     """
-    Create and return an argument parser for the HMC (Hierarchical Multi-label Classification) model.
+    Create and return an argument parser for the
+    HMC (Hierarchical Multi-label Classification) model.
 
     Returns:
         argparse.ArgumentParser: Configured argument parser with all command-line arguments
@@ -301,8 +303,11 @@ def get_parser():
         choices=["mlp", "attention", "gcn", "gat"],
         metavar="LEVEL_MODEL_TYPE",
         required=False,
-        help="Specific model type to use at each level. Options: 'mlp' (Multi-Layer Perceptron), \
-'attention' (Attention mechanism), 'gcn' (Graph Convolutional Network), 'gat' (Graph Attention Network).",
+        help="Specific model type to use at each level. Options: \
+            'mlp' (Multi-Layer Perceptron), \
+            'attention' (Attention mechanism), \
+            'gcn' (Graph Convolutional Network), \
+            'gat' (Graph Attention Network).",
     )
 
     parser.add_argument(

@@ -21,13 +21,13 @@ Functions:
 import logging
 
 import torch
+
 from hmc.utils.dataset.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
     end_timer,
     start_timer,
 )
-
 from hmc.utils.train.losses import compute_loss
 
 
@@ -67,7 +67,9 @@ def train_step(args):
     """
 
     args.model = args.model.to(args.device)
-    args.criterion_list = [criterion.to(args.device) for criterion in args.criterion_list]
+    args.criterion_list = [
+        criterion.to(args.device) for criterion in args.criterion_list
+    ]
 
     args.early_stopping_patience = args.patience
     args.early_stopping_patience_score = args.patience_score
@@ -102,7 +104,9 @@ def train_step(args):
         args.level_active[0] = True
         next_level = 1
         logging.info(
-            "Using %s with %d warm-up epochs", args.parent_conditioning, args.n_warmup_epochs
+            "Using %s with %d warm-up epochs",
+            args.parent_conditioning,
+            args.n_warmup_epochs,
         )
     else:
         next_level = len(args.active_levels)
@@ -127,7 +131,7 @@ def train_step(args):
                 local_train_losses[level] = local_train_loss / len(args.train_loader)
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        show_local_losses(local_train_losses, dataset="Train")
+        show_local_losses(local_train_losses)
 
         if epoch % args.epochs_to_evaluate == 0:
             args.train_methods["valid_step"](args)

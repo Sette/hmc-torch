@@ -1,3 +1,7 @@
+"""
+This module contains functions to handle output operations.
+"""
+
 import json
 
 

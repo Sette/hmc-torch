@@ -173,7 +173,6 @@ def train_global_baseline(dataset_name, args):
             optimizer.step()
 
     for i, (x, y) in enumerate(test_loader):
-
         model.eval()
 
         x = x.to(device)

@@ -1,47 +1,67 @@
-[tool.poetry]
+[project]
 name = "hmc"
 version = "0.0.7"
 description = "Hierarchical Multi-Label Classification Network in Pytorch"
-authors = ["sette <bruno.sette@ufscar.br>"]
-packages = [{ include = "hmc", from = "src" }]
+authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
+requires-python = ">=3.11,<4"
 readme = "README.md"
+dependencies = [
+    "tqdm==4.67.3",
+    "numpy==2.4.3",
+    "torch==2.10.0",
+    "torchaudio==2.10.0",
+    "torchvision==0.25.0",
+    "pandas==3.0.1",
+    "dataset==1.6.2",
+    "scikit-learn==1.8.0",
+    "lightning[extra]==2.6.1",
+    "tensorflow==2.21.0",
+    "tf-keras==2.21.0",
+    "litmodels==0.1.8",
+    "optuna==4.8.0",
+    "logging==0.4.9.6",
+    "torch-geometric==2.7.0",
+    "transformers==5.3.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-tqdm = ">=4.66.4"
-numpy = "^2.4.2"
-torch = { version = "2.5.1", source = "pytorch-gpu" }
-torchaudio = { version = "2.5.1", source = "pytorch-gpu" }
-torchvision = { version = "0.20.1", source = "pytorch-gpu" }
-pandas = ">=1.5.0"
-dataset = ">=1.6.2"
-scikit-learn = ">=1.2.2"
-lightning = {extras = ["extra"], version = ">=2.0.9"}
-tensorflow = ">=2.12.0"
-litmodels = "^0.1.7"
-optuna = "^4.3.0"
-logging = "^0.4.9.6"
-jq = "^1.10.0"
-yq = "^3.4.3"
-torch-geometric = "^2.7.0"
-transformers = "^5.1.0"
-tf-keras = "^2.20.1"
+[dependency-groups]
+dev = [
+    "autopep8==2.3.2",
+    "flake8==7.2.0",
+    "black==25.1.0",
+    "isort==6.0.1",
+    "pre-commit==4.2.0",
+    "pylint==3.3.7",
+    "pytest==9.0.2",
+    "jupyterlab==4.5.3",
+    "jq==1.11.0",
+    "yq==3.4.3",
+    "setuptools>=82.0.1",
+    "ruff>=0.15.8",
+]
 
+[tool.uv]
+default-groups = "all"
 
-[[tool.poetry.source]]
-name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
-[tool.poetry.group.dev.dependencies]
-autopep8 = "^2.3.2"
-flake8 = "^7.2.0"
-black = "^25.1.0"
-pylama = "^8.4.1"
-isort = "^6.0.1"
-pre-commit = "^4.2.0"
-pylint = "^3.3.7"
-pytest = "^9.0.2"
-jupyterlab = "^4.5.3"
-jq = "^1.11.0"
-yq = "^3.4.3"
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchaudio = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+
+[tool.hatch.build.targets.sdist]
+include = ["src/hmc"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/hmc"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/hmc" = "hmc"
+
+[tool.pylint.master]
+init-hook="import sys; sys.path.append('src')"
+

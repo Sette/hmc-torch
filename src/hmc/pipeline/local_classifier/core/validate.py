@@ -1,16 +1,19 @@
+"""
+This module contains the validation step for the HMC local classifier.
+"""
+
 import logging
-import os
 
 import torch
-from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
+from hmc.utils.metrics.calculate_metrics import calculate_metrics
 from hmc.utils.train.early_stopping import (
-    check_early_stopping_tabat,
+    check_early_stopping_normalized,
 )
 from hmc.utils.train.losses import compute_loss
 
 
-def valid_local_tabat(args):
+def validate_step(args):
     """
     Performs a validation step for a hierarchical multi-level classifier model.
     Args:
@@ -42,11 +45,8 @@ def valid_local_tabat(args):
 
     args.model.eval()
 
-    args.result_path = "%s/train/%s-%s/%s" % (
-        args.output_path,
-        args.method,
-        args.dataset_name,
-        args.job_id,
+    args.result_path = (
+        f"{args.output_path}/train/{args.method}-{args.dataset_name}/{args.job_id}"
     )
 
     local_inputs = {
@@ -63,14 +63,12 @@ def valid_local_tabat(args):
     args.local_val_losses = [0.0] * args.max_depth
 
     with torch.no_grad():
-        for level, batch in enumerate(args.val_loader):
-            local_val_losses, local_inputs, local_outputs = compute_loss(
+        for batch in args.val_loader:
+            _, local_inputs, local_outputs = compute_loss(
                 batch,
                 args,
                 step="valid",
             )
-
-            args.local_val_losses[level] = local_val_losses
 
     for level in args.active_levels:
         if args.level_active[level]:
@@ -78,35 +76,24 @@ def valid_local_tabat(args):
             y_true = local_inputs[level].to("cpu").int().numpy()
             y_pred_binary = y_pred > threshold
 
-            score = precision_recall_fscore_support(
-                y_true,
-                y_pred_binary,
-                average="micro",
-                zero_division=0,
-            )
-
-            avg_score = average_precision_score(
-                y_true,
-                y_pred,
-                average="micro",
-            )
+            metrics = calculate_metrics(y_true, y_pred, y_pred_binary)
 
             # local_val_score[idx] = score
             logging.info(
                 "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
                 level,
-                score[0],
-                score[1],
-                score[2],
-                avg_score,
+                metrics["precision"],
+                metrics["recall"],
+                metrics["f1score"],
+                metrics["average_precision_score"],
             )
 
             if args.early_metric == "f1-score":
-                args.local_val_scores[level] = score[2]
+                args.local_val_scores[level] = metrics["f1score"]
             elif args.early_metric == "avg-score":
-                args.local_val_scores[level] = avg_score
+                args.local_val_scores[level] = metrics["average_precision_score"]
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses
     ]
-    check_early_stopping_tabat(args, args.active_levels)
+    check_early_stopping_normalized(args, args.active_levels)

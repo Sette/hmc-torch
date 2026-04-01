@@ -1,11 +1,9 @@
-import os
-import math
 import logging
-from typing import Dict, List, Optional, Tuple
+import os
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from hmc.models.base import HierarchicalModel
 from hmc.models.local_classifier.networks import BuildClassification
@@ -82,13 +80,12 @@ class HMCLocalModel(HierarchicalModel):
 
             logging.info(
                 "Level %d: input_size=%d, output_size=%d",
-                level_idx, current_input_size, self.levels_size[level_idx]
+                level_idx,
+                current_input_size,
+                self.levels_size[level_idx],
             )
 
-    def forward(
-            self,
-            x: torch.Tensor
-    ) -> Dict[int, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
         """
         Forward pass with optional residual connections.
 

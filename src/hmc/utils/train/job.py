@@ -6,11 +6,13 @@ This module provides:
 - Timer utilities for measuring elapsed time.
 - Parsing helpers to convert string flags to boolean values in argument objects.
 """
+
 import os
-import psutil
-import torch
 import time
 from datetime import datetime
+
+import psutil
+import torch
 
 
 def create_job_id_name(prefix="job"):
@@ -54,40 +56,49 @@ def parse_str_flags(args):
 
 
 def log_gpu_memory(device):
+    """Log GPU memory information."""
     result = {}
     if torch.cuda.is_available():
         prop = torch.cuda.get_device_properties(device)
         total_mib = prop.total_memory / (1024**2)  # Total em MiB
 
         allocated_mib = torch.cuda.memory_allocated(device) / 1024**2
-        reserved_mib = torch.cuda.memory_reserved(device) / (1024**2)  # MiB como nvidia-smi
+        reserved_mib = torch.cuda.memory_reserved(device) / (
+            1024**2
+        )  # MiB como nvidia-smi
         peak_mib = torch.cuda.max_memory_allocated(device) / 1024**2
 
         # SOMA alocado + reservado (em MiB)
-        soma_mib = (torch.cuda.memory_allocated(device) + torch.cuda.memory_reserved(device)) / (1024**2)
+        soma_mib = (
+            torch.cuda.memory_allocated(device) + torch.cuda.memory_reserved(device)
+        ) / (1024**2)
 
-        result.update({
-            'total_mib': total_mib,
-            'allocated_mib': allocated_mib,
-            'reserved_mib': reserved_mib,
-            'peak_mib': peak_mib,
-            'soma_allocated_reserved_mib': soma_mib
-        })
+        result.update(
+            {
+                "total_mib": total_mib,
+                "allocated_mib": allocated_mib,
+                "reserved_mib": reserved_mib,
+                "peak_mib": peak_mib,
+                "soma_allocated_reserved_mib": soma_mib,
+            }
+        )
 
     torch.cuda.empty_cache()
     return result
 
 
 def log_cpu_ram(result):
+    """Log CPU RAM information."""
     process = psutil.Process(os.getpid())
     cpu_percent = psutil.cpu_percent(interval=0.1)
     ram_used = process.memory_info().rss / 1024**3  # GB
-    result['cpu-percent'] = cpu_percent
-    result['cpu-ram'] = ram_used
+    result["cpu-percent"] = cpu_percent
+    result["cpu-ram"] = ram_used
     return result
 
 
 def log_system_info(device):
+    """Log system information."""
     result = {}
     result = log_gpu_memory(device)
     result = log_cpu_ram(result)

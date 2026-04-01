@@ -1,14 +1,14 @@
 
-VERSION="0.0.8"
+VERSION="0.0.7"
 
 lint-check:
 	@echo "--> Running linter check"
 	autopep8 --in-place --recursive src
-	flake8 **/*.py
-	black --check **/*.py
-	pylama **/*.py
-	isort -c **/*.py
-	pylint **/*.py
+	flake8 src/
+	black --check src/
+	ruff check src/
+	isort -c src/
+	pylint src/
 
 pre-commit:
 	@echo "--> Running pre-commit"
@@ -16,10 +16,13 @@ pre-commit:
 
 lint:
 	@echo "--> Running linter"
-	black **/*.py
-	flake8 **/*.py
-	isort **/*.py
-	pylint **/*.py
+	autopep8 --in-place --recursive src
+	flake8 src/
+	black src/
+	ruff format src/
+	ruff check src/ --fix
+	isort src/
+	pylint src/
 
 dvc:
 	@dvc pull

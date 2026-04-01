@@ -1,48 +1,54 @@
+"""
+This module contains functions to handle label operations.
+"""
+
 import logging
 import pickle
 
-import networkx as nx
 import numpy as np
 import torch
 from sklearn.preprocessing import MultiLabelBinarizer
-from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 
 
-def get_structure(genres_id, df_genres):
+def get_from_df(genre_id, df_genres, output):
     """
-    Retrieve the hierarchical structure (ancestry) of each genre_id from the DataFrame.
+    Recursively retrieves the ancestry of a given genre_id.
 
     Args:
-        genres_id (list or iterable): List of genre IDs to retrieve the structure for.
-        df_genres (pd.DataFrame): DataFrame containing the columns "genre_id" and "parent".
-            It is expected that "parent" is the parent genre_id for each genre.
+        genre_id (int): The current genre ID.
+        df_genres (pd.DataFrame): DataFrame containing genre hierarchy.
+        output (list): The list being built up with the ancestry.
 
     Returns:
-        list: A list where each element is a list of genre IDs representing the hierarchy (ancestry)
-              for the corresponding genre_id in `genres_id`. Each list starts from the genre_id and
-              recursively adds its parents up to the root (where parent is 0 or missing).
+        list: List including this genre_id and its ancestors up to the root.
     """
+    if genre_id != 0:
+        parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
+        output.append(genre_id)
+        get_from_df(parent_genre, df_genres, output=output)
+    return output
 
-    def get_from_df(genre_id, df_genres, output):
-        """
-        Recursively retrieves the ancestry of a given genre_id.
 
-        Args:
-            genre_id (int): The current genre ID.
-            df_genres (pd.DataFrame): DataFrame containing genre hierarchy.
-            output (list): The list being built up with the ancestry.
+def get_structure(genres_id, df_genres):
+    """
+    Retrieve the hierarchical structure (ancestry)
+    of each genre_id from the DataFrame.
 
-        Returns:
-            list: List including this genre_id and its ancestors up to the root.
-        """
-        if genre_id != 0:
-            parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
-            output.append(genre_id)
-            get_from_df(parent_genre, df_genres, output=output)
-            return output
+    Args:
+        genres_id (list or iterable): List of genre IDs to
+        retrieve the structure for.
+        df_genres (pd.DataFrame): DataFrame containing the columns
+        "genre_id" and "parent".
+        It is expected that "parent" is the parent genre_id for each genre.
 
+    Returns:
+        list: A list where each element is a list of genre IDs representing
+        the hierarchy (ancestry) for the corresponding genre_id in `genres_id`.
+        Each list starts from the genre_id and recursively adds its parents
+        up to the root (where parent is 0 or missing).
+    """
     output_list = []
     for genre_id in genres_id:
         output_list.append(get_from_df(genre_id, df_genres, output=[]))
@@ -51,14 +57,18 @@ def get_structure(genres_id, df_genres):
 
 def group_labels_by_level(df, max_depth):
     """
-    Groups hierarchical labels in the DataFrame by each level, up to the specified max_depth.
+    Groups hierarchical labels in the DataFrame by each level,
+    up to the specified max_depth.
 
     Args:
-        df (pd.DataFrame): DataFrame containing a column 'y_true', where each item is a list of hierarchical label lists per track.
+        df (pd.DataFrame): DataFrame containing a column 'y_true',
+        where each item is a list of
+            hierarchical label lists per track.
         max_depth (int): Maximum number of hierarchy levels to consider.
 
     Returns:
-        list: A list of length max_depth, where each element is a list of unique labels per example at that level.
+        list: A list of length max_depth, where each element
+        is a list of unique labels per example at that level.
     """
     # Initialize empty lists for each level based on max_depth
     levels = [[] for _ in range(max_depth)]
@@ -79,16 +89,21 @@ def group_labels_by_level(df, max_depth):
 
 def binarize_labels(dataset_df, args):
     """
-    Binarizes multi-level hierarchical labels in the dataset, using MultiLabelBinarizer per level.
+    Binarizes multi-level hierarchical labels in the dataset,
+    using MultiLabelBinarizer per level.
 
     Args:
-        dataset_df (pd.DataFrame): DataFrame containing 'y_true' column with hierarchical label lists.
+        dataset_df (pd.DataFrame): DataFrame containing 'y_true'
+        column with hierarchical label lists.
         args (Namespace): Arguments namespace with:
             - max_depth (int): Maximum hierarchy depth.
-            - mlb_path (str): Path to save the list of fitted MultiLabelBinarizer objects.
+            - mlb_path (str): Path to save the list of fitted
+            MultiLabelBinarizer objects.
 
     Returns:
-        pd.DataFrame: DataFrame with columns ['track_id', 'y_true', 'all_binarized'], where 'all_binarized' contains binarized label lists per level.
+        pd.DataFrame: DataFrame with columns
+        ['track_id', 'y_true', 'all_binarized'],
+        where 'all_binarized' contains binarized label lists per level.
     """
     # Labels
     mlbs = []
@@ -167,7 +182,11 @@ def local_to_global_predictions(
         for level in sorted_levels
     }
 
-    logging.info(f"Processing {n_samples} samples with threshold {threshold}...")
+    logging.info(
+        "Processing %d samples with threshold %f...",
+        n_samples,
+        threshold,
+    )
 
     # Iterate through each hierarchical level
     for level_index, level in enumerate(sorted_levels):
@@ -292,23 +311,24 @@ def apply_hierarchy_consistency(outputs, args):
     return new_outputs
 
 
-def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
+def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, r_matrix):
     """
     probs_nivel_ancestral: Tensor [batch, n_ancestrais]
     probs_nivel_desc: Tensor [batch, n_descendentes]
-    R: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
+    r_matrix: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
     """
     # Expande dimensões para broadcast
-    batch = probs_nivel_ancestral.shape[0]
-    n_ancestrais = probs_nivel_ancestral.shape[1]
-    n_desc = probs_nivel_desc.shape[1]
+    # batch = probs_nivel_ancestral.shape[0]
+    # n_ancestrais = probs_nivel_ancestral.shape[1]
+    # n_desc = probs_nivel_desc.shape[1]
 
     probs_anc_exp = probs_nivel_ancestral.unsqueeze(2)  # [batch, n_ancestrais, 1]
-    R_exp = R.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
+    r_exp = r_matrix.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
 
-    # Para cada descendente j, para cada sample, pegue probs do(s) ancestral(is) i, se houver relação.
+    # Para cada descendente j, para cada sample, pegue probs do(s)
+    # ancestral(is) i, se houver relação.
     masked_probs = torch.where(
-        R_exp == 1, probs_anc_exp, float("-inf")
+        r_exp == 1, probs_anc_exp, float("-inf")
     )  # [batch, n_ancestrais, n_desc]
 
     # Máximo ancestral de cada descendente para cada sample
@@ -323,15 +343,19 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
 
 def apply_hierarchy_consistency_old(outputs, labels, args):
     """
-    Apply hard hierarchy consistency to model outputs using an ancestral correlation matrix.
+    Apply hard hierarchy consistency to model outputs using an
+     ancestral correlation matrix.
 
-    This function ensures that predictions across hierarchical levels remain consistent:
-    a child class can only be active if at least one of its ancestor classes was active
+    This function ensures that predictions across hierarchical levels
+     remain consistent:
+    a child class can only be active if at least one of its ancestor
+    classes was active
     in the previous level.
 
     Args:
-        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy level index
-            to a tensor of predictions for that level. Each tensor has shape
+        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy
+            level index to a tensor of predictions for that level. Each tensor
+            has shape
             [n_samples, n_classes_at_level]. These predictions may already have sigmoid
             applied, depending on the model configuration.
         args: Object containing the following attributes:
@@ -340,7 +364,8 @@ def apply_hierarchy_consistency_old(outputs, labels, args):
                 • sorted_levels (list): list of level indices sorted by depth
                 • local_nodes_reverse (dict): mapping {level: {local_idx: node_name}}
                 • nodes_idx (dict): mapping {node_name: global_idx}
-            - r (torch.Tensor): Ancestral correlation matrix of shape [1, N, N] or [N, N],
+            - r (torch.Tensor): Ancestral correlation matrix of shape
+             [1, N, N] or [N, N],
               where r[i, j] = 1 if class i is a child (descendant) of class j.
             - device (torch.device): Target device for computation.
             - level_active (list[bool]): Flags indicating whether each level is active.
@@ -353,7 +378,6 @@ def apply_hierarchy_consistency_old(outputs, labels, args):
             original outputs[level], and is placed on args.device.
     """
     new_outputs = {}
-    threshold = 0.2
     global_idxs = [[] for _ in range(args.max_depth)]
     r = args.r.squeeze(0).to(args.device)
 
@@ -430,27 +454,25 @@ def hierarchy_regularization(outputs, g):
     return penalty
 
 
-def show_metrics(losses, scores, dataset="Train"):
+def show_metrics(losses, scores):
     """
     Show metrics for losses and scores.
 
     Args:
         losses (list): List of local losses.
         scores (dict): Dictionary of local scores.
-        dataset (str): Dataset name (default is "Train").
     """
-    show_local_losses(losses, dataset)
-    show_local_score(scores, dataset)
+    show_local_losses(losses)
+    show_local_score(scores)
 
 
-def show_local_losses(local_losses, dataset="Train"):
+def show_local_losses(local_losses):
     """
     Logs the local (per-level) losses for a given dataset.
 
     Args:
-        local_losses (list): A list containing the loss value for each hierarchy level.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or \
-        "Test". Defaults to "Train".
+        local_losses (list): A list containing the loss value for each
+            hierarchy level.
 
     Returns:
         None
@@ -458,10 +480,7 @@ def show_local_losses(local_losses, dataset="Train"):
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
         if local_loss is not None:
-            formatted_string += "level %d: %.4f // " % (
-                level,
-                local_loss,
-            )
+            formatted_string += f"level {level}: {local_loss:.4f} // "
     logging.info(formatted_string)
 
 
@@ -471,7 +490,8 @@ def show_global_loss(global_loss, dataset="Train"):
 
     Args:
         global_loss (float): The global loss value.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+        dataset (str): The name of the dataset, e.g., "Train",
+        "Validation", or "Test". Defaults to "Train".
 
     Returns:
         None
@@ -479,13 +499,13 @@ def show_global_loss(global_loss, dataset="Train"):
     logging.info("Global average loss %s Loss: %s", dataset, global_loss)
 
 
-def show_local_score(local_scores, dataset="Train"):
+def show_local_score(local_scores):
     """
     Logs the local (per-level) scores for a given dataset.
 
     Args:
-        local_scores (dict): A dictionary mapping each level to its corresponding score.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+        local_scores (dict): A dictionary mapping each level to its
+            corresponding score.
 
     Returns:
         None
@@ -493,9 +513,6 @@ def show_local_score(local_scores, dataset="Train"):
     formatted_string = ""
     for level, local_score in local_scores.items():
         if local_score is not None and local_score != 0.0:
-            formatted_string += "level %s score %s // " % (
-                level,
-                local_score,
-            )
+            formatted_string += f"level {level} score {local_score} // "
 
     logging.info(formatted_string)

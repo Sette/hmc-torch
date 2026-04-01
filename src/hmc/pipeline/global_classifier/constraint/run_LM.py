@@ -131,7 +131,7 @@ def train_globalLM(dataset_name, args):
         hidden_dim=args.hidden_dim,
         output_dim=args.output_dims[ontology][data] + num_to_skip,
         hyperparams=args.hyperparams,
-        R=R,
+        r_matrix=R,
         to_eval=to_eval,
         lr=args.lr,
         weight_decay=args.weight_decay,

@@ -1,18 +1,24 @@
+"""
+Main module for training and hyperparameter optimization of the HMC model.
+
+This module orchestrates the entire training pipeline, handling argument parsing,
+configuration, dataset loading, model training, and evaluation. It serves as the
+entry point for running experiments with different methods and configurations.
+"""
+
+import logging
 import os
 import random
 import sys
 from pathlib import Path
-import logging
+
 import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from typing import cast
 from hmc.pipeline.global_classifier.constraint.run import train_global
 from hmc.pipeline.local_classifier.main import train_local
-
 from hmc.utils.train.job import create_job_id_name
-
 
 # Set a logger config
 logging.basicConfig(
@@ -26,6 +32,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
 def main():
+    """
+    Main training function (entrypoint).
+    """
     # Training settings
     parser = get_parser()
     args = parser.parse_args()
@@ -48,7 +57,7 @@ def main():
         "seq": 529,
         "spo": 86,
     }
-    output_dims_FUN = {
+    output_dims_fun = {
         "cellcycle": 499,
         "derisi": 499,
         "eisen": 461,
@@ -58,7 +67,7 @@ def main():
         "seq": 499,
         "spo": 499,
     }
-    output_dims_GO = {
+    output_dims_go = {
         "cellcycle": 4122,
         "derisi": 4116,
         "eisen": 3570,
@@ -76,13 +85,13 @@ def main():
         "reuters": 102,
     }
     args.output_dims = {
-        "FUN": output_dims_FUN,
-        "GO": output_dims_GO,
+        "FUN": output_dims_fun,
+        "GO": output_dims_go,
         "others": output_dims_others,
     }
 
     # Dictionaries with number of features and number of labels for each dataset
-    hidden_dims_FUN = {
+    hidden_dims_fun = {
         "cellcycle": 500,
         "derisi": 500,
         "eisen": 500,
@@ -92,7 +101,7 @@ def main():
         "seq": 2000,
         "spo": 250,
     }
-    hidden_dims_GO = {
+    hidden_dims_go = {
         "cellcycle": 1000,
         "derisi": 500,
         "eisen": 500,
@@ -110,11 +119,11 @@ def main():
     }
     if not args.hidden_dims:
         args.hidden_dims = {
-            "FUN": hidden_dims_FUN,
-            "GO": hidden_dims_GO,
+            "FUN": hidden_dims_fun,
+            "GO": hidden_dims_go,
             "others": hidden_dims_others,
         }
-    lrs_FUN = {
+    lrs_fun = {
         "cellcycle": 1e-4,
         "derisi": 1e-4,
         "eisen": 1e-4,
@@ -124,7 +133,7 @@ def main():
         "seq": 1e-4,
         "spo": 1e-4,
     }
-    lrs_GO = {
+    lrs_go = {
         "cellcycle": 1e-4,
         "derisi": 1e-4,
         "eisen": 1e-4,
@@ -135,8 +144,8 @@ def main():
         "spo": 1e-4,
     }
     lrs_others = {"diatoms": 1e-5, "enron": 1e-5, "imclef07a": 1e-5, "imclef07d": 1e-5}
-    args.lrs = {"FUN": lrs_FUN, "GO": lrs_GO, "others": lrs_others}
-    all_epochs_FUN = {
+    args.lrs = {"FUN": lrs_fun, "GO": lrs_go, "others": lrs_others}
+    all_epochs_fun = {
         "cellcycle": 106,
         "derisi": 67,
         "eisen": 110,
@@ -146,7 +155,7 @@ def main():
         "seq": 13,
         "spo": 115,
     }
-    all_epochs_GO = {
+    all_epochs_go = {
         "cellcycle": 62,
         "derisi": 91,
         "eisen": 123,
@@ -163,8 +172,8 @@ def main():
         "imclef07d": 588,
     }
     args.all_epochs = {
-        "FUN": all_epochs_FUN,
-        "GO": all_epochs_GO,
+        "FUN": all_epochs_fun,
+        "GO": all_epochs_go,
         "others": all_epochs_others,
     }
 
@@ -207,7 +216,6 @@ def main():
             train_global(args.dataset_name, args)
         case _:  # Default case (like 'default' in other languages
             print("Invalid option for method. Please select a valid method.")
-
 
     return args.score
 

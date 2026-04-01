@@ -1,9 +1,11 @@
+"""
+This module contains the classification networks.
+"""
+
 from typing import List
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv
+from torch import nn
 
 # ============================================================================
 # UTILITY CLASS - Classification Network
@@ -36,7 +38,7 @@ class ClassificationNetwork(nn.Module):
             num_layers: Number of hidden layers
             dropout: Dropout probability
         """
-        super(ClassificationNetwork, self).__init__()
+        super().__init__()
         self.level = level
 
         layers = []
@@ -84,7 +86,7 @@ class BuildClassification(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.0,
         level: int = 0,
-        device: str = 'cuda',
+        device: str = "cuda",
     ):
         super().__init__()
 

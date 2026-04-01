@@ -1,5 +1,6 @@
 import logging
 import time
+
 import networkx as nx
 import numpy as np
 import torch
@@ -15,22 +16,15 @@ from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
     get_constr_out,
 )
+from hmc.utils.dataset.labels import global_to_local_predictions
 from hmc.utils.path.files import create_dir
-
-from hmc.utils.train.job import (
-    create_job_id_name,
-)
-
 from hmc.utils.path.output import (
     save_dict_to_json,
 )
-
-from tqdm import tqdm
-
-
-from hmc.utils.dataset.labels import global_to_local_predictions
-
-from hmc.utils.train.job import log_system_info
+from hmc.utils.train.job import (
+    create_job_id_name,
+    log_system_info,
+)
 
 
 def train_global(dataset_name, args):
@@ -202,7 +196,6 @@ def train_global(dataset_name, args):
     total_time = end_train - start_train
     print("Tempo de treino: %f segundos", total_time)
     for i, (x, y) in enumerate(test_loader):
-
         model.eval()
 
         x = x.to(device)

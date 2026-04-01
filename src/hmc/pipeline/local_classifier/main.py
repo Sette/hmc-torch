@@ -28,44 +28,32 @@ Intended for research and experimentation with HMC classifier benchmarks.
 Authors: Bruno Sette
 """
 
-import time
 import logging
 import os
-import random
+import time
+from collections.abc import Sequence
+
 import numpy as np
 import torch
-import torch.nn as nn
-from typing import Union
-from collections.abc import Sequence
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
+from torch import nn
 from torch.utils.data import DataLoader
-from transformers import TrainingArguments
 
-from hmc.pipeline.local_classifier.hpo.hpo_local_level import optimize_hyperparameters
-from hmc.pipeline.local_classifier.core.test import test_step
-from hmc.pipeline.local_classifier.core.train import train_step
-from hmc.pipeline.local_classifier.core.valid import valid_step
-from hmc.pipeline.local_classifier.tabat.train import train_local_tabat
-from hmc.pipeline.local_classifier.tabat.valid import valid_local_tabat
-from hmc.pipeline.local_classifier.tabat.test import test_local_tabat
-from hmc.utils.train.job import log_system_info
-
+from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.models.local_classifier.hat.model import (
-    CustomTrainer,
-    DataCollatorLM,
     HATForMaskedLM,
-    HATConfig,
 )
-
 from hmc.models.local_classifier.tabat.model import (
     TabATModel,
 )
-
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
-from hmc.utils.train.job import parse_str_flags
+from hmc.pipeline.local_classifier.core.test import test_step
+from hmc.pipeline.local_classifier.core.train import train_step
+from hmc.pipeline.local_classifier.core.validate import validate_step
+from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters
 from hmc.utils.path.files import create_dir
+from hmc.utils.train.job import log_system_info, parse_str_flags
 
 
 def get_train_methods(method: str) -> dict[str, object]:
@@ -79,8 +67,9 @@ def get_train_methods(method: str) -> dict[str, object]:
             - "local_mask": Standard per-level classifier with mask variant
 
     Returns:
-        dict: Dictionary with keys "model", "optimize_hyperparameters", "test_step", and "train_step"
-            mapping to the appropriate functions or classes.
+        dict: Dictionary with keys "model", "optimize_hyperparameters",
+            "test_step", and "train_step" mapping to the appropriate
+            functions or classes.
 
     Raises:
         ValueError: If an unknown method string is provided.
@@ -92,7 +81,7 @@ def get_train_methods(method: str) -> dict[str, object]:
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
-                "valid_step": valid_step,
+                "valid_step": validate_step,
                 "train_step": train_step,
             }
         case "local_hat":
@@ -100,19 +89,19 @@ def get_train_methods(method: str) -> dict[str, object]:
                 "model": HATForMaskedLM,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
-                "valid_step": valid_step,
+                "valid_step": validate_step,
                 "train_step": train_step,
             }
         case "local_tabat":
             model_functions = {
                 "model": TabATModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_local_tabat,
-                "valid_step": valid_local_tabat,
-                "train_step": train_local_tabat,
+                "test_step": test_step,
+                "valid_step": validate_step,
+                "train_step": train_step,
             }
         case _:
-            raise ValueError("Método %s não reconhecido.", method)
+            raise ValueError(f"Método {method} não reconhecido.")
 
     return model_functions
 
@@ -126,10 +115,12 @@ def assert_hyperparameter_lengths(
     weight_decay_values: list[float],
 ) -> None:
     """
-    Validates that all hyperparameter lists have a length equal to the maximum depth of the hierarchy.
+    Validates that all hyperparameter lists have a length equal to the
+        maximum depth of the hierarchy.
 
     Args:
-        args: Arguments object containing max_depth and relevant experiment settings.
+        args: Arguments object containing max_depth and relevant
+            experiment settings.
         lr_values (list): List of learning rates per level.
         dropout_values (list): List of dropout rates per level.
         hidden_dims (list): List of hidden layer sizes per level.
@@ -152,9 +143,9 @@ def assert_hyperparameter_lengths(
     all_passed = True
     for name, lst in checks.items():
         try:
-            assert (
-                len(lst) == args.max_depth
-            ), f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            assert len(lst) == args.max_depth, (
+                f"{name} length {len(lst)} != max_depth {args.max_depth}"
+            )
         except AssertionError as e:
             print(f"Assert failed: {e}")
             all_passed = False
@@ -203,9 +194,7 @@ def create_dataloader(
     )
     data.Y = torch.tensor(data.Y).clone().detach().to(args.device)
     # Create loaders using local (per-level) y labels
-    dataset = [
-        (x, y_levels, y) for (x, y_levels, y) in zip(data.X, data.Y_local, data.Y)
-    ]
+    dataset = list(zip(data.X, data.Y_local, data.Y))
 
     data_loader = DataLoader(
         dataset=dataset,
@@ -254,18 +243,6 @@ def train_local(args):
 
     logging.info(".......................................")
     logging.info("Experiment with %s dataset", args.dataset_name)
-    # Set seed
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    os.environ["PYTHONHASHSEED"] = str(args.seed)
-    random.seed(args.seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    # Check how many GPUs are available
-    num_gpus = torch.cuda.device_count()
-    print(f"Total de GPUs disponíveis: {num_gpus}")
-    print(f"Learning values: {args.lr_values}")
 
     args = parse_str_flags(args)
 
