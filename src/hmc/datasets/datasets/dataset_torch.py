@@ -8,13 +8,16 @@ import torch
 
 
 class HMCDatasetTorch:
+    """
+    Dataset torch para HMC local classifier.
+    """
     def __init__(self, path):
         """
         Inicializa o dataset.
         :param data: Estrutura de dados carregada do .pt
         """
-        self.X = []
-        self.Y = []
+        self.x = []
+        self.y = []
         self.examples = []
 
         pt_files = [f for f in os.listdir(path) if f.endswith(".pt")]
@@ -46,9 +49,12 @@ class HMCDatasetTorch:
         return features, labels
 
     def parse_to_array(self):
+        """
+        Parse os dados do dataset para arrays.
+        """
         for example in self.examples:
-            self.X.append(example["features"])
-            self.Y.append(example["labels"])
+            self.x.append(example["features"])
+            self.y.append(example["labels"])
 
     def set_y(self, y):
-        self.Y = y
+        self.y = y
