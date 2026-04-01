@@ -1,3 +1,7 @@
+"""
+This module contains the HAT model implementation.
+"""
+
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -17,6 +21,10 @@ from transformers.models.roberta.modeling_roberta import (
 
 
 class DataCollatorLM:
+    """
+    Data collator for the HAT model.
+    """
+
     def __init__(self, config, embedding, mlm=True, mlm_probability=0.15):
         self.config = config
         self.embedding = embedding
@@ -90,6 +98,10 @@ class DataCollatorLM:
 
 
 class CustomTrainer(Trainer):
+    """
+    Custom trainer for the HAT model.
+    """
+
     def _remove_unused_columns(self, dataset, description=None):
         return dataset
 
@@ -122,6 +134,10 @@ class CustomTrainer(Trainer):
 
 
 class HATConfig(PretrainedConfig):
+    """
+    Configuration for the HAT model.
+    """
+
     model_type = "hierarchical-transformer"
 
     def __init__(
@@ -375,6 +391,10 @@ def transform_gene_blocks2tokens(seg_hidden_states, num_blocks, block_size):
 
 
 class HATLayer(nn.Module):
+    """
+    HAT layer.
+    """
+
     def __init__(self, config, use_gene_block_encoder=True, use_genome_encoder=True):
         super().__init__()
         self.block_size = config.block_size
@@ -441,6 +461,10 @@ class HATLayer(nn.Module):
 
 @dataclass
 class BaseModelOutputWithGeneBlockAttentions(ModelOutput):
+    """
+    Base model output with gene block attentions.
+    """
+
     last_hidden_state: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
@@ -449,6 +473,10 @@ class BaseModelOutputWithGeneBlockAttentions(ModelOutput):
 
 # Stack of HAT layers with optional gradient checkpointing.
 class HATEncoder(nn.Module):
+    """
+    Stack of HAT layers with optional gradient checkpointing.
+    """
+
     def __init__(self, config):
         super().__init__()
         self.config = config
