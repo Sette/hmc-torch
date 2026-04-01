@@ -35,10 +35,10 @@ from collections.abc import Sequence
 
 import numpy as np
 import torch
-import torch.nn as nn
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
+from torch import nn
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
@@ -67,8 +67,9 @@ def get_train_methods(method: str) -> dict[str, object]:
             - "local_mask": Standard per-level classifier with mask variant
 
     Returns:
-        dict: Dictionary with keys "model", "optimize_hyperparameters", "test_step", and "train_step"
-            mapping to the appropriate functions or classes.
+        dict: Dictionary with keys "model", "optimize_hyperparameters",
+            "test_step", and "train_step" mapping to the appropriate
+            functions or classes.
 
     Raises:
         ValueError: If an unknown method string is provided.

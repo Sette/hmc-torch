@@ -216,11 +216,11 @@ class WeightedMultiLabelFocalLoss(nn.Module):
 
         # 5. Redução
         if self.reduction == "mean":
-            return focal_loss.mean()
+            focal_loss = focal_loss.mean()
         elif self.reduction == "sum":
-            return focal_loss.sum()
-        else:
-            return focal_loss
+            focal_loss = focal_loss.sum()
+
+        return focal_loss
 
 
 def hierarchical_consistency_loss(logits_dict, class_hierarchy):

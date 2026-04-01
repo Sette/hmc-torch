@@ -56,6 +56,7 @@ def parse_str_flags(args):
 
 
 def log_gpu_memory(device):
+    """Log GPU memory information."""
     result = {}
     if torch.cuda.is_available():
         prop = torch.cuda.get_device_properties(device)
@@ -87,6 +88,7 @@ def log_gpu_memory(device):
 
 
 def log_cpu_ram(result):
+    """Log CPU RAM information."""
     process = psutil.Process(os.getpid())
     cpu_percent = psutil.cpu_percent(interval=0.1)
     ram_used = process.memory_info().rss / 1024**3  # GB
@@ -96,6 +98,7 @@ def log_cpu_ram(result):
 
 
 def log_system_info(device):
+    """Log system information."""
     result = {}
     result = log_gpu_memory(device)
     result = log_cpu_ram(result)
