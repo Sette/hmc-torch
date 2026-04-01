@@ -1,3 +1,7 @@
+"""
+This module contains the validation step for the HMC local classifier.
+"""
+
 import logging
 
 import torch
@@ -9,7 +13,7 @@ from hmc.utils.metrics.calculate_metrics import calculate_metrics
 from hmc.utils.train.losses import compute_loss
 
 
-def valid_step(args):
+def validate_step(args):
     """
     Performs a validation step for a hierarchical multi-level classifier model.
     Args:
@@ -41,11 +45,8 @@ def valid_step(args):
 
     args.model.eval()
 
-    args.result_path = "%s/train/%s-%s/%s" % (
-        args.output_path,
-        args.method,
-        args.dataset_name,
-        args.job_id,
+    args.result_path = (
+        f"{args.output_path}/train/{args.method}-{args.dataset_name}/{args.job_id}"
     )
 
     local_inputs = {

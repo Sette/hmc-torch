@@ -1,3 +1,7 @@
+"""
+This module contains the Optuna hyperparameter optimization for the HMC local classifier.
+"""
+
 import logging
 import sys
 
@@ -18,6 +22,186 @@ from hmc.utils.train.job import create_job_id_name
 from hmc.utils.train.losses import calculate_local_loss
 
 # from hmc.models.local_classifier.constraint import HMCLocalModelConstraint
+
+
+def train_objective(args, trial):
+    """
+    Train the HMC local classifier for a specific level.
+
+    Args:
+        args: Arguments object containing model, optimizer, and dataset information.
+        trial: Optuna trial object.
+
+    Returns:
+        float: The best validation loss achieved during training for the
+            current trial.
+    """
+    for epoch in range(1, args.epochs + 1):
+        args.epoch = epoch
+        local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
+
+        for inputs, targets, _ in args.train_loader:
+            inputs = inputs.to(args.device)
+            targets = [target.to(args.device) for target in targets]
+            outputs = args.model(inputs.float())
+
+            # Zerar os gradientes antes de cada batch
+            args.optimizer.zero_grad()
+
+            total_loss = 0.0
+
+            args.current_level = args.level
+            loss = calculate_local_loss(
+                outputs[args.level],
+                targets[args.level],
+                args,
+            )
+
+            local_train_losses[args.level] += loss.item()  # Acumula média por batch
+            total_loss += loss  # Soma da loss para backward
+
+            # Após terminar loop dos níveis, execute backward
+            total_loss.backward()
+            args.optimizer.step()
+
+        local_train_losses[args.level] = local_train_losses[args.level] / len(
+            args.train_loader
+        )
+        logging.info("Trial %d - Epoch %d/%d", trial.number, epoch, args.epochs)
+        show_local_losses(local_train_losses, dataset=f"Train n {trial.number}")
+
+        if epoch % args.epochs_to_evaluate == 0:
+            args.epoch = epoch
+            val_optimizer(args)
+
+            if not any(args.level_active):
+                logging.info("All levels have triggered early stopping.")
+                break
+
+            # Reporta o valor de validação para Optuna
+            trial.report(args.local_val_scores[args.level], step=epoch)
+
+            logging.info(
+                "Trial %d Local validation loss: %f %s: %f",
+                trial.number,
+                args.local_val_losses[args.level],
+                args.early_metric,
+                args.local_val_scores[args.level],
+            )
+
+            logging.info(
+                "Local best validation loss: %f %s: %f",
+                args.best_val_loss[args.level],
+                args.early_metric,
+                args.best_val_score[args.level],
+            )
+
+            # Early stopping (pruning)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+    return args.local_val_scores[args.level]
+
+
+def objective(args, trial):
+    """
+    Objective function for Optuna hyperparameter optimization of a hierarchical\
+        multi-class local classifier.
+    This function defines the training and validation loop for a \
+        single Optuna trial, optimizing hyperparameters
+    such as hidden dimension size, learning rate, dropout, number of layers, \
+        and weight decay for a specific level
+    in a hierarchical classification model. It performs model training, validation,\
+        and early stopping based on
+    validation loss, and reports results to Optuna for pruning and optimization.
+    Args:
+        trial (optuna.trial.Trial): The Optuna trial object used for suggesting \
+            hyperparameters and reporting results.
+        level (int): The hierarchical level for which the model is\
+            being optimized.
+    Returns:
+        float: The best validation loss achieved during training for the\
+            current trial.
+    Raises:
+        optuna.TrialPruned: If Optuna determines that the trial should be \
+            pruned early based on intermediate results.
+    """
+
+    logging.info("Trial number: %d", trial.number)
+
+    dropout = trial.suggest_float(f"dropout_level_{args.level}", 0.3, 0.8, log=True)
+    weight_decay = trial.suggest_float(
+        f"weight_decay_level_{args.level}", 1e-6, 1e-2, log=True
+    )
+    lr = trial.suggest_float(f"lr_level_{args.level}", 1e-6, 1e-2, log=True)
+    num_layers = trial.suggest_int(f"num_layers_level_{args.level}", 1, 5, log=True)
+
+    hidden_dims_all = {args.level: []}
+    dropouts = {args.level: dropout}
+    num_layers_values = {args.level: num_layers}
+
+    for i in range(num_layers):
+        if i == 0:
+            dim = trial.suggest_int(
+                f"hidden_dim_level_{args.level}_layer_{i}",
+                args.input_size,
+                args.input_size * 4,
+                log=True,
+            )
+        else:
+            dim = trial.suggest_int(
+                f"hidden_dim_level_{args.level}_layer_{i}",
+                args.levels_size[args.level],
+                args.levels_size[args.level] * 4,
+                log=True,
+            )
+
+        hidden_dims_all[args.level].append(dim)
+
+    args.level_active = [i == args.level for i in range(args.max_depth)]
+    args.current_level = args.level
+
+    print(f"Level active status: {args.level_active}")
+
+    args.local_val_scores = {level: None for _, level in enumerate(args.active_levels)}
+
+    args.local_val_losses = [0.0] * args.max_depth
+
+    params = {
+        "levels_size": args.levels_size,
+        "input_size": args.input_size,
+        "hidden_dims": hidden_dims_all,
+        "num_layers": num_layers_values,
+        "dropouts": dropouts,
+        "active_levels": [args.level],
+        "results_path": args.results_path,
+    }
+
+    args.model = HMCLocalModel(**params).to(args.device)
+
+    optimizer = torch.optim.Adam(
+        args.model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
+    args.optimizer = optimizer
+
+    args.model = args.model.to(args.device)
+
+    for criterion in args.criterions:
+        criterion.to(args.device)
+
+    args.model.train()
+
+    args.best_val_loss = [float("inf")] * args.max_depth
+    args.best_val_score = [0.0] * args.max_depth
+    args.best_model = [None] * args.max_depth
+
+    args.early_stopping_patience = args.patience
+    args.early_stopping_patience_score = args.patience_score
+    args.patience_counters = [0] * args.hmc_dataset.max_depth
+    args.patience_counters_score = [0] * args.hmc_dataset.max_depth
+
+    return train_objective(args, trial)
 
 
 def optimize_hyperparameters(args):
@@ -72,172 +256,6 @@ def optimize_hyperparameters(args):
         optuna.TrialPruned: If a trial is pruned by Optuna's early stopping mechanism.
     """
 
-    def objective(trial, level):
-        """
-        Objective function for Optuna hyperparameter optimization of a hierarchical\
-            multi-class local classifier.
-        This function defines the training and validation loop for a \
-            single Optuna trial, optimizing hyperparameters
-        such as hidden dimension size, learning rate, dropout, number of layers, \
-            and weight decay for a specific level
-        in a hierarchical classification model. It performs model training, validation,\
-            and early stopping based on
-        validation loss, and reports results to Optuna for pruning and optimization.
-        Args:
-            trial (optuna.trial.Trial): The Optuna trial object used for suggesting \
-                hyperparameters and reporting results.
-            level (int): The hierarchical level for which the model is\
-                being optimized.
-        Returns:
-            float: The best validation loss achieved during training for the\
-                current trial.
-        Raises:
-            optuna.TrialPruned: If Optuna determines that the trial should be \
-                pruned early based on intermediate results.
-        """
-
-        logging.info("Trial number: %d", trial.number)
-
-        dropout = trial.suggest_float(f"dropout_level_{level}", 0.3, 0.8, log=True)
-        weight_decay = trial.suggest_float(
-            f"weight_decay_level_{level}", 1e-6, 1e-2, log=True
-        )
-        lr = trial.suggest_float(f"lr_level_{level}", 1e-6, 1e-2, log=True)
-        num_layers = trial.suggest_int(f"num_layers_level_{level}", 1, 5, log=True)
-
-        hidden_dims_all = {level: []}
-        dropouts = {level: dropout}
-        num_layers_values = {level: num_layers}
-
-        for i in range(num_layers):
-            if i == 0:
-                dim = trial.suggest_int(
-                    f"hidden_dim_level_{level}_layer_{i}",
-                    args.input_size,
-                    args.input_size * 4,
-                    log=True,
-                )
-            else:
-                dim = trial.suggest_int(
-                    f"hidden_dim_level_{level}_layer_{i}",
-                    args.levels_size[level],
-                    args.levels_size[level] * 4,
-                    log=True,
-                )
-
-            hidden_dims_all[level].append(dim)
-
-        args.level_active = [i == level for i in range(args.max_depth)]
-        args.current_level = level
-
-        print(f"Level active status: {args.level_active}")
-
-        args.local_val_scores = {
-            level: None for _, level in enumerate(args.active_levels)
-        }
-
-        args.local_val_losses = [0.0] * args.max_depth
-
-        params = {
-            "levels_size": args.levels_size,
-            "input_size": args.input_size,
-            "hidden_dims": hidden_dims_all,
-            "num_layers": num_layers_values,
-            "dropouts": dropouts,
-            "active_levels": [level],
-            "results_path": args.results_path,
-        }
-
-        args.model = HMCLocalModel(**params).to(args.device)
-
-        optimizer = torch.optim.Adam(
-            args.model.parameters(),
-            lr=lr,
-            weight_decay=weight_decay,
-        )
-        args.optimizer = optimizer
-
-        args.model = args.model.to(args.device)
-
-        for criterion in args.criterions:
-            criterion.to(args.device)
-
-        args.model.train()
-
-        args.best_val_loss = [float("inf")] * args.max_depth
-        args.best_val_score = [0.0] * args.max_depth
-        args.best_model = [None] * args.max_depth
-
-        args.early_stopping_patience = args.patience
-        args.early_stopping_patience_score = args.patience_score
-        args.patience_counters = [0] * args.hmc_dataset.max_depth
-        args.patience_counters_score = [0] * args.hmc_dataset.max_depth
-
-        for epoch in range(1, args.epochs + 1):
-            args.epoch = epoch
-            local_train_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-
-            for inputs, targets, _ in args.train_loader:
-                inputs = inputs.to(args.device)
-                targets = [target.to(args.device) for target in targets]
-                outputs = args.model(inputs.float())
-
-                # Zerar os gradientes antes de cada batch
-                args.optimizer.zero_grad()
-
-                total_loss = 0.0
-
-                args.current_level = level
-                loss = calculate_local_loss(
-                    outputs[level],
-                    targets[level],
-                    args,
-                )
-
-                local_train_losses[level] += loss.item()  # Acumula média por batch
-                total_loss += loss  # Soma da loss para backward
-
-                # Após terminar loop dos níveis, execute backward
-                total_loss.backward()
-                args.optimizer.step()
-
-            local_train_losses[level] = local_train_losses[level] / len(
-                args.train_loader
-            )
-            logging.info("Trial %d - Epoch %d/%d", trial.number, epoch, args.epochs)
-            show_local_losses(local_train_losses, dataset=f"Train n {trial.number}")
-
-            if epoch % args.epochs_to_evaluate == 0:
-                args.epoch = epoch
-                val_optimizer(args)
-
-                if not any(args.level_active):
-                    logging.info("All levels have triggered early stopping.")
-                    break
-
-                # Reporta o valor de validação para Optuna
-                trial.report(args.local_val_scores[level], step=epoch)
-
-                logging.info(
-                    "Trial %d Local validation loss: %f %s: %f",
-                    trial.number,
-                    args.local_val_losses[level],
-                    args.early_metric,
-                    args.local_val_scores[level],
-                )
-
-                logging.info(
-                    "Local best validation loss: %f %s: %f",
-                    args.best_val_loss[level],
-                    args.early_metric,
-                    args.best_val_score[level],
-                )
-
-                # Early stopping (pruning)
-                if trial.should_prune():
-                    raise optuna.TrialPruned()
-        return args.local_val_scores[level]
-
     args.job_id = create_job_id_name(prefix="hpo")
 
     args.results_path = (
@@ -252,14 +270,11 @@ def optimize_hyperparameters(args):
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
     sampler = optuna.samplers.TPESampler(seed=args.seed)
-    level = 0
     for level in args.active_levels:
+        args.level = level
         study = optuna.create_study(direction="maximize", sampler=sampler)
         study.optimize(
-            lambda trial: objective(
-                trial,
-                level,
-            ),
+            lambda trial: objective(args, trial),
             n_trials=args.n_trials,
         )
 

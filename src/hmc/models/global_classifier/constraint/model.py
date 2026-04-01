@@ -12,11 +12,21 @@ class ConstrainedModel(nn.Module):
     """C-HMCNN(h) model - during training it returns the not-constrained
     output that is then passed to MCLoss"""
 
-    def __init__(self, input_dim, hidden_dim, output_dim, hyperparams, R):
+    def __init__(
+        self,
+        input_dim,
+        hidden_dim,
+        output_dim,
+        hyperparams,
+        r_matrix,
+        baseline_model=False,
+    ):
         super(ConstrainedModel, self).__init__()
 
         self.nb_layers = hyperparams["num_layers"]
-        self.R = R
+        self.baseline_model = baseline_model
+        if not self.baseline_model:
+            self.r_matrix = r_matrix
 
         fc = []
         for i in range(self.nb_layers):
@@ -43,11 +53,14 @@ class ConstrainedModel(nn.Module):
             else:
                 x = self.f(self.fc[i](x))
                 x = self.drop(x)
-        if self.training:
-            constrained_out = x
+        if self.baseline_model:
+            output = x
         else:
-            constrained_out = get_constr_out(x, self.R)
-        return constrained_out
+            if self.training:
+                output = x
+            else:
+                output = get_constr_out(x, self.r_matrix)
+        return output
 
 
 class ConstrainedLightningModel(LightningModule):
@@ -57,15 +70,20 @@ class ConstrainedLightningModel(LightningModule):
         hidden_dim,
         output_dim,
         hyperparams,
-        R,
+        r_matrix,
         to_eval,
         lr,
         weight_decay,
+        baseline_model=False,
     ):
         super(ConstrainedLightningModel, self).__init__()
-        self.model = ConstrainedModel(input_dim, hidden_dim, output_dim, hyperparams, R)
+        self.model = ConstrainedModel(
+            input_dim, hidden_dim, output_dim, hyperparams, r_matrix
+        )
         self.model = self.model.to(self.device)
-        self.R = R
+        self.baseline_model = baseline_model
+        if not self.baseline_model:
+            self.r_matrix = r_matrix.to(self.device)
         self.to_eval = to_eval.to(self.device)
         self.criterion = nn.BCELoss()
         self.lr = lr
@@ -96,13 +114,14 @@ class ConstrainedLightningModel(LightningModule):
         x, y = x.to(self.device), y.to(self.device)
 
         output = self.model(x.float())
-        constr_output = get_constr_out(output, self.R)
+        if not self.baseline_model:
+            output = get_constr_out(output, self.r_matrix)
 
-        train_output = y * output.double()
-        train_output = get_constr_out(train_output, self.R)
-        train_output = (1 - y) * constr_output.double() + y * train_output
+            output = y * output.double()
+            output = get_constr_out(output, self.r_matrix)
+            output = (1 - y) * output.double() + y * output
 
-        loss = self.criterion(train_output[:, self.to_eval], y[:, self.to_eval])
+        loss = self.criterion(output[:, self.to_eval], y[:, self.to_eval])
         self.log("train_loss", loss, prog_bar=True, logger=True)
 
         return loss
@@ -111,32 +130,28 @@ class ConstrainedLightningModel(LightningModule):
         x, y = batch
         x = x.to(self.device)
 
-        constrained_output = self.model(x.float())
+        output = self.model(x.float())
 
-        self.val_outputs.append(
-            {"constr_output": constrained_output.cpu(), "y": y.cpu()}
-        )
+        self.val_outputs.append({"output": output.cpu(), "y": y.cpu()})
 
     def test_step(self, batch):
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
 
-        constrained_output = self.model(x.float())
+        output = self.model(x.float())
 
-        self.test_outputs.append(
-            {"constr_output": constrained_output.cpu(), "y": y.cpu()}
-        )
+        self.test_outputs.append({"output": output.cpu(), "y": y.cpu()})
 
     def on_test_epoch_end(self):
         """Processa os resultados e salva em `lightning_logs`."""
         if not self.test_outputs:
             return  # Evita erro se não houver dados
 
-        constr_test = torch.cat([x["constr_output"] for x in self.test_outputs], dim=0)
+        output = torch.cat([x["output"] for x in self.test_outputs], dim=0)
         y_test = torch.cat([x["y"] for x in self.test_outputs], dim=0)
 
         score = average_precision_score(
-            y_test[:, self.to_eval], constr_test.data[:, self.to_eval], average="micro"
+            y_test[:, self.to_eval], output.data[:, self.to_eval], average="micro"
         )
         self.log("test_score", score, prog_bar=True, logger=True)
 
@@ -157,12 +172,12 @@ class ConstrainedLightningModel(LightningModule):
         if not self.val_outputs:
             return  # Evita erro se não houver dados
 
-        constr_val = torch.cat([x["constr_output"] for x in self.val_outputs], dim=0)
+        output = torch.cat([x["output"] for x in self.val_outputs], dim=0)
         y_val = torch.cat([x["y"] for x in self.val_outputs], dim=0)
 
         score = average_precision_score(
             y_val[:, self.to_eval].cpu(),
-            constr_val.data[:, self.to_eval].cpu(),
+            output.data[:, self.to_eval].cpu(),
             average="micro",
         )
         self.log("val_score", score, prog_bar=True, logger=True)

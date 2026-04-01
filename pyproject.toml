@@ -62,3 +62,6 @@ include = ["src/hmc"]
 [tool.hatch.build.targets.wheel.sources]
 "src/hmc" = "hmc"
 
+[tool.pylint.master]
+init-hook="import sys; sys.path.append('src')"
+
