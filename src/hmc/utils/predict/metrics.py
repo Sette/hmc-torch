@@ -1,3 +1,7 @@
+"""
+This module contains functions to calculate metrics for the HMC model.
+"""
+
 import os.path
 
 import numpy as np
@@ -10,22 +14,64 @@ from sklearn.metrics import (
 
 
 def custom_optimizers(n):
+    """
+    Returns a list of optimizers for each level.
+
+    Args:
+        n: Number of levels.
+    Returns:
+        list: A list of optimizers for each level.
+    """
     return ["SGD"] * n
 
 
 def custom_thresholds(n):
+    """
+    Returns a list of thresholds for each level.
+
+    Args:
+        n: Number of levels.
+    Returns:
+        list: A list of thresholds for each level.
+    """
     return [0.5] * n
 
 
 def custom_dropouts(n):
+    """
+    Returns a list of dropouts for each level.
+
+    Args:
+        n: Number of levels.
+    Returns:
+        list: A list of dropouts for each level.
+    """
     return [0.1] * n
 
 
 def custom_lrs(n):
+    """
+    Returns a list of learning rates for each level.
+
+    Args:
+        n: Number of levels.
+    Returns:
+        list: A list of learning rates for each level.
+    """
     return [0.001] * n
 
 
 def create_report_metrics(y_pred, y_true, target_names):
+    """
+    Creates a report for each level.
+
+    Args:
+        y_pred: List of binary predictions for each level.
+        y_true: List of binary targets for each level.
+        target_names: List of target names for each level.
+    Returns:
+        dict: A dictionary containing the reports for each level.
+    """
     rerport = classification_report(
         y_true=y_true,
         y_pred=y_pred,
@@ -41,6 +87,17 @@ def create_report_metrics(y_pred, y_true, target_names):
 
 
 def create_reports(results, y_true, labels, max_depth):
+    """
+    Creates a report for each level.
+
+    Args:
+        results: List of binary predictions for each level.
+        y_true: List of binary targets for each level.
+        labels: Dictionary containing the labels for each level.
+        max_depth: Maximum depth of the hierarchy.
+    Returns:
+        tuple: A tuple containing the reports and f-scores.
+    """
     fscore = [[] for _ in range(max_depth)]
     reports = {}
     for i in range(max_depth):
@@ -55,6 +112,15 @@ def create_reports(results, y_true, labels, max_depth):
 
 
 def generete_md(binary_predictions, df_test, labels, path="."):
+    """
+    Generates a markdown report for each level.
+
+    Args:
+        binary_predictions: List of binary predictions for each level.
+        df_test: DataFrame containing the test data.
+        labels: Dictionary containing the labels for each level.
+        path: Path to save the markdown reports.
+    """
     for idx, binary_label in enumerate(binary_predictions, start=1):
         level_name = f"level{idx}"
 
@@ -75,7 +141,7 @@ def generete_md(binary_predictions, df_test, labels, path="."):
         file_path = os.path.join(path, f"report-{idx}.md")
 
         # Escrever o markdown em um arquivo
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(markdown)
 
 

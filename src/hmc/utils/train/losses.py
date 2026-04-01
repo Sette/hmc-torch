@@ -1,16 +1,22 @@
+"""
+Utility functions for loss calculation.
+"""
+
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 def calculate_local_loss(output, target, criterion, device="cpu"):
     """
-    Calculates the local loss using a specific criterion based on the current computation level.
+    Calculates the local loss using a specific criterion based on the
+        current computation level.
 
     Args:
         output (torch.Tensor): The output tensor from the model.
         target (torch.Tensor): The ground truth tensor.
-        args (Namespace): An object containing the current computation level and the criterions.
+        args (Namespace): An object containing the current computation
+        level and the criterions.
     Returns:
         torch.Tensor: The calculated loss.
     """
@@ -20,16 +26,23 @@ def calculate_local_loss(output, target, criterion, device="cpu"):
 
 
 def compute_loss(batch, args, step="train"):
+    """
+    Computes the loss for a given batch.
+
+    Args:
+        batch (tuple): A tuple containing the input data and target labels.
+        args (Namespace): An object containing the model, dataset, and other
+        configuration.
+        step (str): The current step (train, val, or test).
+    Returns:
+        tuple: A tuple containing the local losses, local inputs,
+        local outputs, and total loss.
+    """
     x = batch[0].float().to(args.device)
     targets = batch[1]
 
     # Supondo que outputs seja o dict {str(level): logits}
-    if args.method == "local_tabat":
-        outputs, attn_weights = args.model(
-            x
-        )  # Pegamos attn_weights se precisar regularizar
-    else:
-        outputs = args.model(x)
+    outputs = args.model(x)
 
     local_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
     local_inputs = {level: torch.tensor([]) for level in args.active_levels}
@@ -63,7 +76,8 @@ def compute_loss(batch, args, step="train"):
                 )
 
     # 2. Cálculo da Hierarchical Consistency Loss (HCL)
-    # Certifique-se que args.hierarchy_map está no formato {(pai_lvl, pai_idx): [(filho_lvl, filho_idx)]}
+    # Certifique-se que args.hierarchy_map está no formato
+    # {(pai_lvl, pai_idx): [(filho_lvl, filho_idx)]}
     loss_hier = 0.0
     if hasattr(args.hmc_dataset, "hierarchy_map") and args.hmc_dataset.hierarchy_map:
         loss_hier = hierarchical_consistency_loss(
@@ -91,13 +105,25 @@ def compute_loss(batch, args, step="train"):
 
 
 class MaskedBCELoss(nn.Module):
+    """
+    Masked Binary Cross-Entropy Loss
+    """
+
     def __init__(self):
-        super(MaskedBCELoss, self).__init__()
+        super().__init__()
         self.bce_loss = nn.BCELoss(
             reduction="none"
         )  # Redução 'none' para manter a forma do tensor
 
     def forward(self, outputs, targets):
+        """
+        Args:
+            outputs: Tensores de logits (sem sigmoid aplicada) com shape
+                (Batch, Num_Classes)
+            targets: Tensores float (0 ou 1) com shape (Batch, Num_Classes)
+        Returns:
+            torch.Tensor: Masked Binary Cross-Entropy Loss
+        """
         losses = []
         for output, target in zip(outputs, targets):
             if len(target.shape) > 1:
@@ -111,34 +137,43 @@ class MaskedBCELoss(nn.Module):
                 losses.append(masked_loss.mean())  # Calcula a média da perda mascarada
 
         if len(losses) > 0:
-            return torch.stack(losses).mean()  # Retorna um tensor e calcula a média
+            loss = torch.stack(losses).mean()  # Retorna um tensor e calcula a média
         else:
             # Retorna uma perda zero se não houver perdas
-            return torch.tensor(0.0, requires_grad=True).to(outputs[0].device)
+            loss = torch.tensor(0.0, requires_grad=True).to(outputs[0].device)
+        return loss
 
 
 class MultiLabelFocalLoss(nn.Module):
+    """
+    Multi-Label Focal Loss
+    """
+
     def __init__(self, alpha=0.25, gamma=2, reduction="mean"):
         """
         Args:
-            alpha (float): Fator de balanceamento para a classe positiva (0 < alpha < 1).
-                           Geralmente alpha=0.25 funciona bem para reduzir o peso dos negativos (fundo).
+            alpha (float): Fator de balanceamento para a classe positiva
+                (0 < alpha < 1).
+            Geralmente alpha=0.25 funciona bem para
+            reduzir o peso dos negativos (fundo).
             gamma (float): Fator de focagem. Reduz a loss para exemplos fáceis.
             reduction (str): 'mean', 'sum' ou 'none'.
         """
-        super(MultiLabelFocalLoss, self).__init__()
+        super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
 
     def forward(self, inputs, targets):
         """
-        inputs: Tensores de logits (sem sigmoid aplicada) com shape (Batch, Num_Classes)
+        inputs: Tensores de logits (sem sigmoid aplicada) com shape
+            (Batch, Num_Classes)
         targets: Tensores float (0 ou 1) com shape (Batch, Num_Classes)
         """
 
         # 1. Calcular BCE com logits (Mais estável numericamente que sigmoid + log)
-        # reduction='none' mantém o shape (Batch, Num_Classes) para podermos aplicar os pesos element-wise
+        # reduction='none' mantém o shape (Batch, Num_Classes)
+        #  para podermos aplicar os pesos element-wise
         bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
 
         # 2. Calcular pt (probabilidade da classe verdadeira)
@@ -150,7 +185,8 @@ class MultiLabelFocalLoss(nn.Module):
         focal_term = (1 - pt) ** self.gamma * bce_loss
 
         # 4. Aplicar Alpha ponderado
-        # Se alpha for definido, aplica alpha para targets=1 e (1-alpha) para targets=0
+        # Se alpha for definido, aplica alpha para targets=1 e (1-alpha) para
+        # targets=0
         if self.alpha is not None:
             alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
             loss = alpha_t * focal_term
@@ -159,31 +195,43 @@ class MultiLabelFocalLoss(nn.Module):
 
         # 5. Redução final
         if self.reduction == "mean":
-            return loss.mean()
+            loss = loss.mean()
         elif self.reduction == "sum":
-            return loss.sum()
-        else:
-            return loss
+            loss = loss.sum()
+
+        return loss
 
 
 class WeightedMultiLabelFocalLoss(nn.Module):
+    """
+    Weighted Multi-Label Focal Loss
+    """
+
     def __init__(self, alpha=None, gamma=2, pos_weight=None, reduction="mean"):
         """
         Args:
             alpha (float, optional): Fator de balanceamento global. Se pos_weight for usado,
-                                     alpha pode ser None ou usado para ajuste fino.
+                alpha pode ser None ou usado para ajuste fino.
             gamma (float): Fator de focagem (padrão 2).
-            pos_weight (Tensor, optional): Tensor de pesos para a classe positiva (shape: [num_classes]).
-                                           Geralmente calculado como (num_negativos / num_positivos).
+            pos_weight (Tensor, optional): Tensor de pesos para a classe positiva
+                (shape: [num_classes]).
+                Geralmente calculado como (num_negativos / num_positivos).
             reduction (str): 'mean', 'sum' ou 'none'.
         """
-        super(WeightedMultiLabelFocalLoss, self).__init__()
+        super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.pos_weight = pos_weight
         self.reduction = reduction
 
     def forward(self, inputs, targets):
+        """
+        Args:
+            inputs: Tensores de logits (sem sigmoid aplicada) com shape (Batch, Num_Classes)
+            targets: Tensores float (0 ou 1) com shape (Batch, Num_Classes)
+        Returns:
+            torch.Tensor: Weighted Multi-Label Focal Loss
+        """
         # Garante que inputs e targets tenham o mesmo device e tipo
         if self.pos_weight is not None:
             # Move pos_weight para o mesmo device dos inputs se necessário
@@ -226,10 +274,13 @@ class WeightedMultiLabelFocalLoss(nn.Module):
 def hierarchical_consistency_loss(logits_dict, class_hierarchy):
     """
     Calculates the hierarchical consistency loss.
-    This loss penalizes the model for predicting child classes with higher probabilities than their parent classes.
+    This loss penalizes the model for predicting child classes with higher
+        probabilities than their parent classes.
     Args:
-        logits_dict (dict): Dictionary mapping each level index to a tensor of logits.
-        class_hierarchy (dict): Dictionary mapping each parent class index to a list of child class indices.
+        logits_dict (dict): Dictionary mapping each level index to a
+            tensor of logits.
+        class_hierarchy (dict): Dictionary mapping each parent
+            class index to a list of child class indices.
     Returns:
         torch.Tensor: The calculated hierarchical consistency loss.
     """

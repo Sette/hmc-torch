@@ -131,7 +131,7 @@ def train_step(args):
                 local_train_losses[level] = local_train_loss / len(args.train_loader)
 
         logging.info("Epoch %d/%d", epoch, args.epochs)
-        show_local_losses(local_train_losses, dataset="Train")
+        show_local_losses(local_train_losses)
 
         if epoch % args.epochs_to_evaluate == 0:
             args.train_methods["valid_step"](args)

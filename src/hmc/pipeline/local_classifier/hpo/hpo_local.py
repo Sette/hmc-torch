@@ -68,7 +68,7 @@ def train_objective(args, trial):
             args.train_loader
         )
         logging.info("Trial %d - Epoch %d/%d", trial.number, epoch, args.epochs)
-        show_local_losses(local_train_losses, dataset=f"Train n {trial.number}")
+        show_local_losses(local_train_losses)
 
         if epoch % args.epochs_to_evaluate == 0:
             args.epoch = epoch

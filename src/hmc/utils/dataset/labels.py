@@ -1,3 +1,7 @@
+"""
+This module contains functions to handle label operations.
+"""
+
 import logging
 import pickle
 
@@ -6,6 +10,25 @@ import torch
 from sklearn.preprocessing import MultiLabelBinarizer
 
 logging.basicConfig(level=logging.INFO)
+
+
+def get_from_df(genre_id, df_genres, output):
+    """
+    Recursively retrieves the ancestry of a given genre_id.
+
+    Args:
+        genre_id (int): The current genre ID.
+        df_genres (pd.DataFrame): DataFrame containing genre hierarchy.
+        output (list): The list being built up with the ancestry.
+
+    Returns:
+        list: List including this genre_id and its ancestors up to the root.
+    """
+    if genre_id != 0:
+        parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
+        output.append(genre_id)
+        get_from_df(parent_genre, df_genres, output=output)
+        return output
 
 
 def get_structure(genres_id, df_genres):
@@ -22,25 +45,6 @@ def get_structure(genres_id, df_genres):
               for the corresponding genre_id in `genres_id`. Each list starts from the genre_id and
               recursively adds its parents up to the root (where parent is 0 or missing).
     """
-
-    def get_from_df(genre_id, df_genres, output):
-        """
-        Recursively retrieves the ancestry of a given genre_id.
-
-        Args:
-            genre_id (int): The current genre ID.
-            df_genres (pd.DataFrame): DataFrame containing genre hierarchy.
-            output (list): The list being built up with the ancestry.
-
-        Returns:
-            list: List including this genre_id and its ancestors up to the root.
-        """
-        if genre_id != 0:
-            parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
-            output.append(genre_id)
-            get_from_df(parent_genre, df_genres, output=output)
-            return output
-
     output_list = []
     for genre_id in genres_id:
         output_list.append(get_from_df(genre_id, df_genres, output=[]))
@@ -167,7 +171,11 @@ def local_to_global_predictions(
         for level in sorted_levels
     }
 
-    logging.info(f"Processing {n_samples} samples with threshold {threshold}...")
+    logging.info(
+        "Processing %d samples with threshold %f...",
+        n_samples,
+        threshold,
+    )
 
     # Iterate through each hierarchical level
     for level_index, level in enumerate(sorted_levels):
@@ -292,11 +300,11 @@ def apply_hierarchy_consistency(outputs, args):
     return new_outputs
 
 
-def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
+def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, r_matrix):
     """
     probs_nivel_ancestral: Tensor [batch, n_ancestrais]
     probs_nivel_desc: Tensor [batch, n_descendentes]
-    R: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
+    r_matrix: Tensor [n_ancestrais, n_descendentes] (binária: 1 se i é ancestral de j)
     """
     # Expande dimensões para broadcast
     # batch = probs_nivel_ancestral.shape[0]
@@ -304,11 +312,11 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, R):
     # n_desc = probs_nivel_desc.shape[1]
 
     probs_anc_exp = probs_nivel_ancestral.unsqueeze(2)  # [batch, n_ancestrais, 1]
-    R_exp = R.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
+    r_exp = r_matrix.unsqueeze(0)  # [1, n_ancestrais, n_descendentes]
 
     # Para cada descendente j, para cada sample, pegue probs do(s) ancestral(is) i, se houver relação.
     masked_probs = torch.where(
-        R_exp == 1, probs_anc_exp, float("-inf")
+        r_exp == 1, probs_anc_exp, float("-inf")
     )  # [batch, n_ancestrais, n_desc]
 
     # Máximo ancestral de cada descendente para cada sample
@@ -353,7 +361,6 @@ def apply_hierarchy_consistency_old(outputs, labels, args):
             original outputs[level], and is placed on args.device.
     """
     new_outputs = {}
-    # threshold = 0.2
     global_idxs = [[] for _ in range(args.max_depth)]
     r = args.r.squeeze(0).to(args.device)
 
@@ -430,27 +437,25 @@ def hierarchy_regularization(outputs, g):
     return penalty
 
 
-def show_metrics(losses, scores, dataset="Train"):
+def show_metrics(losses, scores):
     """
     Show metrics for losses and scores.
 
     Args:
         losses (list): List of local losses.
         scores (dict): Dictionary of local scores.
-        dataset (str): Dataset name (default is "Train").
     """
-    show_local_losses(losses, dataset)
-    show_local_score(scores, dataset)
+    show_local_losses(losses)
+    show_local_score(scores)
 
 
-def show_local_losses(local_losses, dataset="Train"):
+def show_local_losses(local_losses):
     """
     Logs the local (per-level) losses for a given dataset.
 
     Args:
-        local_losses (list): A list containing the loss value for each hierarchy level.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or \
-        "Test". Defaults to "Train".
+        local_losses (list): A list containing the loss value for each
+            hierarchy level.
 
     Returns:
         None
@@ -458,10 +463,7 @@ def show_local_losses(local_losses, dataset="Train"):
     formatted_string = ""
     for level, local_loss in enumerate(local_losses):
         if local_loss is not None:
-            formatted_string += "level %d: %.4f // " % (
-                level,
-                local_loss,
-            )
+            formatted_string += f"level {level}: {local_loss:.4f} // "
     logging.info(formatted_string)
 
 
@@ -471,7 +473,8 @@ def show_global_loss(global_loss, dataset="Train"):
 
     Args:
         global_loss (float): The global loss value.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+        dataset (str): The name of the dataset, e.g., "Train",
+        "Validation", or "Test". Defaults to "Train".
 
     Returns:
         None
@@ -479,13 +482,13 @@ def show_global_loss(global_loss, dataset="Train"):
     logging.info("Global average loss %s Loss: %s", dataset, global_loss)
 
 
-def show_local_score(local_scores, dataset="Train"):
+def show_local_score(local_scores):
     """
     Logs the local (per-level) scores for a given dataset.
 
     Args:
-        local_scores (dict): A dictionary mapping each level to its corresponding score.
-        dataset (str): The name of the dataset, e.g., "Train", "Validation", or "Test". Defaults to "Train".
+        local_scores (dict): A dictionary mapping each level to its
+            corresponding score.
 
     Returns:
         None
@@ -493,9 +496,6 @@ def show_local_score(local_scores, dataset="Train"):
     formatted_string = ""
     for level, local_score in local_scores.items():
         if local_score is not None and local_score != 0.0:
-            formatted_string += "level %s score %s // " % (
-                level,
-                local_score,
-            )
+            formatted_string += f"level {level} score {local_score} // "
 
     logging.info(formatted_string)
