@@ -1,3 +1,10 @@
+"""
+This module provides functionality to parse ARFF files and construct hierarchical datasets
+for Hierarchical Multi-label Classification (HMC) models. It processes both Gene Ontology (GO)
+and general hierarchical data formats, extracting features, labels, hierarchical levels,
+and adjacency matrices representing the class hierarchy.
+"""
+
 import logging
 from collections import defaultdict
 from itertools import chain
@@ -17,6 +24,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_depth_by_root(g_t, t, roots):
+    """
+    Calculates the depth of a node in a directed acyclic graph (DAG) by finding the shortest path to any of the specified roots.
+    Args:
+        g_t (nx.DiGraph): The transpose of the DAG.
+        t (str): The node for which to calculate the depth.
+        roots (list): A list of root nodes.
+    Returns:
+        int: The depth of the node.
+    """
     for root in roots:
         depth = nx.shortest_path_length(g_t, t, root)
         if depth is not None:
@@ -25,6 +41,10 @@ def get_depth_by_root(g_t, t, roots):
 
 
 class HMCDatasetArff:
+    """
+    Dataset torch para HMC local classifier.
+    """
+
     def __init__(self, arff_file, is_go):
         self.arff_file = arff_file
         (
@@ -50,6 +70,14 @@ class HMCDatasetArff:
 
 
 def parse_arff(arff_file, is_go=False):
+    """
+    Parse ARFF file to extract features, labels, and hierarchical information.
+    Args:
+        arff_file (str): Path to the ARFF file.
+        is_go (bool): Whether the ARFF file contains Gene Ontology data.
+    Returns:
+        tuple: A tuple containing the extracted data.
+    """
     with open(arff_file, "r", encoding="utf-8") as f:
         read_data = False
         X = []
@@ -195,7 +223,6 @@ def parse_arff(arff_file, is_go=False):
                             y_local_[local_depth][
                                 local_nodes_idx.get(local_depth).get(local_label)
                             ] = 1
-
                 Y.append(y_)
                 Y_nodes.append(y_nodes)
                 Y_local.append([np.stack(y) for y in y_local_])
@@ -205,23 +232,10 @@ def parse_arff(arff_file, is_go=False):
         edge_index = {}
         for idx, current_level_nodes in enumerate(level_nodes_list):
             if idx == 0:
-                # Level 0 has no ancestor; the Constraint Layer starts from level 1.
                 continue
-            # 1. Identify Previous Level (Ancestor) and Current Level (Child)
             prev_level_nodes = level_nodes_list[idx - 1]
-            # 2. Format node names (adjust for your case with 'replace')
-            # The R_sub matrix should contain all nodes from the previous level (rows)
-            # and all nodes from the current level (columns).
-            # Replace '/' with '.' if necessary (this depends on how your graph 'g' is labeled)
             ancestral_nodelist = prev_level_nodes
             child_nodelist = current_level_nodes
-            # 3. Build the N_previous x N_current adjacency matrix
-            # row_order (nodelist): defines the ROWS (Ancestors / Previous Level)
-            # column_order: defines the COLUMNS (Children / Current Level)
-            # nx.to_numpy_array will create the matrix A[i, j] where:
-            # A[i, j] = 1 if there is an edge from row_order[i] to column_order[j]
-            # 2. Criar matriz vazia com o shape CORRETO: (N_Pais, N_Filhos)
-            # Exemplo: Se tem 18 pais e 80 filhos -> Shape (18, 80)
 
             shape = (len(ancestral_nodelist), len(child_nodelist))
             matrix = np.zeros(shape, dtype=np.float32)
