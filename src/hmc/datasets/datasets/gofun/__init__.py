@@ -7,12 +7,11 @@ import os
 to_skip = ["root", "GO0003674", "GO0005575", "GO0008150"]
 
 
-def get_dataset_paths(dataset_path="./data", dataset_type="arff"):
+def get_dataset_paths(dataset_path="./data"):
     """
     Returns the dataset paths for HMC local classifier.
     Args:
         dataset_path (str): The path to the dataset.
-        dataset_type (str): The type of dataset.
     Returns:
         dict: A dictionary containing the dataset paths.
     """
