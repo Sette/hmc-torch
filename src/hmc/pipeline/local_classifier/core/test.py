@@ -1,3 +1,7 @@
+"""
+This module contains the test step functions HMC local classifier.
+"""
+
 import logging
 import os
 
@@ -15,6 +19,15 @@ def find_local_best_threshold(
     local_inputs,
     args,
 ):
+    """
+    Find the best threshold for local predictions.
+    Args:
+        local_outputs: Array of local predictions.
+        local_inputs: Array of local targets.
+        args: Object containing dataset information.
+    Returns:
+        Tuple of best threshold and best scores.
+    """
     if args.best_threshold:
         logging.info("find best theshold")
         best_thresholds = {level: 0 for _, level in enumerate(args.active_levels)}
@@ -43,7 +56,8 @@ def find_local_best_threshold(
         logging.info("Best thresholds per level:")
         for idx in args.active_levels:
             logging.info(
-                "Level %d: threshold=%.2f, precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
+                "Level %d: threshold=%.2f, precision=%.4f,"
+                + "recall=%.4f, f1-score=%.4f avg score=%.4f",
                 idx,
                 best_thresholds[idx],
                 best_scores[idx]["precision"],
@@ -60,11 +74,24 @@ def find_best_threshold_global(
     all_y_pred,
     y_true_global_original,
     args,
-    to_eval,
 ):
+    """
+    Find the best threshold for global predictions.
+    Args:
+        all_y_pred: Array of global predictions.
+        y_true_global_original: Array of global targets.
+        args: Object containing dataset information.
+    Returns:
+        Tuple of best threshold and best scores.
+    """
     # Concat global targets
-
     best_threshold = 0.5
+    best_scores = {
+        "precision": 0,
+        "recall": 0,
+        "f1score": 0,
+        "average_precision_score": 0,
+    }
     if args.best_threshold:
         logging.info("finding best threshold")
 
@@ -126,14 +153,8 @@ def find_best_threshold_global(
 
         logging.info("Best threshold: %.2f", best_threshold)
         logging.info("Best scores: %s", best_scores)
-        return best_threshold, best_scores
-    else:
-        return 0.5, {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
+
+    return best_threshold, best_scores
 
 
 def test_step(args):
@@ -203,15 +224,13 @@ def test_step(args):
         args,
     )
 
-    y_true_global_original = torch.cat(y_true_global, dim=0).numpy()
+    y_true_global = torch.cat(y_true_global, dim=0).numpy()
     global_best_threshold, global_score = find_best_threshold_global(
         all_y_pred,
-        y_true_global_original,
+        y_true_global,
         args,
-        args.hmc_dataset.to_eval,
     )
     local_score["global"] = global_score
-
     local_score["usage"] = args.usage
     local_score["training_time_seconds"] = args.training_time_seconds
 
@@ -235,7 +254,6 @@ def test_step(args):
         "num_layers_values": args.num_layers_values,
         "seed": args.seed,
     }
-    # logging.info("Local test score: %s", str(local_test_score))
 
     save_dict_to_json(
         local_score,

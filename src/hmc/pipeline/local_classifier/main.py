@@ -80,7 +80,7 @@ def get_train_methods(method: str) -> dict[str, object]:
                 "model": HMCLocalModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
-                "valid_step": valid_step,
+                "valid_step": validate_step,
                 "train_step": train_step,
             }
         case "local_hat":
@@ -88,7 +88,7 @@ def get_train_methods(method: str) -> dict[str, object]:
                 "model": HATForMaskedLM,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
-                "valid_step": valid_step,
+                "valid_step": validate_step,
                 "train_step": train_step,
             }
         case "local_tabat":
@@ -96,11 +96,11 @@ def get_train_methods(method: str) -> dict[str, object]:
                 "model": TabATModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
-                "valid_step": valid_step,
+                "valid_step": validate_step,
                 "train_step": train_step,
             }
         case _:
-            raise ValueError("Método %s não reconhecido.", method)
+            raise ValueError(f"Método {method} não reconhecido.")
 
     return model_functions
 
@@ -114,10 +114,12 @@ def assert_hyperparameter_lengths(
     weight_decay_values: list[float],
 ) -> None:
     """
-    Validates that all hyperparameter lists have a length equal to the maximum depth of the hierarchy.
+    Validates that all hyperparameter lists have a length equal to the
+        maximum depth of the hierarchy.
 
     Args:
-        args: Arguments object containing max_depth and relevant experiment settings.
+        args: Arguments object containing max_depth and relevant
+            experiment settings.
         lr_values (list): List of learning rates per level.
         dropout_values (list): List of dropout rates per level.
         hidden_dims (list): List of hidden layer sizes per level.
@@ -191,9 +193,7 @@ def create_dataloader(
     )
     data.Y = torch.tensor(data.Y).clone().detach().to(args.device)
     # Create loaders using local (per-level) y labels
-    dataset = [
-        (x, y_levels, y) for (x, y_levels, y) in zip(data.X, data.Y_local, data.Y)
-    ]
+    dataset = list(zip(data.X, data.Y_local, data.Y))
 
     data_loader = DataLoader(
         dataset=dataset,
