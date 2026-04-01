@@ -1,3 +1,7 @@
+"""
+This module contains the TabAT model implementation.
+"""
+
 from typing import Dict, List, Tuple
 
 import torch
@@ -59,6 +63,21 @@ class TabularAttention(nn.Module):
 
 
 class TabATModel(nn.Module):
+    """
+    TabAT model implementation.
+
+    Args:
+        input_size: Number of input features.
+        levels_size: Dictionary containing the number of classes for each level.
+        num_layers: List containing the number of layers for each level.
+        dropouts: List containing the dropout rates for each level.
+        hidden_dims: List containing the hidden dimensions for each level.
+        embed_dim: Dimension of the embedding.
+        num_heads: Number of attention heads.
+        pooling: Pooling method.
+        device: Device to use for training.
+    """
+
     def __init__(
         self,
         input_size: int,
