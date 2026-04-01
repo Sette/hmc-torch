@@ -37,8 +37,8 @@ import numpy as np
 import torch
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-from torch.utils.data import DataLoader
 from torch import nn
+from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel

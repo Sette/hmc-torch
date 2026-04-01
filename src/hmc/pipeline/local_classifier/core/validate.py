@@ -6,10 +6,10 @@ import logging
 
 import torch
 
+from hmc.utils.metrics.calculate_metrics import calculate_metrics
 from hmc.utils.train.early_stopping import (
     check_early_stopping_normalized,
 )
-from hmc.utils.metrics.calculate_metrics import calculate_metrics
 from hmc.utils.train.losses import compute_loss
 
 

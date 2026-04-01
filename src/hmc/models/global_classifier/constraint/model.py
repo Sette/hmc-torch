@@ -5,9 +5,9 @@ This module contains the ConstrainedModel and ConstrainedLightningModel classes.
 import os
 
 import torch
-import torch.nn as nn
 from lightning import LightningModule
 from sklearn.metrics import average_precision_score
+from torch import nn
 
 from hmc.models.global_classifier.constraint.utils import get_constr_out
 
@@ -25,7 +25,8 @@ class ConstrainedModel(nn.Module):
         r_matrix,
         baseline_model=False,
     ):
-        super(ConstrainedModel, self).__init__()
+        """Initialize the ConstrainedModel."""
+        super().__init__()
 
         self.nb_layers = hyperparams["num_layers"]
         self.baseline_model = baseline_model
@@ -51,6 +52,7 @@ class ConstrainedModel(nn.Module):
             self.f = nn.ReLU()
 
     def forward(self, x):
+        """Forward pass for the ConstrainedModel."""
         for i in range(self.nb_layers):
             if i == self.nb_layers - 1:
                 x = self.sigmoid(self.fc[i](x))
@@ -68,6 +70,8 @@ class ConstrainedModel(nn.Module):
 
 
 class ConstrainedLightningModel(LightningModule):
+    """Constrained Lightning Model."""
+
     def __init__(
         self,
         input_dim,
