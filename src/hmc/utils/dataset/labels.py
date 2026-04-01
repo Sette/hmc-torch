@@ -28,7 +28,7 @@ def get_from_df(genre_id, df_genres, output):
         parent_genre = df_genres[df_genres["genre_id"] == genre_id].parent.values[0]
         output.append(genre_id)
         get_from_df(parent_genre, df_genres, output=output)
-        return output
+    return output
 
 
 def get_structure(genres_id, df_genres):

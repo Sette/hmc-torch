@@ -1,3 +1,7 @@
+"""
+This module contains the ConstrainedModel and ConstrainedLightningModel classes.
+"""
+
 import os
 
 import torch
@@ -76,7 +80,21 @@ class ConstrainedLightningModel(LightningModule):
         weight_decay,
         baseline_model=False,
     ):
-        super(ConstrainedLightningModel, self).__init__()
+        """
+        Initialize the ConstrainedLightningModel.
+
+        Args:
+            input_dim: Input dimension.
+            hidden_dim: Hidden dimension.
+            output_dim: Output dimension.
+            hyperparams: Hyperparameters.
+            r_matrix: Constraint matrix.
+            to_eval: Indices to evaluate.
+            lr: Learning rate.
+            weight_decay: Weight decay.
+            baseline_model: Whether to use baseline model.
+        """
+        super().__init__()
         self.model = ConstrainedModel(
             input_dim, hidden_dim, output_dim, hyperparams, r_matrix
         )
@@ -92,22 +110,48 @@ class ConstrainedLightningModel(LightningModule):
         self.test_outputs = []
 
     def forward(self, x):
+        """
+        Forward pass for the ConstrainedLightningModel.
+
+        Args:
+            x: Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         return self.model(x)
 
     def on_train_epoch_start(self) -> None:
+        """
+        Start of training epoch.
+        """
         self.model.train()
 
     def on_validation_epoch_start(self):
-        """Limpa a lista antes de cada época de teste."""
+        """
+        Start of validation epoch.
+        """
         self.model.eval()
         self.val_outputs = []
 
     def on_test_epoch_start(self):
-        """Limpa a lista antes de cada época de teste."""
+        """
+        Start of test epoch.
+        """
         self.model.eval()
         self.test_outputs = []
 
     def training_step(self, batch, batch_idx):
+        """
+        Training step.
+
+        Args:
+            batch: Batch of data.
+            batch_idx: Batch index.
+
+        Returns:
+            torch.Tensor: Loss.
+        """
         print(f"Training step {batch_idx}")
         self.model.train()
         x, y = batch
@@ -127,6 +171,15 @@ class ConstrainedLightningModel(LightningModule):
         return loss
 
     def validation_step(self, batch):
+        """
+        Validation step.
+
+        Args:
+            batch: Batch of data.
+
+        Returns:
+            torch.Tensor: Loss.
+        """
         x, y = batch
         x = x.to(self.device)
 
@@ -135,6 +188,15 @@ class ConstrainedLightningModel(LightningModule):
         self.val_outputs.append({"output": output.cpu(), "y": y.cpu()})
 
     def test_step(self, batch):
+        """
+        Test step.
+
+        Args:
+            batch: Batch of data.
+
+        Returns:
+            torch.Tensor: Loss.
+        """
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
 
@@ -143,7 +205,9 @@ class ConstrainedLightningModel(LightningModule):
         self.test_outputs.append({"output": output.cpu(), "y": y.cpu()})
 
     def on_test_epoch_end(self):
-        """Processa os resultados e salva em `lightning_logs`."""
+        """
+        Processa os resultados e salva em `lightning_logs`.
+        """
         if not self.test_outputs:
             return  # Evita erro se não houver dados
 
@@ -169,6 +233,9 @@ class ConstrainedLightningModel(LightningModule):
             f.write(f"{self.current_epoch},{score}\n")
 
     def on_validation_epoch_end(self):
+        """
+        Processa os resultados e salva em `lightning_logs`.
+        """
         if not self.val_outputs:
             return  # Evita erro se não houver dados
 
@@ -183,6 +250,12 @@ class ConstrainedLightningModel(LightningModule):
         self.log("val_score", score, prog_bar=True, logger=True)
 
     def configure_optimizers(self):
+        """
+        Configure optimizers.
+
+        Returns:
+            torch.optim.Optimizer: Optimizer.
+        """
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )

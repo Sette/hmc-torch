@@ -1,7 +1,11 @@
+"""
+This module contains the classification networks.
+"""
+
 from typing import List
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 # ============================================================================
 # UTILITY CLASS - Classification Network
@@ -34,7 +38,7 @@ class ClassificationNetwork(nn.Module):
             num_layers: Number of hidden layers
             dropout: Dropout probability
         """
-        super(ClassificationNetwork, self).__init__()
+        super().__init__()
         self.level = level
 
         layers = []
