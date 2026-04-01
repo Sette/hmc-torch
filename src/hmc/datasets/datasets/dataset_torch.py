@@ -1,3 +1,7 @@
+"""
+This module contains the dataset class for HMC local classifier.
+"""
+
 import os
 
 import torch
@@ -27,6 +31,9 @@ class HMCDatasetTorch:
         self.parse_to_array()
 
     def __len__(self):
+        """
+        Retorna o número de exemplos no dataset.
+        """
         return len(self.examples)
 
     def __getitem__(self, idx):

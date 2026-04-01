@@ -32,8 +32,8 @@ log_sources = [
 SRC_LOG_LEVELS = {}
 
 for source in log_sources:
-    log_env_var = source + "_LOG_LEVEL"
-    SRC_LOG_LEVELS[source] = os.environ.get(log_env_var, "").upper()
+    LOG_ENV_VAR = source + "_LOG_LEVEL"
+    SRC_LOG_LEVELS[source] = os.environ.get(LOG_ENV_VAR, "").upper()
     if SRC_LOG_LEVELS[source] not in log_levels:
         SRC_LOG_LEVELS[source] = GLOBAL_LOG_LEVEL
-    log.info("%s: %s", log_env_var, SRC_LOG_LEVELS[source])
+    log.info("%s: %s", LOG_ENV_VAR, SRC_LOG_LEVELS[source])

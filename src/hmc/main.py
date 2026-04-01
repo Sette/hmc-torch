@@ -101,7 +101,7 @@ def main():
         "seq": 2000,
         "spo": 250,
     }
-    hidden_dims_GO = {
+    hidden_dims_go = {
         "cellcycle": 1000,
         "derisi": 500,
         "eisen": 500,
@@ -120,7 +120,7 @@ def main():
     if not args.hidden_dims:
         args.hidden_dims = {
             "FUN": hidden_dims_fun,
-            "GO": hidden_dims_GO,
+            "GO": hidden_dims_go,
             "others": hidden_dims_others,
         }
     lrs_fun = {
@@ -133,7 +133,7 @@ def main():
         "seq": 1e-4,
         "spo": 1e-4,
     }
-    lrs_GO = {
+    lrs_go = {
         "cellcycle": 1e-4,
         "derisi": 1e-4,
         "eisen": 1e-4,
@@ -144,7 +144,7 @@ def main():
         "spo": 1e-4,
     }
     lrs_others = {"diatoms": 1e-5, "enron": 1e-5, "imclef07a": 1e-5, "imclef07d": 1e-5}
-    args.lrs = {"FUN": lrs_fun, "GO": lrs_GO, "others": lrs_others}
+    args.lrs = {"FUN": lrs_fun, "GO": lrs_go, "others": lrs_others}
     all_epochs_fun = {
         "cellcycle": 106,
         "derisi": 67,
