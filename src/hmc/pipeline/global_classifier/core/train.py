@@ -74,63 +74,53 @@ def train_global(dataset_name, args):
         "weight_decay": args.weight_decay,
     }
 
-    # R = hmc_dataset.compute_matrix_R().to(device)
-    # Compute matrix of ancestors R
-    # Given n classes, R is an (n x n) matrix where R_ij = 1 \
-    # if class i is descendant of class j
-    R = np.zeros(hmc_dataset.A.shape)
-    np.fill_diagonal(R, 1)
-    g = nx.DiGraph(
-        hmc_dataset.A
-    )  # train.A is the matrix where the direct connections are stored
-    for i in range(len(hmc_dataset.A)):
-        # here we need to use the function nx.descendants() \
-        # because in the directed graph the edges have source \
-        # from the descendant and point towards the ancestor
+    r_matrix = np.zeros(hmc_dataset.a.shape)
+    np.fill_diagonal(r_matrix, 1)
+    g = nx.DiGraph(hmc_dataset.a)
+    for i in range(len(hmc_dataset.a)):
         ancestors = list(nx.descendants(g, i))
         if ancestors:
-            R[i, ancestors] = 1
-    R = torch.tensor(R)
-    # Transpose to get the descendants for each node
-    R = R.transpose(1, 0)
-    R = R.unsqueeze(0).to(device)
+            r_matrix[i, ancestors] = 1
+    r_matrix = torch.tensor(r_matrix)
+    r_matrix = r_matrix.transpose(1, 0)
+    r_matrix = r_matrix.unsqueeze(0).to(device)
 
-    scaler = preprocessing.StandardScaler().fit(np.concatenate((train.X, valid.X)))
+    scaler = preprocessing.StandardScaler().fit(np.concatenate((valid.x, valid.x)))
 
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((train.X, valid.X, test.X))
+        np.concatenate((valid.x, valid.x, valid.x))
     )
-    valid.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(valid.X)))
+    valid.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(valid.x)))
         .clone()
         .detach()
         .to(device)
     )
-    valid.Y = torch.tensor(valid.Y).clone().detach().to(device)
+    valid.y = torch.tensor(valid.y).clone().detach().to(device)
 
-    train.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(train.X)))
+    train.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(train.x)))
         .clone()
         .detach()
         .to(device)
     )
-    train.Y = torch.tensor(train.Y).clone().detach().to(device)
+    train.y = torch.tensor(train.y).clone().detach().to(device)
 
-    test.X = (
-        torch.as_tensor(scaler.transform(imp_mean.transform(test.X)))
+    test.x = (
+        torch.as_tensor(scaler.transform(imp_mean.transform(test.x)))
         .clone()
         .detach()
         .to(device)
     )
-    test.Y = torch.as_tensor(test.Y).clone().detach().to(device)
+    test.y = torch.as_tensor(test.y).clone().detach().to(device)
 
     # Create loaders
-    train_dataset = [(x, y) for (x, y) in zip(train.X, train.Y)]
+    train_dataset = [(x, y) for (x, y) in zip(train.x, train.y)]
     if "others" not in args.dataset_name:
-        # val_dataset = [(x, y) for (x, y) in zip(valid.X, valid.Y)]
-        for x, y in zip(valid.X, valid.Y):
+        # val_dataset = [(x, y) for (x, y) in zip(valid.x, valid.y)]
+        for x, y in zip(valid.x, valid.y):
             train_dataset.append((x, y))
-    test_dataset = [(x, y) for (x, y) in zip(test.X, test.Y)]
+    test_dataset = [(x, y) for (x, y) in zip(test.x, test.y)]
 
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -150,7 +140,7 @@ def train_global(dataset_name, args):
         args.hidden_dim,
         args.output_dims[ontology][data] + num_to_skip,
         args.hyperparams,
-        R,
+        r_matrix,
     )
     model = model.to(device)
     to_eval = to_eval.to(device)
@@ -160,9 +150,6 @@ def train_global(dataset_name, args):
     )
     criterion = nn.BCELoss()
 
-    # Set patience
-    # patience, max_patience = 20, 20
-    # max_score = 0.0
     start_train = time.perf_counter()
     for _ in range(args.epochs):
         model.train()
@@ -170,25 +157,16 @@ def train_global(dataset_name, args):
             x = x.to(device)
             labels = labels.to(device)
 
-            # Clear gradients w.r.t. parameters
             optimizer.zero_grad()
             output = model(x.float())
 
             # MCLoss
-            constr_output = get_constr_out(output, R)
+            constr_output = get_constr_out(output, r_matrix)
             train_output = labels * output.double()
-            train_output = get_constr_out(train_output, R)
+            train_output = get_constr_out(train_output, r_matrix)
             train_output = (1 - labels) * constr_output.double() + labels * train_output
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
-
-            # predicted = constr_output.data > best_threshold
-
-            # Total number of labels
-            # total_train = labels.size(0) * labels.size(1)
-            # Total correct predictions
-            # correct_train = (predicted == labels.byte()).sum()
-
             loss.backward()
             optimizer.step()
     usage = log_system_info(device)
@@ -203,12 +181,6 @@ def train_global(dataset_name, args):
 
         constrained_output = model(x.float())
         predicted = constrained_output.data > 0.5
-        # Total number of labels
-        # total = y.size(0) * y.size(1)
-        # Total correct predictions
-        # correct = (predicted == y.byte()).sum()
-
-        # Move output and label back to cpu to be processed by sklearn
         predicted = predicted.to("cpu")
         cpu_constrained_output = constrained_output.to("cpu")
         y = y.to("cpu")
@@ -274,7 +246,7 @@ def train_global(dataset_name, args):
                     "f1score": score[2],
                 }
 
-    Y_pred_local_binary = global_to_local_predictions(
+    y_pred_local_binary = global_to_local_predictions(
         constr_test.data > best_threshold,
         hmc_dataset.train.local_nodes_idx,
         hmc_dataset.train.nodes_idx,
@@ -291,12 +263,12 @@ def train_global(dataset_name, args):
         level: {"f1score": None, "precision": None, "recall": None}
         for level in range(len(y_test_local_binary))
     }
-    for level, (y_test_local, Y_pred_local) in enumerate(
-        zip(y_test_local_binary, Y_pred_local_binary)
+    for level, (y_test_local, y_pred_local) in enumerate(
+        zip(y_test_local_binary, y_pred_local_binary)
     ):
         score = precision_recall_fscore_support(
             y_test_local,
-            Y_pred_local,
+            y_pred_local,
             average="micro",
             zero_division=0,
         )

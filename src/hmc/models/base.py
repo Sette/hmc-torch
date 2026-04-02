@@ -1,3 +1,7 @@
+"""
+This module contains the base class for hierarchical models.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
@@ -33,7 +37,7 @@ class HierarchicalModel(nn.Module, ABC):
             results_path: Directory to save/load model checkpoints
             active_levels: Indices of levels to train (None = all levels)
         """
-        super(HierarchicalModel, self).__init__()
+        super().__init__()
 
         # Validate inputs
         self._validate_inputs(input_size, levels_size, results_path)
@@ -79,8 +83,7 @@ class HierarchicalModel(nn.Module, ABC):
         Returns:
             Dictionary mapping level indices to output tensors
         """
-        pass
 
+    @abstractmethod
     def _load_checkpoint(self, level_idx: int) -> bool:
         """Load a saved checkpoint for a specific level."""
-        pass

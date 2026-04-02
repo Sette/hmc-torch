@@ -1,3 +1,7 @@
+"""
+This module provides functionality to manage hierarchical multi-label datasets.
+"""
+
 import logging
 from collections import defaultdict
 
@@ -5,11 +9,10 @@ import networkx as nx
 import numpy as np
 import torch
 
-from hmc.datasets.datasets.gofun import get_dataset_paths, to_skip
-from hmc.datasets.datasets.gofun.dataset_arff import HMCDatasetArff
-from hmc.datasets.datasets.gofun.dataset_csv import HMCDatasetCsv
-from hmc.datasets.datasets.gofun.dataset_torch import HMCDatasetTorch
+from hmc.datasets.gofun import to_skip
+from hmc.datasets.gofun.dataset_arff import HMCDatasetArff
 from hmc.utils.path.files import __load_json__
+from hmc.datasets.gofun import get_dataset_paths
 
 # Set a logger config
 logging.basicConfig(
@@ -42,7 +45,14 @@ class HMCDatasetManager:
 
     def __init__(self, dataset, dataset_type="arff", device="cpu", is_global=False):
         # Extract dataset paths
-        self.test, self.train, self.valid, self.to_eval, self.max_depth, self.R = (
+        (
+            self.test,
+            self.train,
+            self.valid,
+            self.to_eval,
+            self.max_depth,
+            self.r_matrix,
+        ) = (
             None,
             None,
             None,
@@ -69,10 +79,10 @@ class HMCDatasetManager:
 
         (
             self.labels,
-            self.roots,
+            self.r_matrixoots,
             self.nodes,
             self.g_t,
-            self.A,
+            self.a,
         ) = (
             [],
             [],
@@ -88,15 +98,18 @@ class HMCDatasetManager:
 
         # Construct graph path
         self.g = nx.DiGraph()
-        # train_csv_name = Path(self.train_file).name
-        # self.graph_path = os.path.join(output_path, \
-        # train_csv_name.replace('-.csv', '.graphml'))
+        self.hierarchy_map = {}
 
         if dataset_type == "arff":
             self.is_go, self.train_file, self.valid_file, self.test_file = dataset
             self.load_arff_data()
 
     def load_structure_from_json(self, labels_json):
+        """
+        Load the hierarchy structure from a JSON file.
+        Args:
+            labels_json (str): Path to the JSON file containing the hierarchy structure.
+        """
         # Load labels JSON
         self.labels = __load_json__(labels_json)
         for cat in self.labels["labels"]:
@@ -121,7 +134,7 @@ class HMCDatasetManager:
         self.nodes_idx = dict(zip(self.nodes, range(len(self.nodes))))
         self.g_t = self.g.reverse()
 
-        self.A = nx.to_numpy_array(self.g, nodelist=self.nodes)
+        self.a = nx.to_numpy_array(self.g, nodelist=self.nodes)
 
     def get_hierarchy_levels(self):
         """
@@ -140,10 +153,16 @@ class HMCDatasetManager:
         for idx, level_nodes in self.levels.items():
             self.local_nodes_idx[idx] = {node: i for i, node in enumerate(level_nodes)}
 
-    def compute_matrix_R(self, edges_matrix):
-        # Compute matrix of ancestors R, named matrix_r
-        # Given n classes, R is an (n x n) matrix where R_ij = 1 i\
-        # f class i is ancestor of class j
+    def compute_r_matrix(self, edges_matrix):
+        """
+        Compute matrix of ancestors R, named matrix_r
+        Given n classes, R is an (n x n) matrix where R_ij = 1 i\
+        f class i is ancestor of class j
+        Args:
+            edges_matrix (np.ndarray): Matrix of edges.
+        Returns:
+            np.ndarray: Matrix of ancestors.
+        """
         matrix_r = np.zeros(edges_matrix.shape)
         np.fill_diagonal(matrix_r, 1)
         g = nx.DiGraph(edges_matrix)
@@ -157,28 +176,35 @@ class HMCDatasetManager:
         matrix_r = matrix_r.unsqueeze(0)
         return matrix_r
 
-    def compute_matrix_R_local(self):
-        # Compute the list with local matrix of ancestors R, named matrix_r
-        # Given n classes, R is an (n x n) matrix where R_ij = 1 \
-        # if class i is ancestor of class j
+    def compute_r_matrix_local(self):
+        """
+        Compute the list with local matrix of ancestors R, named matrix_r
+        Given n classes, R is an (n x n) matrix where R_ij = 1 \
+        if class i is ancestor of class j
+        """
         for idx, edges_matrix in self.edge_index.items():
-            matrix_r = self.compute_matrix_R(edges_matrix)
+            matrix_r = self.compute_r_matrix(edges_matrix)
             logger.info(
                 "Computed matrix R for level %d with shape %s", idx, matrix_r.shape
             )
             self.all_matrix_r[idx] = matrix_r
 
     def transform_labels(self, dataset_labels):
-        y_local_ = []
+        """
+        Transform labels to binary vectors.
+        Args:
+            dataset_labels (list): List of labels.
+        Returns:
+            list: List of binary vectors.
+        """
         y_ = []
-        Y = []
-        Y_local = []
+        y = []
         for labels in dataset_labels:
             if self.is_global:
                 y_ = np.zeros(len(self.nodes))
             else:
                 sorted_keys = sorted(self.levels_size.keys())
-                y_local_ = [np.zeros(self.levels_size.get(key)) for key in sorted_keys]
+                y_ = [np.zeros(self.levels_size.get(key)) for key in sorted_keys]
             for node in labels.split("@"):
                 if self.is_global:
                     y_[
@@ -188,73 +214,39 @@ class HMCDatasetManager:
 
                 if not self.is_global:
                     depth = nx.shortest_path_length(self.g_t, "root").get(node)
-                    y_local_[depth][self.local_nodes_idx[depth].get(node)] = 1
+                    y_[depth][self.local_nodes_idx[depth].get(node)] = 1
                     for ancestor in nx.ancestors(self.g_t, node):
                         if ancestor != "root":
                             depth = nx.shortest_path_length(self.g_t, "root").get(
                                 ancestor
                             )
-                            y_local_[depth][
-                                self.local_nodes_idx[depth].get(ancestor)
-                            ] = 1
+                            y_[depth][self.local_nodes_idx[depth].get(ancestor)] = 1
 
             if self.is_global:
-                Y.append(y_)
+                y.append(y_)
             else:
-                Y_local.append([np.stack(y) for y in y_local_])
-                return Y_local
+                y.append([np.stack(y) for y in y_])
         if self.is_global:
-            Y = np.stack(Y)
-            return Y
-
-    def load_csv_data(self):
-        """
-        Load features and labels from CSV, and optionally a hierarchy graph from JSON.
-        """
-        self.train = HMCDatasetCsv(self.train_file, is_go=self.is_go)
-        self.valid = HMCDatasetCsv(self.valid_file, is_go=self.is_go)
-        self.test = HMCDatasetCsv(self.test_file, is_go=self.is_go)
-
-        dataset_labels = self.train.df.categories.values
-        logger.info("Transforming train labels")
-        self.train.set_y(self.transform_labels(dataset_labels))
-
-        dataset_labels = self.valid.df.categories.values
-        logger.info("Transforming valid labels")
-        self.valid.set_y(self.transform_labels(dataset_labels))
-
-        dataset_labels = self.test.df.categories.values
-        logger.info("Transforming test labels")
-        self.test.set_y(self.transform_labels(dataset_labels))
-
-    def load_torch_data(self):
-        self.train = HMCDatasetTorch(self.train_file)
-        self.valid = HMCDatasetTorch(self.valid_file)
-        self.test = HMCDatasetTorch(self.test_file)
-
-        dataset_labels = self.train.Y
-        logger.info("Transforming train labels")
-        self.train.set_y(self.transform_labels(dataset_labels))
-
-        dataset_labels = self.valid.Y
-        logger.info("Transforming valid labels")
-        self.valid.set_y(self.transform_labels(dataset_labels))
-
-        dataset_labels = self.test.Y
-        logger.info("Transforming test labels")
-        self.test.set_y(self.transform_labels(dataset_labels))
+            y = np.stack(y)
+        return y
 
     def load_arff_data(self):
+        """
+        Load features and labels from ARFF, and optionally a hierarchy graph from JSON.
+        Args:
+            arff_file (str): Path to the ARFF file.
+            is_go (bool): Whether the ARFF file contains Gene Ontology data.
+        """
         logger.info("Loading dataset from %s", self.train_file)
         self.train = HMCDatasetArff(self.train_file, is_go=self.is_go)
         logger.info("Loading dataset from %s", self.valid_file)
         self.valid = HMCDatasetArff(self.valid_file, is_go=self.is_go)
         logger.info("Loading dataset from %s", self.test_file)
         self.test = HMCDatasetArff(self.test_file, is_go=self.is_go)
-        self.A = self.train.A
+        self.a = self.train.a
         self.edge_index = self.train.edge_index
-        # self.R = self.compute_matrix_R(self.A)
-        # self.compute_matrix_R_local()
+        # self.r_matrix = self.compute_r_matrix(self.a)
+        # self.compute_r_matrix_local()
         self.build_hierarchy_map()
         self.to_eval = self.train.to_eval
         self.nodes = self.train.g.nodes()
@@ -268,13 +260,17 @@ class HMCDatasetManager:
         """
         Builds the hierarchy map.
         """
-        self.hierarchy_map = {}
         for parent in self.g.nodes():
             children = list(self.g.successors(parent))
             if children:
                 self.hierarchy_map[parent] = children
 
     def get_datasets(self):
+        """
+        Return the datasets.
+        Returns:
+            tuple: (train, valid, test)
+        """
         return self.train, self.valid, self.test
 
 
@@ -302,7 +298,7 @@ def initialize_dataset_experiments(
     - HMCDatasetManager: Initialized dataset manager.
     """
     # Load dataset paths
-    datasets = get_dataset_paths(dataset_path=dataset_path, dataset_type=dataset_type)
+    datasets = get_dataset_paths(dataset_path=dataset_path)
 
     # Validate if the dataset exists
     if name not in datasets:

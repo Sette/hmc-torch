@@ -31,7 +31,7 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
         """
         # monta a lista de argumentos exatamente como na linha de comando
         test_argv = [
-            "hmc.trainers.main",  # argv[0] é o nome do programa
+            "hmc.main",
             "--dataset_path",
             "./data",
             "--batch_size",

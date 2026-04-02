@@ -42,12 +42,6 @@ from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.models.local_classifier.hat.model import (
-    HATForMaskedLM,
-)
-from hmc.models.local_classifier.tabat.model import (
-    TabATModel,
-)
 from hmc.pipeline.local_classifier.core.test import test_step
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
@@ -79,22 +73,6 @@ def get_train_methods(method: str) -> dict[str, object]:
         case "local" | "local_mask" | "local_test":
             model_functions = {
                 "model": HMCLocalModel,
-                "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step,
-                "valid_step": validate_step,
-                "train_step": train_step,
-            }
-        case "local_hat":
-            model_functions = {
-                "model": HATForMaskedLM,
-                "optimize_hyperparameters": optimize_hyperparameters,
-                "test_step": test_step,
-                "valid_step": validate_step,
-                "train_step": train_step,
-            }
-        case "local_tabat":
-            model_functions = {
-                "model": TabATModel,
                 "optimize_hyperparameters": optimize_hyperparameters,
                 "test_step": test_step,
                 "valid_step": validate_step,
@@ -280,7 +258,7 @@ def train_local(args):
         is_global=False,
     )
     data_train, data_valid, data_test = hmc_dataset.get_datasets()
-    data_concat = np.concatenate((data_train.X, data_valid.X, data_test.X))
+    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
     scaler = preprocessing.StandardScaler().fit(data_concat)
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
 
