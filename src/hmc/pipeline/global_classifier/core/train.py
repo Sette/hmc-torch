@@ -48,7 +48,7 @@ def train_global(dataset_name, args):
 
     to_eval = torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
 
-    results_path = f"results/train/{args.method}-{args.dataset_name}/{job_id}"
+    results_path = f"output/train/{args.method}-{args.dataset_name}/{job_id}"
 
     experiment = True
     epochs_by_args = False
