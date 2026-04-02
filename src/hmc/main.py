@@ -201,9 +201,6 @@ def main():
         args.job_id,
     )
 
-    # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    # args = cast(MyArgs, parser.parse_args())
     match args.method:
         case "local" | "local_tabat" | "local_hat" | "local_test":
             logging.info("Local method selected")
