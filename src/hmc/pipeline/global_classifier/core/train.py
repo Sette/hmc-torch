@@ -1,9 +1,28 @@
+import logging
+import time
+import numpy as np
+import torch
+import torch.nn as nn
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
+from hmc.models.global_classifier.constraint.model import (
+    get_constr_out,
+)
+from hmc.utils.dataset.labels import global_to_local_predictions
+from hmc.utils.path.files import create_dir
+from hmc.utils.path.output import (
+    save_dict_to_json,
+)
+from hmc.utils.train.job import (
+    log_system_info,
+)
 
 
 def train_step(args):
-    model = model.to(device)
-    to_eval = to_eval.to(device)
+    model = args.model.to(args.device)
+    to_eval = args.to_eval.to(args.device)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
@@ -13,17 +32,17 @@ def train_step(args):
     start_train = time.perf_counter()
     for _ in range(args.epochs):
         model.train()
-        for _, (x, labels) in tqdm(enumerate(train_loader)):
-            x = x.to(device)
-            labels = labels.to(device)
+        for _, (x, labels) in tqdm(enumerate(args.train_loader)):
+            x = x.to(args.device)
+            labels = labels.to(args.device)
 
             optimizer.zero_grad()
             output = model(x.float())
 
             # MCLoss
-            constr_output = get_constr_out(output, r_matrix)
+            constr_output = get_constr_out(output, args.r_matrix)
             train_output = labels * output.double()
-            train_output = get_constr_out(train_output, r_matrix)
+            train_output = get_constr_out(train_output, args.r_matrix)
             train_output = (1 - labels) * constr_output.double() + labels * train_output
 
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
@@ -36,8 +55,8 @@ def train_step(args):
     for i, (x, y) in enumerate(test_loader):
         model.eval()
 
-        x = x.to(device)
-        y = y.to(device)
+        x = x.to(args.device)
+        y = y.to(args.device)
 
         constrained_output = model(x.float())
         predicted = constrained_output.data > 0.5

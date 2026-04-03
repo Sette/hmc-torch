@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.pipeline.global_classifier.core.train import train_global
+from hmc.pipeline.global_classifier.main import train_global
 from hmc.pipeline.local_classifier.main import train_local
 from hmc.utils.train.job import create_job_id_name
 

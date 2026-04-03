@@ -1,31 +1,18 @@
-import logging
-import time
-
 import networkx as nx
 import numpy as np
 import torch
-import torch.nn as nn
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
-    get_constr_out,
-)
-from hmc.utils.dataset.labels import global_to_local_predictions
-from hmc.utils.path.files import create_dir
-from hmc.utils.path.output import (
-    save_dict_to_json,
 )
 from hmc.utils.train.job import (
     create_job_id_name,
-    log_system_info,
 )
-
+from hmc.pipeline.global_classifier.core.train import train_step
 
 def train_global(dataset_name, args):
     print(".......................................")
@@ -33,7 +20,6 @@ def train_global(dataset_name, args):
     # Load train, val and test set
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
-    best_threshold = 0.19
 
     hmc_dataset = initialize_dataset_experiments(
         dataset_name,
@@ -46,9 +32,9 @@ def train_global(dataset_name, args):
 
     job_id = create_job_id_name(prefix="test")
 
-    to_eval = torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    args.to_eval = torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
 
-    results_path = f"output/train/{args.method}-{args.dataset_name}/{job_id}"
+    args.results_path = f"output/train/{args.method}-{args.dataset_name}/{job_id}"
 
     experiment = True
     epochs_by_args = False
@@ -83,7 +69,7 @@ def train_global(dataset_name, args):
             r_matrix[i, ancestors] = 1
     r_matrix = torch.tensor(r_matrix)
     r_matrix = r_matrix.transpose(1, 0)
-    r_matrix = r_matrix.unsqueeze(0).to(device)
+    args.r_matrix = r_matrix.unsqueeze(0).to(device)
 
     scaler = preprocessing.StandardScaler().fit(np.concatenate((valid.x, valid.x)))
 
@@ -122,10 +108,10 @@ def train_global(dataset_name, args):
             train_dataset.append((x, y))
     test_dataset = [(x, y) for (x, y) in zip(test.x, test.y)]
 
-    train_loader = DataLoader(
+    args.train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, shuffle=True
     )
-    test_loader = DataLoader(
+    args.test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, shuffle=False
     )
 
@@ -135,7 +121,7 @@ def train_global(dataset_name, args):
         num_to_skip = 1
 
     # Create the model
-    model = ConstrainedModel(
+    args.model = ConstrainedModel(
         args.input_dims[data],
         args.hidden_dim,
         args.output_dims[ontology][data] + num_to_skip,
@@ -143,3 +129,5 @@ def train_global(dataset_name, args):
         r_matrix,
     )
     
+
+    train_step(args)
