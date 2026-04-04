@@ -23,6 +23,7 @@ class ConstrainedModel(nn.Module):
         output_dim,
         hyperparams,
         r_matrix,
+        device,
         baseline_model=False,
     ):
         """Initialize the ConstrainedModel."""
@@ -30,8 +31,9 @@ class ConstrainedModel(nn.Module):
 
         self.nb_layers = hyperparams["num_layers"]
         self.baseline_model = baseline_model
+        self.device = device
         if not self.baseline_model:
-            self.r_matrix = r_matrix
+            self.r_matrix = r_matrix.to(self.device)
 
         fc = []
         for i in range(self.nb_layers):

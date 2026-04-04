@@ -41,7 +41,7 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
             "--non_lin",
             "relu",
             "--device",
-            "cpu",
+            "cuda",
             "--epochs",
             "2000",
             "--seed",

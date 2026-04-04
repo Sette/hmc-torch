@@ -18,7 +18,7 @@ def train_global(dataset_name, args):
     print(".......................................")
     print("Experiment with {} dataset ".format(dataset_name))
     # Load train, val and test set
-    device = torch.device(args.device)
+    args.device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
 
     hmc_dataset = initialize_dataset_experiments(
@@ -69,7 +69,8 @@ def train_global(dataset_name, args):
             r_matrix[i, ancestors] = 1
     r_matrix = torch.tensor(r_matrix)
     r_matrix = r_matrix.transpose(1, 0)
-    args.r_matrix = r_matrix.unsqueeze(0).to(device)
+    args.r_matrix = r_matrix.unsqueeze(0).to(args.device)
+    args.hmc_dataset = hmc_dataset
 
     scaler = preprocessing.StandardScaler().fit(np.concatenate((valid.x, valid.x)))
 
@@ -80,25 +81,25 @@ def train_global(dataset_name, args):
         torch.tensor(scaler.transform(imp_mean.transform(valid.x)))
         .clone()
         .detach()
-        .to(device)
+        .to(args.device)
     )
-    valid.y = torch.tensor(valid.y).clone().detach().to(device)
+    valid.y = torch.tensor(valid.y).clone().detach().to(args.device)
 
     train.x = (
         torch.tensor(scaler.transform(imp_mean.transform(train.x)))
         .clone()
         .detach()
-        .to(device)
+        .to(args.device)
     )
-    train.y = torch.tensor(train.y).clone().detach().to(device)
+    train.y = torch.tensor(train.y).clone().detach().to(args.device)
 
     test.x = (
         torch.as_tensor(scaler.transform(imp_mean.transform(test.x)))
         .clone()
         .detach()
-        .to(device)
+        .to(args.device)
     )
-    test.y = torch.as_tensor(test.y).clone().detach().to(device)
+    test.y = torch.as_tensor(test.y).clone().detach().to(args.device)
 
     # Create loaders
     train_dataset = [(x, y) for (x, y) in zip(train.x, train.y)]
@@ -126,7 +127,8 @@ def train_global(dataset_name, args):
         args.hidden_dim,
         args.output_dims[ontology][data] + num_to_skip,
         args.hyperparams,
-        r_matrix,
+        args.r_matrix,
+        args.device,
     )
     
 

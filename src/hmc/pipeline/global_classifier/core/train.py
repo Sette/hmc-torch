@@ -48,11 +48,11 @@ def train_step(args):
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
             loss.backward()
             optimizer.step()
-    usage = log_system_info(device)
+    usage = log_system_info(args.device)
     end_train = time.perf_counter()
     total_time = end_train - start_train
     print("Tempo de treino: %f segundos", total_time)
-    for i, (x, y) in enumerate(test_loader):
+    for i, (x, y) in enumerate(args.test_loader):
         model.eval()
 
         x = x.to(args.device)
@@ -127,14 +127,14 @@ def train_step(args):
 
     y_pred_local_binary = global_to_local_predictions(
         constr_test.data > best_threshold,
-        hmc_dataset.train.local_nodes_idx,
-        hmc_dataset.train.nodes_idx,
+        args.hmc_dataset.train.local_nodes_idx,
+        args.hmc_dataset.train.nodes_idx,
     )
 
     y_test_local_binary = global_to_local_predictions(
         y_test,
-        hmc_dataset.train.local_nodes_idx,
-        hmc_dataset.train.nodes_idx,
+        args.hmc_dataset.train.local_nodes_idx,
+        args.hmc_dataset.train.nodes_idx,
     )
 
     # Get local scores
@@ -184,11 +184,11 @@ def train_step(args):
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
-    create_dir(results_path)
+    create_dir(args.results_path)
 
     save_dict_to_json(
         local_test_score,
-        f"{results_path}/test-scores.json",
+        f"{args.results_path}/test-scores.json",
     )
 
     print("Average precision score: %.4f" % local_test_score["global"]["avg_precision"])
