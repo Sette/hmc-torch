@@ -128,7 +128,6 @@ def train_global(dataset_name, args):
         args.output_dims[ontology][data] + num_to_skip,
         args.hyperparams,
         args.r_matrix,
-        args.device,
     )
     
 
