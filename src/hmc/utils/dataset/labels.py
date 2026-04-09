@@ -243,7 +243,6 @@ def global_to_local_predictions(
         n_classes_local = len(local_nodes_idx[level])
         lvl_preds = np.zeros((n_samples, n_classes_local))
         # Inverter local_nodes_idx[level]: node_name_local->idx_local
-        node_to_local_idx = local_nodes_idx[level]  # node_name_local → idx_local
 
         for sample_idx in range(n_samples):
             # Quais globais estão ativados neste sample
@@ -253,8 +252,8 @@ def global_to_local_predictions(
                 # Ajustar para nomes locais, se necessário
                 # node_name_local = node_name.replace(".", "/")
                 # Verifica se é nó deste nível
-                if node_name_local in node_to_local_idx:
-                    local_idx = node_to_local_idx[node_name_local]
+                if node_name_local in local_nodes_idx[level]:
+                    local_idx = local_nodes_idx[level][node_name_local]
                     lvl_preds[sample_idx, local_idx] = 1
         local_labels.append(lvl_preds)
     return local_labels
@@ -347,11 +346,8 @@ def hierarchy_regularization(outputs, g):
     """
     penalty = 0.0
     for parent, child in g.edges():
-        p_level, p_idx = parent
-        c_level, c_idx = child
-
-        parent_probs = torch.sigmoid(outputs[p_level][:, p_idx])
-        child_probs = torch.sigmoid(outputs[c_level][:, c_idx])
+        parent_probs = torch.sigmoid(outputs[parent[0]][:, parent[1]])
+        child_probs = torch.sigmoid(outputs[child[0]][:, child[1]])
 
         penalty += torch.mean(torch.relu(child_probs - parent_probs))
     return penalty
