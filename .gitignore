@@ -176,3 +176,4 @@ output/
 
 # Uv
 uv.lock
+pylint.yml
