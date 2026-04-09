@@ -9,10 +9,10 @@ from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
 )
+from hmc.pipeline.global_classifier.core.train import train_step
 from hmc.utils.train.job import (
     create_job_id_name,
 )
-from hmc.pipeline.global_classifier.core.train import train_step
 
 
 def train_global(dataset_name, args):
