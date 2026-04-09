@@ -1,13 +1,14 @@
 """
 Train a global classifier
 """
+
 import logging
 import time
 
 import numpy as np
 import torch
-from torch import nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
+from torch import nn
 from tqdm import tqdm
 
 from hmc.models.global_classifier.constraint.model import (
@@ -164,7 +165,10 @@ def train_step(args):
         logging.info("Local evaluation score:")
         logging.info(
             "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f",
-            level, score[0], score[1], score[2],
+            level,
+            score[0],
+            score[1],
+            score[2],
         )
 
     score = precision_recall_fscore_support(
@@ -198,7 +202,9 @@ def train_step(args):
         f"{args.results_path}/test-scores.json",
     )
 
-    logging.info("Average precision score: %.4f", local_test_score["global"]["avg_precision"])
+    logging.info(
+        "Average precision score: %.4f", local_test_score["global"]["avg_precision"]
+    )
 
     args.score = local_test_score["global"]
 

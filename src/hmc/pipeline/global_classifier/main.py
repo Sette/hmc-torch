@@ -1,23 +1,27 @@
 """
 Train a global classifier
 """
+
 import logging
+
 import networkx as nx
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import EarlyStopping
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
+    ConstrainedLightningModel,
     ConstrainedModel,
 )
 from hmc.pipeline.global_classifier.core.train import train_step
 from hmc.utils.train.job import (
     create_job_id_name,
 )
-
 
 def train_global(dataset_name, args):
     """
@@ -131,13 +135,35 @@ def train_global(dataset_name, args):
     else:
         num_to_skip = 1
 
-    # Create the model
-    args.model = ConstrainedModel(
-        args.input_dims[data],
-        args.hidden_dim,
-        args.output_dims[ontology][data] + num_to_skip,
-        args.hyperparams,
-        args.r_matrix,
-    )
+    if args.method == "globalLM":
+        args.model = ConstrainedLightningModel(
+            input_dim=args.input_dims[data],
+            hidden_dim=args.hidden_dim,
+            output_dim=args.output_dims[ontology][data] + num_to_skip,
+            hyperparams=args.hyperparams,
+            r_matrix=r_matrix,
+            to_eval=args.to_eval,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+        )
 
-    train_step(args)
+        trainer = Trainer(
+            max_epochs=args.num_epochs,
+            accelerator=args.device,
+            log_every_n_steps=1,
+            callbacks=[EarlyStopping(monitor="train_loss", patience=20, mode="max")],
+        )
+
+        trainer.fit(args.model, args.train_loader, args.val_loader)
+        trainer.test(args.model, args.test_loader)
+    else:
+        # Create the model
+        args.model = ConstrainedModel(
+            args.input_dims[data],
+            args.hidden_dim,
+            args.output_dims[ontology][data] + num_to_skip,
+            args.hyperparams,
+            args.r_matrix,
+        )
+
+        train_step(args)
