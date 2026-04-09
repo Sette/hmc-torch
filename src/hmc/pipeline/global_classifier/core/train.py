@@ -127,14 +127,14 @@ def train_step(args):
 
     y_pred_local_binary = global_to_local_predictions(
         constr_test.data > best_threshold,
-        args.hmc_dataset.train.local_nodes_idx,
-        args.hmc_dataset.train.nodes_idx,
+        args.hmc_dataset.dataset_values["local_nodes_idx"],
+        args.hmc_dataset.dataset_values["nodes_idx"],
     )
 
     y_test_local_binary = global_to_local_predictions(
         y_test,
-        args.hmc_dataset.train.local_nodes_idx,
-        args.hmc_dataset.train.nodes_idx,
+        args.hmc_dataset.dataset_values["local_nodes_idx"],
+        args.hmc_dataset.dataset_values["nodes_idx"],
     )
 
     # Get local scores

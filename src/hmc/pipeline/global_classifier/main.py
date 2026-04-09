@@ -14,6 +14,7 @@ from hmc.utils.train.job import (
 )
 from hmc.pipeline.global_classifier.core.train import train_step
 
+
 def train_global(dataset_name, args):
     print(".......................................")
     print("Experiment with {} dataset ".format(dataset_name))
@@ -32,7 +33,9 @@ def train_global(dataset_name, args):
 
     job_id = create_job_id_name(prefix="test")
 
-    args.to_eval = torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    args.to_eval = (
+        torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    )
 
     args.results_path = f"output/train/{args.method}-{args.dataset_name}/{job_id}"
 
@@ -102,12 +105,12 @@ def train_global(dataset_name, args):
     test.y = torch.as_tensor(test.y).clone().detach().to(args.device)
 
     # Create loaders
-    train_dataset = [(x, y) for (x, y) in zip(train.x, train.y)]
+    train_dataset = list(zip(train.x, train.y))
     if "others" not in args.dataset_name:
         # val_dataset = [(x, y) for (x, y) in zip(valid.x, valid.y)]
         for x, y in zip(valid.x, valid.y):
             train_dataset.append((x, y))
-    test_dataset = [(x, y) for (x, y) in zip(test.x, test.y)]
+    test_dataset = list(zip(test.x, test.y))
 
     args.train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -129,6 +132,5 @@ def train_global(dataset_name, args):
         args.hyperparams,
         args.r_matrix,
     )
-    
 
     train_step(args)

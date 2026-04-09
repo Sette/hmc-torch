@@ -292,10 +292,10 @@ def train_local(args):
 
     args.test_loader = test_loader
     args.hmc_dataset = hmc_dataset
-    args.levels_size = hmc_dataset.levels_size
+    args.levels_size = hmc_dataset.dataset_values["levels_size"]
     args.input_dim = args.input_dims[args.data]
-    args.max_depth = hmc_dataset.max_depth
-    args.to_eval = hmc_dataset.to_eval
+    args.max_depth = hmc_dataset.dataset_values["max_depth"]
+    args.to_eval = hmc_dataset.dataset_values["to_eval"]
 
     if args.active_levels is None:
         args.active_levels = list(range(args.max_depth))
@@ -303,7 +303,9 @@ def train_local(args):
         args.active_levels = [int(x) for x in args.active_levels]
     logging.info("Active levels: %s", args.active_levels)
 
-    args.criterion_list = [nn.BCELoss() for _ in hmc_dataset.levels_size]
+    args.criterion_list = [
+        nn.BCELoss() for _ in hmc_dataset.dataset_values["levels_size"]
+    ]
 
     if args.hpo:
         logging.info("Hyperparameter optimization")

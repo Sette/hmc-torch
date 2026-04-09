@@ -2,8 +2,6 @@
 This module contains the classification networks.
 """
 
-from typing import List
-
 import torch
 from torch import nn
 
@@ -21,12 +19,7 @@ class ClassificationNetwork(nn.Module):
 
     def __init__(
         self,
-        input_size: int,
-        hidden_dims: List[int],
-        output_size: int,
-        num_layers: int = 2,
-        dropout: float = 0.0,
-        level: int = 0,
+        kwargs: dict,
     ):
         """
         Initialize classification network.
@@ -39,7 +32,12 @@ class ClassificationNetwork(nn.Module):
             dropout: Dropout probability
         """
         super().__init__()
-        self.level = level
+        self.level = kwargs["level"]
+        input_size = kwargs["input_size"]
+        hidden_dims = kwargs["hidden_dims"]
+        output_size = kwargs["output_size"]
+        num_layers = kwargs["num_layers"]
+        dropout = kwargs["dropout"]
 
         layers = []
         current_size = input_size
@@ -80,17 +78,17 @@ class BuildClassification(nn.Module):
 
     def __init__(
         self,
-        input_size: int,
-        hidden_dims: List[int],
-        output_size: int,
-        num_layers: int = 2,
-        dropout: float = 0.0,
-        level: int = 0,
-        device: str = "cuda",
+        kwargs: dict,
     ):
         super().__init__()
+        self.level = kwargs["level"]
+        input_size = kwargs["input_size"]
+        hidden_dims = kwargs["hidden_dims"]
+        output_size = kwargs["output_size"]
+        num_layers = kwargs["num_layers"]
+        dropout = kwargs["dropout"]
+        device = kwargs["device"]
 
-        self.level = level
         layers = []
         current_size = input_size
         # Build hidden layers
