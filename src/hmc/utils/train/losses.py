@@ -35,7 +35,7 @@ def compute_loss(batch, args, step="train"):
         configuration.
         step (str): The current step (train, val, or test).
     Returns:
-        tuple: A tuple containing the local losses, local inputs,
+        dict: A dictionary containing the local losses, local inputs,
         local outputs, and total loss.
     """
     x = batch[0].float().to(args.device)
