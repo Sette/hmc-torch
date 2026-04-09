@@ -159,21 +159,22 @@ def local_to_global_predictions(
                            predictions (0 or 1). Default: 0.2.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing two arrays:
-            - global_scores (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+        dict: A dictionary containing two arrays:
+            - "global_scores" (np.ndarray): Matrix of shape [n_samples, n_global_labels]
                                           with the continuous scores.
-            - global_binary_preds (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+            - "global_binary_preds" (np.ndarray): Matrix of shape [n_samples, n_global_labels]
                                                 with the binary predictions (0 or 1).
     """
     if not local_labels:
-        return np.array([]), np.array([])
-
-    n_samples = local_labels[0].shape[0]
-    n_global_labels = len(nodes_idx)
+        return {"global_scores": np.array([]), "global_binary_preds": np.array([])}
 
     # Initialize both output matrices
-    global_scores = np.zeros((n_samples, n_global_labels))
-    global_binary_preds = np.zeros((n_samples, n_global_labels), dtype=int)
+    output_values = {
+        "global_scores": np.zeros((local_labels[0].shape[0], len(nodes_idx))),
+        "global_binary_preds": np.zeros(
+            (local_labels[0].shape[0], len(nodes_idx)), dtype=int
+        ),
+    }
 
     # Create a reverse mapping of local index to node name for easier lookup
     sorted_levels = sorted(local_nodes_idx.keys())
@@ -184,37 +185,33 @@ def local_to_global_predictions(
 
     logging.info(
         "Processing %d samples with threshold %f...",
-        n_samples,
+        local_labels[0].shape[0],
         threshold,
     )
 
     # Iterate through each hierarchical level
     for level_index, level in enumerate(sorted_levels):
-        level_preds = local_labels[level_index]
-
-        for idx_example, sample_scores in enumerate(level_preds):
-            non_zero_indices = np.where(sample_scores > 0)[0]
-
-            for local_idx in non_zero_indices:
-                node_name = local_nodes_reverse[level].get(local_idx)
-                if not node_name:
+        for idx_example, sample_scores in enumerate(local_labels[level_index]):
+            for local_idx in np.where(sample_scores > 0)[0]:
+                if not local_nodes_reverse[level].get(local_idx):
                     continue
 
-                key = node_name.replace("/", ".")
-                global_idx = nodes_idx.get(key)
+                key = local_nodes_reverse[level].get(local_idx).replace("/", ".")
 
-                if global_idx is None:
+                if nodes_idx.get(key) is None:
                     continue  # Warning for this may be too verbose
 
                 # 1. Assign original score to scores matrix
                 score = sample_scores[local_idx]
-                global_scores[idx_example, global_idx] = score
+                output_values["global_scores"][idx_example, nodes_idx.get(key)] = score
 
                 # 2. Binarize score and assign to binary predictions matrix
                 if score >= threshold:
-                    global_binary_preds[idx_example, global_idx] = 1
+                    output_values["global_binary_preds"][
+                        idx_example, nodes_idx.get(key)
+                    ] = 1
 
-    return global_scores, global_binary_preds
+    return output_values
 
 
 def global_to_local_predictions(
