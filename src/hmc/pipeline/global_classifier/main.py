@@ -23,6 +23,7 @@ from hmc.utils.train.job import (
     create_job_id_name,
 )
 
+
 def train_global(dataset_name, args):
     """
     Train a global classifier
