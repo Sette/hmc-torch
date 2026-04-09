@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from hmc.models.global_classifier.constraint.model import (
