@@ -1,3 +1,7 @@
+"""
+Train a global classifier
+"""
+import logging
 import networkx as nx
 import numpy as np
 import torch
@@ -16,8 +20,11 @@ from hmc.utils.train.job import (
 
 
 def train_global(dataset_name, args):
-    print(".......................................")
-    print("Experiment with {} dataset ".format(dataset_name))
+    """
+    Train a global classifier
+    """
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset ", dataset_name)
     # Load train, val and test set
     args.device = torch.device(args.device)
     data, ontology = dataset_name.split("_")

@@ -1,3 +1,7 @@
+"""
+Train a global classifier
+"""
+import logging
 import networkx as nx
 import numpy as np
 import torch
@@ -10,10 +14,11 @@ from torch.utils.data import DataLoader
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import ConstrainedLightningModel
 
-
-def train_globalLM(dataset_name, args):
-    print(".......................................")
-    print("Experiment with {} dataset ".format(dataset_name))
+def train_global_lm(dataset_name, args):
+    """
+    Train a global classifier
+    """
+    logging.info("Experiment with %s dataset ", dataset_name)
     # Load train, val and test set
     device = torch.device(args.device)
     data, ontology = dataset_name.split("_")
@@ -54,12 +59,12 @@ def train_globalLM(dataset_name, args):
     # Compute matrix of ancestors R
     # Given n classes, R is an (n x n) matrix where R_ij = 1 \
     # if class i is descendant of class j
-    R = np.zeros(hmc_dataset.A.shape)
-    np.fill_diagonal(R, 1)
+    r_matrix = np.zeros(hmc_dataset.dataset_values['a'].shape)
+    np.fill_diagonal(r_matrix, 1)
     g = nx.DiGraph(
-        hmc_dataset.A
+        hmc_dataset.dataset_values['a']
     )  # train.A is the matrix where the direct connections are stored
-    for i in range(len(hmc_dataset.A)):
+    for i in range(len(hmc_dataset.dataset_values['a'])):
         ancestors = list(
             nx.descendants(
                 g,
@@ -71,45 +76,45 @@ def train_globalLM(dataset_name, args):
             )
         )
         if ancestors:
-            R[i, ancestors] = 1
-    R = torch.tensor(R)
+            r_matrix[i, ancestors] = 1
+    r_matrix = torch.tensor(r_matrix)
     # Transpose to get the descendants for each node
-    R = R.transpose(1, 0)
-    R = R.unsqueeze(0).to(device)
+    r_matrix = r_matrix.transpose(1, 0)
+    r_matrix = r_matrix.unsqueeze(0).to(device)
 
-    scaler = preprocessing.StandardScaler().fit(np.concatenate((train.X, valid.X)))
+    scaler = preprocessing.StandardScaler().fit(np.concatenate((train.x, valid.x)))
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((train.X, valid.X))
+        np.concatenate((train.x, valid.x))
     )
-    valid.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(valid.X)))
+    valid.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(valid.x)))
         .clone()
         .detach()
         .to(device),
     )
-    valid.Y = torch.tensor(valid.Y).clone().detach().to(device)
+    valid.y = torch.tensor(valid.y).clone().detach().to(device)
 
-    train.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(train.X)))
+    train.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(train.x)))
         .clone()
         .detach()
         .to(device),
     )
-    train.Y = torch.tensor(train.Y).clone().detach().to(device)
-    test.X = (
-        torch.as_tensor(scaler.transform(imp_mean.transform(test.X)))
+    train.y = torch.tensor(train.y).clone().detach().to(device)
+    test.x = (
+        torch.as_tensor(scaler.transform(imp_mean.transform(test.x)))
         .clone()
         .detach()
         .to(device)
     )
-    test.Y = torch.as_tensor(test.Y).clone().detach().to(device)
+    test.y = torch.as_tensor(test.y).clone().detach().to(device)
 
     # Create loaders
-    train_dataset = [(x, y) for (x, y) in zip(train.X, train.Y)]
+    train_dataset = list(zip(train.x, train.y))
 
-    val_dataset = [(x, y) for (x, y) in zip(valid.X, valid.Y)]
+    val_dataset = list(zip(valid.x, valid.y))
 
-    test_dataset = [(x, y) for (x, y) in zip(test.X, test.Y)]
+    test_dataset = list(zip(test.x, test.y))
 
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, shuffle=True
@@ -131,7 +136,7 @@ def train_globalLM(dataset_name, args):
         hidden_dim=args.hidden_dim,
         output_dim=args.output_dims[ontology][data] + num_to_skip,
         hyperparams=args.hyperparams,
-        r_matrix=R,
+        r_matrix=r_matrix,
         to_eval=to_eval,
         lr=args.lr,
         weight_decay=args.weight_decay,

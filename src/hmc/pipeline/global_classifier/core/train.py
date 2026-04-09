@@ -1,9 +1,12 @@
+"""
+Train a global classifier
+"""
 import logging
 import time
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tqdm import tqdm
 
@@ -21,6 +24,9 @@ from hmc.utils.train.job import (
 
 
 def train_step(args):
+    """
+    Train a global classifier
+    """
     model = args.model.to(args.device)
     to_eval = args.to_eval.to(args.device)
 
@@ -100,7 +106,8 @@ def train_step(args):
                     "recall": score[1],
                     "f1score": score[2],
                 }
-
+        best_threshold = round(best_threshold, 4)
+        logging.info("Best threshold: %.44f", best_threshold)
         thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
         best_scores = {
             "precision": 0,
@@ -154,10 +161,10 @@ def train_step(args):
         local_test_score[level]["precision"] = score[0]  # Precision
         local_test_score[level]["recall"] = score[1]  # Recall
         local_test_score[level]["f1score"] = score[2]  # F1-score
-        print("Local evaluation score:")
-        print(
-            "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f"
-            % (level, score[0], score[1], score[2])
+        logging.info("Local evaluation score:")
+        logging.info(
+            "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f",
+            level, score[0], score[1], score[2],
         )
 
     score = precision_recall_fscore_support(
@@ -191,7 +198,7 @@ def train_step(args):
         f"{args.results_path}/test-scores.json",
     )
 
-    print("Average precision score: %.4f" % local_test_score["global"]["avg_precision"])
+    logging.info("Average precision score: %.4f", local_test_score["global"]["avg_precision"])
 
     args.score = local_test_score["global"]
 

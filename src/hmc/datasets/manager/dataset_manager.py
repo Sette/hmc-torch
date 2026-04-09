@@ -64,7 +64,7 @@ class HMCDatasetManager:
             "hierarchy_map": {},
             "labels": [],
             "nodes": [],
-            "a": [],
+            "a": np.array([]),
             "g": nx.DiGraph(),
             # Initialize attributes
             "to_skip": to_skip,
