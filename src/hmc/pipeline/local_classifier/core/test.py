@@ -110,9 +110,9 @@ def find_best_threshold_global(
                 threshold=actual_threshold,
             )
             metrics = calculate_metrics(
-                y_true_global_original[:, args.hmc_dataset.to_eval],
-                y_pred_global[:, args.hmc_dataset.to_eval],
-                y_pred_global_binary[:, args.hmc_dataset.to_eval],
+                y_true_global_original,
+                y_pred_global,
+                y_pred_global_binary,
             )
             if metrics["f1score"] > best_scores["f1score"]:
                 best_threshold = actual_threshold
@@ -138,9 +138,9 @@ def find_best_threshold_global(
                 threshold=actual_threshold,
             )
             metrics = calculate_metrics(
-                y_true_global_original[:, args.hmc_dataset.to_eval],
-                y_pred_global[:, args.hmc_dataset.to_eval],
-                y_pred_global_binary[:, args.hmc_dataset.to_eval],
+                y_true_global_original,
+                y_pred_global,
+                y_pred_global_binary,
             )
             if metrics["f1score"] > best_scores["f1score"]:
                 best_threshold = actual_threshold

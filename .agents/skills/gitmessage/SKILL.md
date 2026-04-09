@@ -1,6 +1,14 @@
+---
+name: gitmessage
+description: Generates commit messages following the Conventional Commits specification.
+---
+
+# Git Message
+
+
 # Strict Rules for Commit Messages
 
-Follow these instructions with maximum priority (Inclusion: Always).
+Follow these instructions with maximum priority, always in english (Inclusion: Always).
 
 ## 1. Mandatory Format (Schema)
 The format must strictly be:

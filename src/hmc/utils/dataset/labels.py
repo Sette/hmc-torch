@@ -159,21 +159,22 @@ def local_to_global_predictions(
                            predictions (0 or 1). Default: 0.2.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing two arrays:
-            - global_scores (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+        dict: A dictionary containing two arrays:
+            - "global_scores" (np.ndarray): Matrix of shape [n_samples, n_global_labels]
                                           with the continuous scores.
-            - global_binary_preds (np.ndarray): Matrix of shape [n_samples, n_global_labels]
+            - "global_binary_preds" (np.ndarray): Matrix of shape [n_samples, n_global_labels]
                                                 with the binary predictions (0 or 1).
     """
     if not local_labels:
-        return np.array([]), np.array([])
-
-    n_samples = local_labels[0].shape[0]
-    n_global_labels = len(nodes_idx)
+        return {"global_scores": np.array([]), "global_binary_preds": np.array([])}
 
     # Initialize both output matrices
-    global_scores = np.zeros((n_samples, n_global_labels))
-    global_binary_preds = np.zeros((n_samples, n_global_labels), dtype=int)
+    output_values = {
+        "global_scores": np.zeros((local_labels[0].shape[0], len(nodes_idx))),
+        "global_binary_preds": np.zeros(
+            (local_labels[0].shape[0], len(nodes_idx)), dtype=int
+        ),
+    }
 
     # Create a reverse mapping of local index to node name for easier lookup
     sorted_levels = sorted(local_nodes_idx.keys())
@@ -184,37 +185,33 @@ def local_to_global_predictions(
 
     logging.info(
         "Processing %d samples with threshold %f...",
-        n_samples,
+        local_labels[0].shape[0],
         threshold,
     )
 
     # Iterate through each hierarchical level
     for level_index, level in enumerate(sorted_levels):
-        level_preds = local_labels[level_index]
-
-        for idx_example, sample_scores in enumerate(level_preds):
-            non_zero_indices = np.where(sample_scores > 0)[0]
-
-            for local_idx in non_zero_indices:
-                node_name = local_nodes_reverse[level].get(local_idx)
-                if not node_name:
+        for idx_example, sample_scores in enumerate(local_labels[level_index]):
+            for local_idx in np.where(sample_scores > 0)[0]:
+                if not local_nodes_reverse[level].get(local_idx):
                     continue
 
-                key = node_name.replace("/", ".")
-                global_idx = nodes_idx.get(key)
+                key = local_nodes_reverse[level].get(local_idx).replace("/", ".")
 
-                if global_idx is None:
+                if nodes_idx.get(key) is None:
                     continue  # Warning for this may be too verbose
 
                 # 1. Assign original score to scores matrix
                 score = sample_scores[local_idx]
-                global_scores[idx_example, global_idx] = score
+                output_values["global_scores"][idx_example, nodes_idx.get(key)] = score
 
                 # 2. Binarize score and assign to binary predictions matrix
                 if score >= threshold:
-                    global_binary_preds[idx_example, global_idx] = 1
+                    output_values["global_binary_preds"][
+                        idx_example, nodes_idx.get(key)
+                    ] = 1
 
-    return global_scores, global_binary_preds
+    return output_values
 
 
 def global_to_local_predictions(
@@ -243,7 +240,6 @@ def global_to_local_predictions(
         n_classes_local = len(local_nodes_idx[level])
         lvl_preds = np.zeros((n_samples, n_classes_local))
         # Inverter local_nodes_idx[level]: node_name_local->idx_local
-        node_to_local_idx = local_nodes_idx[level]  # node_name_local → idx_local
 
         for sample_idx in range(n_samples):
             # Quais globais estão ativados neste sample
@@ -253,8 +249,8 @@ def global_to_local_predictions(
                 # Ajustar para nomes locais, se necessário
                 # node_name_local = node_name.replace(".", "/")
                 # Verifica se é nó deste nível
-                if node_name_local in node_to_local_idx:
-                    local_idx = node_to_local_idx[node_name_local]
+                if node_name_local in local_nodes_idx[level]:
+                    local_idx = local_nodes_idx[level][node_name_local]
                     lvl_preds[sample_idx, local_idx] = 1
         local_labels.append(lvl_preds)
     return local_labels
@@ -341,114 +337,14 @@ def get_probs_ancestral_descendent(probs_nivel_ancestral, probs_nivel_desc, r_ma
     return prob_ancestral, prob_descendente
 
 
-def apply_hierarchy_consistency_old(outputs, labels, args):
-    """
-    Apply hard hierarchy consistency to model outputs using an
-     ancestral correlation matrix.
-
-    This function ensures that predictions across hierarchical levels
-     remain consistent:
-    a child class can only be active if at least one of its ancestor
-    classes was active
-    in the previous level.
-
-    Args:
-        outputs (dict[int, torch.Tensor]): Dictionary mapping each hierarchy
-            level index to a tensor of predictions for that level. Each tensor
-            has shape
-            [n_samples, n_classes_at_level]. These predictions may already have sigmoid
-            applied, depending on the model configuration.
-        args: Object containing the following attributes:
-            - hmc_dataset: Dataset object containing:
-                • levels (dict): level index → metadata
-                • sorted_levels (list): list of level indices sorted by depth
-                • local_nodes_reverse (dict): mapping {level: {local_idx: node_name}}
-                • nodes_idx (dict): mapping {node_name: global_idx}
-            - r (torch.Tensor): Ancestral correlation matrix of shape
-             [1, N, N] or [N, N],
-              where r[i, j] = 1 if class i is a child (descendant) of class j.
-            - device (torch.device): Target device for computation.
-            - level_active (list[bool]): Flags indicating whether each level is active.
-            - max_depth (int): Maximum depth of the hierarchy.
-
-    Returns:
-        dict[int, torch.Tensor]:
-            Dictionary mapping each level index to a tensor of adjusted predictions,
-            ensuring hierarchical consistency. Each tensor has the same shape as the
-            original outputs[level], and is placed on args.device.
-    """
-    new_outputs = {}
-    global_idxs = [[] for _ in range(args.max_depth)]
-    r = args.r.squeeze(0).to(args.device)
-
-    for level_index, level in enumerate(args.hmc_dataset.sorted_levels):
-        level_preds = outputs[level_index].to(args.device)
-        level_labels = labels[level_index].to(args.device)
-        new_preds = []
-
-        if not args.level_active[level_index]:
-            new_preds = level_preds
-        else:
-            for sample_pred, sample_label in zip(level_preds, level_labels):
-                if level == 0:
-                    mask = torch.ones_like(
-                        sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
-                    )
-                else:
-                    mask = torch.zeros_like(
-                        sample_pred, dtype=sample_pred.dtype, device=sample_pred.device
-                    )
-
-                active_indices = torch.nonzero(sample_label, as_tuple=True)[0]
-
-                for local_idx in active_indices:
-                    node_name = args.hmc_dataset.local_nodes_reverse[level].get(
-                        local_idx
-                    )
-                    if not node_name:
-                        continue
-
-                    key = node_name.replace("/", ".")
-                    global_idx = args.hmc_dataset.nodes_idx.get(key)
-                    has_parent = False
-
-                    if level == 0:
-                        global_idxs[level].append(global_idx)
-                    else:
-                        parent_ids = global_idxs[0]
-                        # Check if current node has at least one ancestor active
-                        if torch.any(r[global_idx, parent_ids] == 1):
-                            has_parent = True
-
-                        if has_parent:
-                            global_idxs[level].append(global_idx)
-                            mask[local_idx] = 1
-                print(f"Level {level} - Active nodes: {len(global_idxs[level])}")
-
-                # print(mask)
-                result = sample_pred * mask
-                # print(result)
-
-                new_preds.append(result)
-
-            new_preds = torch.stack(new_preds, dim=0)
-
-        new_outputs[level] = new_preds.to(args.device)
-
-    return new_outputs
-
-
 def hierarchy_regularization(outputs, g):
     """
     Penalize child probability > parent probability
     """
     penalty = 0.0
     for parent, child in g.edges():
-        p_level, p_idx = parent
-        c_level, c_idx = child
-
-        parent_probs = torch.sigmoid(outputs[p_level][:, p_idx])
-        child_probs = torch.sigmoid(outputs[c_level][:, c_idx])
+        parent_probs = torch.sigmoid(outputs[parent[0]][:, parent[1]])
+        child_probs = torch.sigmoid(outputs[child[0]][:, child[1]])
 
         penalty += torch.mean(torch.relu(child_probs - parent_probs))
     return penalty

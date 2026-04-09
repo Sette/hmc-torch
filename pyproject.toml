@@ -38,6 +38,7 @@ dev = [
     "yq==3.4.3",
     "setuptools>=82.0.1",
     "ruff>=0.15.8",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.uv]
@@ -62,6 +63,8 @@ include = ["src/hmc"]
 [tool.hatch.build.targets.wheel.sources]
 "src/hmc" = "hmc"
 
-[tool.pylint.master]
-init-hook="import sys; sys.path.append('src')"
-
+[tool.pylint.main]
+# Garante que o Pylint encontre seus módulos dentro de src
+init-hook = "import sys; sys.path.append('src')"
+# Ativa a descoberta automática de módulos e pacotes
+recursive = true

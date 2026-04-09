@@ -49,13 +49,6 @@ def validate_step(args):
         f"{args.output_path}/train/{args.method}-{args.dataset_name}/{args.job_id}"
     )
 
-    local_inputs = {
-        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
-    }
-    local_outputs = {
-        level: torch.tensor([]) for _, level in enumerate(args.active_levels)
-    }
-
     threshold = 0.5
 
     # Get local scores
@@ -64,7 +57,7 @@ def validate_step(args):
 
     with torch.no_grad():
         for batch in args.val_loader:
-            _, local_inputs, local_outputs = compute_loss(
+            loss_dict = compute_loss(
                 batch,
                 args,
                 step="valid",
@@ -72,8 +65,8 @@ def validate_step(args):
 
     for level in args.active_levels:
         if args.level_active[level]:
-            y_pred = local_outputs[level].to("cpu").numpy()
-            y_true = local_inputs[level].to("cpu").int().numpy()
+            y_pred = loss_dict["local_outputs"][level].to("cpu").numpy()
+            y_true = loss_dict["local_inputs"][level].to("cpu").int().numpy()
             y_pred_binary = y_pred > threshold
 
             metrics = calculate_metrics(y_true, y_pred, y_pred_binary)

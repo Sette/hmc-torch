@@ -35,7 +35,7 @@ def compute_loss(batch, args, step="train"):
         configuration.
         step (str): The current step (train, val, or test).
     Returns:
-        tuple: A tuple containing the local losses, local inputs,
+        dict: A dictionary containing the local losses, local inputs,
         local outputs, and total loss.
     """
     x = batch[0].float().to(args.device)
@@ -44,9 +44,15 @@ def compute_loss(batch, args, step="train"):
     # Supondo que outputs seja o dict {str(level): logits}
     outputs = args.model(x)
 
-    local_losses = [0.0 for _ in range(args.hmc_dataset.max_depth)]
-    local_inputs = {level: torch.tensor([]) for level in args.active_levels}
-    local_outputs = {level: torch.tensor([]) for level in args.active_levels}
+    local_values = {"local_losses": {}}
+
+    local_values["local_losses"] = [0.0 for _ in range(args.hmc_dataset.max_depth)]
+    local_values["local_inputs"] = {
+        level: torch.tensor([]) for level in args.active_levels
+    }
+    local_values["local_outputs"] = {
+        level: torch.tensor([]) for level in args.active_levels
+    }
 
     total_cls_loss = 0.0
 
@@ -58,21 +64,25 @@ def compute_loss(batch, args, step="train"):
                 targets[level],
                 args.criterion_list[level],
             )
-            local_losses[level] += loss.item()
+            local_values["local_losses"][level][0] += loss.item()
             total_cls_loss += loss
 
             # Armazenamento para métricas/validação
-            if local_outputs[level].shape[0] == 0:
-                local_outputs[level] = outputs[
+            if local_values["local_outputs"][level].shape[0] == 0:
+                local_values["local_outputs"][level] = outputs[
                     str(level)
                 ].detach()  # detach para evitar acúmulo de grafo
-                local_inputs[level] = targets[level]
+                local_values["local_inputs"][level] = targets[level]
             else:
-                local_outputs[level] = torch.cat(
-                    (local_outputs[level], outputs[str(level)].detach()), dim=0
+                local_values["local_outputs"][level] = torch.cat(
+                    (
+                        local_values["local_outputs"][level],
+                        outputs[str(level)].detach(),
+                    ),
+                    dim=0,
                 )
-                local_inputs[level] = torch.cat(
-                    (local_inputs[level], targets[level]), dim=0
+                local_values["local_inputs"][level] = torch.cat(
+                    (local_values["local_inputs"][level], targets[level]), dim=0
                 )
 
     # 2. Cálculo da Hierarchical Consistency Loss (HCL)
@@ -101,7 +111,7 @@ def compute_loss(batch, args, step="train"):
             if args.level_active[level]:
                 optimizer.step()
 
-    return local_losses, local_inputs, local_outputs
+    return local_values
 
 
 class MaskedBCELoss(nn.Module):

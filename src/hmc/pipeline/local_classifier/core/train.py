@@ -121,12 +121,14 @@ def train_step(args):
         )
 
         for batch in args.train_loader:
-            local_train_losses, _, _ = compute_loss(
+            loss_dict = compute_loss(
                 batch,
                 args,
                 step="train",
             )
-        for level, local_train_loss in enumerate(local_train_losses):
+        for level, local_train_loss in enumerate(
+            loss_dict["local_train_losses"].values()
+        ):
             if args.level_active[level]:
                 local_train_losses[level] = local_train_loss / len(args.train_loader)
 

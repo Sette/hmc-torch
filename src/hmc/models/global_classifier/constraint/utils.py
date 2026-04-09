@@ -1,7 +1,11 @@
+"""
+This module contains the constraint utils for HMC global classifier.
+"""
+
 import torch
 
 
-def get_constr_out(x, R):
+def get_constr_out(x, r_matrix):
     """
     Given the network output x and a constraint matrix R,
     returns the modified output according to the hierarchical constraints in R.
@@ -15,16 +19,16 @@ def get_constr_out(x, R):
 
     # Expand c_out to match the shape of R:
     # If R is (C, C), c_out becomes (N, C, C)
-    c_out = c_out.expand(len(x), R.shape[1], R.shape[1])
+    c_out = c_out.expand(len(x), r_matrix.shape[1], r_matrix.shape[1])
 
     # Expand R similarly to (N, C, C)
-    R_batch = R.expand(len(x), R.shape[1], R.shape[1])
+    r_batch = r_matrix.expand(len(x), r_matrix.shape[1], r_matrix.shape[1])
 
     # Element-wise multiplication of R_batch by c_out.
     # This produces a (N, C, C) tensor.
     # torch.max(...) is taken along dimension=2, resulting in (N, C).
     # This extracts the maximum along the last dimension,
     # effectively applying the hierarchical constraints.
-    final_out, _ = torch.max(R_batch * c_out.double(), dim=2)
+    final_out, _ = torch.max(r_batch * c_out.double(), dim=2)
 
     return final_out

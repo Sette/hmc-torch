@@ -11,6 +11,7 @@ class HMCDatasetTorch:
     """
     Dataset torch para HMC local classifier.
     """
+
     def __init__(self, path):
         """
         Inicializa o dataset.
@@ -57,4 +58,8 @@ class HMCDatasetTorch:
             self.y.append(example["labels"])
 
     def set_y(self, y):
+        """
+        Define os labels do dataset.
+        :param y: Labels do dataset
+        """
         self.y = y

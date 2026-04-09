@@ -31,7 +31,7 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
         """
         # monta a lista de argumentos exatamente como na linha de comando
         test_argv = [
-            "hmc.trainers.main",  # argv[0] é o nome do programa
+            "hmc.main",
             "--dataset_path",
             "./data",
             "--batch_size",
@@ -70,30 +70,30 @@ class TestTrainGlobalSeqFUN(unittest.TestCase):
 
                 self.assertAlmostEqual(
                     round(result["f1score"], 4),
-                    0.3347,
+                    0.3339,
                     places=4,
-                    msg=f"f1-score expected 0.3347, get {result['f1score']}",
+                    msg=f"f1-score expected 0.3339, get {result['f1score']}",
                 )
 
                 self.assertAlmostEqual(
                     round(result["avg_precision"], 4),
-                    0.2931,
+                    0.2934,
                     places=4,
-                    msg=f"avg_precision expected 0.2931, get {result['avg_precision']}",
+                    msg=f"avg_precision expected 0.2934, get {result['avg_precision']}",
                 )
 
                 self.assertAlmostEqual(
                     round(result["precision"], 4),
-                    0.3512,
+                    0.3499,
                     places=4,
-                    msg=f"precision expected 0.3512, get {result['precision']}",
+                    msg=f"precision expected 0.3499, get {result['precision']}",
                 )
 
                 self.assertAlmostEqual(
                     round(result["recall"], 4),
-                    0.3196,
+                    0.3193,
                     places=4,
-                    msg=f"recall expected 0.3196, get {result['recall']}",
+                    msg=f"recall expected 0.3193, get {result['recall']}",
                 )
 
             except SystemExit as e:

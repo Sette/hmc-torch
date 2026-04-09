@@ -170,9 +170,10 @@ cython_debug/
 # Data
 data/
 .python-version
-/data
 gene-ontology-original.zip
 .continue/
+output/
 
 # Uv
 uv.lock
+pylint.yml

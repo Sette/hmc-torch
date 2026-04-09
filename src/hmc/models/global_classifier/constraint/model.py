@@ -113,16 +113,18 @@ class ConstrainedLightningModel(LightningModule):
         self.val_outputs = []
         self.test_outputs = []
 
-    def forward(self, x):
+    def forward(self, *args, **kwargs):
         """
         Forward pass for the ConstrainedLightningModel.
 
         Args:
-            x: Input tensor.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
 
         Returns:
             torch.Tensor: Output tensor.
         """
+        x = args[0]
         return self.model(x)
 
     def on_train_epoch_start(self) -> None:
@@ -145,17 +147,20 @@ class ConstrainedLightningModel(LightningModule):
         self.model.eval()
         self.test_outputs = []
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, *args, **kwargs):
         """
         Training step.
 
         Args:
-            batch: Batch of data.
-            batch_idx: Batch index.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
 
         Returns:
             torch.Tensor: Loss.
         """
+        batch = args[0]
+        batch_idx = args[1]
+
         print(f"Training step {batch_idx}")
         self.model.train()
         x, y = batch
@@ -174,16 +179,18 @@ class ConstrainedLightningModel(LightningModule):
 
         return loss
 
-    def validation_step(self, batch):
+    def validation_step(self, *args, **kwargs):
         """
         Validation step.
 
         Args:
-            batch: Batch of data.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
 
         Returns:
             torch.Tensor: Loss.
         """
+        batch = args[0]
         x, y = batch
         x = x.to(self.device)
 
@@ -191,16 +198,15 @@ class ConstrainedLightningModel(LightningModule):
 
         self.val_outputs.append({"output": output.cpu(), "y": y.cpu()})
 
-    def test_step(self, batch):
+    def test_step(self, *args, **kwargs):
         """
         Test step.
 
         Args:
-            batch: Batch of data.
-
-        Returns:
-            torch.Tensor: Loss.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
         """
+        batch = args[0]
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
 

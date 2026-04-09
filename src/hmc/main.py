@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from hmc.arguments import get_parser
-from hmc.pipeline.global_classifier.constraint.run import train_global
+from hmc.pipeline.global_classifier.main import train_global
 from hmc.pipeline.local_classifier.main import train_local
 from hmc.utils.train.job import create_job_id_name
 
@@ -201,9 +201,6 @@ def main():
         args.job_id,
     )
 
-    # args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    # args = cast(MyArgs, parser.parse_args())
     match args.method:
         case "local" | "local_tabat" | "local_hat" | "local_test":
             logging.info("Local method selected")
