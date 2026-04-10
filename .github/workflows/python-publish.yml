@@ -8,6 +8,10 @@
 
 name: Upload Python Package
 
+# Adicione este bloco para forçar o Node 24 e silenciar o aviso:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   release:
     types: [published]
