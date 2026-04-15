@@ -3,7 +3,7 @@ name = "hmc-torch"
 version = "0.0.7"
 description = "Hierarchical Multi-Label Classification Network in Pytorch"
 authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
-requires-python = ">=3.11,<4"
+requires-python = ">=3.11,<3.14"
 readme = "README.md"
 dependencies = [
     "tqdm==4.67.3",
