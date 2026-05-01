@@ -200,7 +200,7 @@ def find_global_best_threshold(
         }
 
         for actual_threshold in tqdm(thresholds):
-            if args.method != "global_baseline" and args.method != "global":
+            if args.method in ["global_baseline", "global"]:
                 y_pred_global, y_pred_global_binary = local_to_global_predictions(
                     all_y_pred,
                     args.hmc_dataset.local_nodes_idx,
@@ -232,7 +232,7 @@ def find_global_best_threshold(
         }
 
         for actual_threshold in tqdm(thresholds):
-            if args.method != "global_baseline" and args.method != "global":
+            if args.method in ["global_baseline", "global"]:
                 y_pred_global, y_pred_global_binary = local_to_global_predictions(
                     all_y_pred,
                     args.hmc_dataset.local_nodes_idx,

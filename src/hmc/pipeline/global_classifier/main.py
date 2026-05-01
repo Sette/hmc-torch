@@ -32,33 +32,33 @@ def train_global(dataset_name, args):
     logging.info("Experiment with %s dataset ", dataset_name)
     # Load train, val and test set
     args.device = torch.device(args.device)
-    data, ontology = dataset_name.split("_")
+    args.data, args.ontology = dataset_name.split("_")
 
-    hmc_dataset = initialize_dataset_experiments(
+    args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
         dataset_path=args.dataset_path,
         dataset_type="arff",
         is_global=True,
     )
-    train, valid, test = hmc_dataset.get_datasets()
+    args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
-    job_id = create_job_id_name(prefix="test")
+    args.job_id = create_job_id_name(prefix="test")
 
     args.to_eval = (
-        torch.as_tensor(hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+        torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
 
-    args.results_path = f"output/train/{args.method}-{args.dataset_name}/{job_id}"
+    args.results_path = f"output/train/{args.method}-{args.dataset_name}/{args.job_id}"
 
     experiment = True
     epochs_by_args = False
 
     if experiment:
-        args.hidden_dim = args.hidden_dims[ontology][data]
-        args.lr = args.lrs[ontology][data]
+        args.hidden_dim = args.hidden_dims[args.ontology][args.data]
+        args.lr = args.lrs[args.ontology][args.data]
         if not epochs_by_args:
-            args.epochs = args.all_epochs[ontology][data]
+            args.epochs = args.all_epochs[args.ontology][args.data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
@@ -75,78 +75,87 @@ def train_global(dataset_name, args):
         "weight_decay": args.weight_decay,
     }
 
-    r_matrix = np.zeros(hmc_dataset.a.shape)
-    np.fill_diagonal(r_matrix, 1)
-    g = nx.DiGraph(hmc_dataset.a)
-    for i in range(len(hmc_dataset.a)):
+    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
+    np.fill_diagonal(args.r_matrix, 1)
+    g = nx.DiGraph(args.hmc_dataset.a)
+    for i in range(len(args.hmc_dataset.a)):
         ancestors = list(nx.descendants(g, i))
         if ancestors:
-            r_matrix[i, ancestors] = 1
-    r_matrix = torch.tensor(r_matrix)
-    r_matrix = r_matrix.transpose(1, 0)
-    args.r_matrix = r_matrix.unsqueeze(0).to(args.device)
-    args.hmc_dataset = hmc_dataset
+            args.r_matrix[i, ancestors] = 1
+    args.r_matrix = torch.tensor(args.r_matrix)
+    args.r_matrix = args.r_matrix.transpose(1, 0)
+    args.r_matrix = args.r_matrix.unsqueeze(0).to(args.device)
 
-    scaler = preprocessing.StandardScaler().fit(np.concatenate((valid.x, valid.x)))
+    scaler = preprocessing.StandardScaler().fit(
+        np.concatenate((args.valid.x, args.valid.x))
+    )
 
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((valid.x, valid.x, valid.x))
+        np.concatenate((args.valid.x, args.valid.x, args.valid.x))
     )
-    valid.x = (
-        torch.tensor(scaler.transform(imp_mean.transform(valid.x)))
+    args.valid.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(args.valid.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    valid.y = torch.tensor(valid.y).clone().detach().to(args.device)
+    args.valid.y = torch.tensor(args.valid.y).clone().detach().to(args.device)
 
-    train.x = (
-        torch.tensor(scaler.transform(imp_mean.transform(train.x)))
+    args.train.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(args.train.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    train.y = torch.tensor(train.y).clone().detach().to(args.device)
+    args.train.y = torch.tensor(args.train.y).clone().detach().to(args.device)
 
-    test.x = (
-        torch.as_tensor(scaler.transform(imp_mean.transform(test.x)))
+    args.test.x = (
+        torch.as_tensor(scaler.transform(imp_mean.transform(args.test.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    test.y = torch.as_tensor(test.y).clone().detach().to(args.device)
+    args.test.y = torch.as_tensor(args.test.y).clone().detach().to(args.device)
 
     # Create loaders
-    train_dataset = list(zip(train.x, train.y))
+    args.train_dataset = list(zip(args.train.x, args.train.y))
     if "others" not in args.dataset_name:
         # val_dataset = [(x, y) for (x, y) in zip(valid.x, valid.y)]
-        for x, y in zip(valid.x, valid.y):
-            train_dataset.append((x, y))
-    test_dataset = list(zip(test.x, test.y))
+        for x, y in zip(args.valid.x, args.valid.y):
+            args.train_dataset.append((x, y))
+    args.test_dataset = list(zip(args.test.x, args.test.y))
 
     args.train_loader = DataLoader(
-        dataset=train_dataset, batch_size=args.batch_size, shuffle=True
+        dataset=args.train_dataset, batch_size=args.batch_size, shuffle=True
     )
     args.test_loader = DataLoader(
-        dataset=test_dataset, batch_size=args.batch_size, shuffle=False
+        dataset=args.test_dataset, batch_size=args.batch_size, shuffle=False
     )
 
-    if "GO" in dataset_name:
-        num_to_skip = 4
+    if "GO" in args.dataset_name:
+        args.num_to_skip = 4
     else:
-        num_to_skip = 1
+        args.num_to_skip = 1
 
+    return fit_trainer(args)
+
+
+def fit_trainer(args):
+    """
+    Fit the trainer
+    """
     if args.method == "globalLM":
-        args.model = ConstrainedLightningModel(
-            input_dim=args.input_dims[data],
-            hidden_dim=args.hidden_dim,
-            output_dim=args.output_dims[ontology][data] + num_to_skip,
-            hyperparams=args.hyperparams,
-            r_matrix=r_matrix,
-            to_eval=args.to_eval,
-            lr=args.lr,
-            weight_decay=args.weight_decay,
-        )
+        configs = {
+            "input_dim": args.input_dims[args.data],
+            "hidden_dim": args.hidden_dim,
+            "output_dim": args.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "hyperparams": args.hyperparams,
+            "r_matrix": args.r_matrix,
+            "to_eval": args.to_eval,
+            "lr": args.lr,
+            "weight_decay": args.weight_decay,
+        }
+        args.model = ConstrainedLightningModel(**configs)
 
         trainer = Trainer(
             max_epochs=args.num_epochs,
@@ -158,13 +167,16 @@ def train_global(dataset_name, args):
         trainer.fit(args.model, args.train_loader, args.val_loader)
         trainer.test(args.model, args.test_loader)
     else:
+        configs = {
+            "input_dim": args.input_dims[args.data],
+            "hidden_dim": args.hidden_dim,
+            "output_dim": args.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "hyperparams": args.hyperparams,
+            "r_matrix": args.r_matrix,
+            "baseline_model": True,
+        }
         # Create the model
-        args.model = ConstrainedModel(
-            args.input_dims[data],
-            args.hidden_dim,
-            args.output_dims[ontology][data] + num_to_skip,
-            args.hyperparams,
-            args.r_matrix,
-        )
+        args.model = ConstrainedModel(**configs)
 
         train_step(args)
+    return args

@@ -86,11 +86,6 @@ def get_train_methods(method: str) -> dict[str, object]:
 
 def assert_hyperparameter_lengths(
     args: object,
-    lr_values: list[float],
-    dropout_values: list[float],
-    hidden_dims: list[int],
-    num_layers_values: list[int],
-    weight_decay_values: list[float],
 ) -> None:
     """
     Validates that all hyperparameter lists have a length equal to the
@@ -112,11 +107,11 @@ def assert_hyperparameter_lengths(
         AssertionError: If any list does not have a length equal to args.max_depth.
     """
     checks: dict[str, Sequence[int | float]] = {
-        "lr_values": lr_values,
-        "dropout_values": dropout_values,
-        "hidden_dims": hidden_dims,
-        "num_layers_values": num_layers_values,
-        "weight_decay_values": weight_decay_values,
+        "lr_values": args.hyperparameters["lr_values"],
+        "dropout_values": args.hyperparameters["dropout_values"],
+        "hidden_dims": args.hyperparameters["hidden_dims"],
+        "num_layers_values": args.hyperparameters["num_layers_values"],
+        "weight_decay_values": args.hyperparameters["weight_decay_values"],
     }
     all_passed = True
     for name, lst in checks.items():
@@ -316,20 +311,17 @@ def train_local(args):
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
         logging.info(best_params)
     else:
-        args.lr_values = [float(x) for x in args.lr_values]
-        args.dropout_values = [float(x) for x in args.dropout_values]
-        # hidden_dims = [int(x) for x in args.hidden_dims]
-        args.num_layers_values = [int(x) for x in args.num_layers_values]
-        args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+        args.hyperparameters = {
+            "lr_values": [float(x) for x in args.lr_values],
+            "dropout_values": [float(x) for x in args.dropout_values],
+            "hidden_dims": [int(x) for x in args.hidden_dims],
+            "num_layers_values": [int(x) for x in args.num_layers_values],
+            "weight_decay_values": [float(x) for x in args.weight_decay_values],
+        }
 
         # Ensure all hyperparameter lists have the same length as 'max_depth'
         assert_hyperparameter_lengths(
             args,
-            args.lr_values,
-            args.dropout_values,
-            args.hidden_dims,
-            args.num_layers_values,
-            args.weight_decay_values,
         )
 
         params = {
