@@ -200,12 +200,16 @@ def find_global_best_threshold(
         }
 
         for actual_threshold in tqdm(thresholds):
-            y_pred_global, y_pred_global_binary = local_to_global_predictions(
-                all_y_pred,
-                args.hmc_dataset.local_nodes_idx,
-                args.hmc_dataset.nodes_idx,
-                threshold=actual_threshold,
-            )
+            if args.method != "global_baseline" and args.method != "global":
+                y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                    all_y_pred,
+                    args.hmc_dataset.local_nodes_idx,
+                    args.hmc_dataset.nodes_idx,
+                    threshold=actual_threshold,
+                )
+            else:
+                y_pred_global = all_y_pred
+                y_pred_global_binary = all_y_pred > actual_threshold
             metrics = calculate_metrics(
                 y_true_global_original,
                 y_pred_global,
@@ -228,12 +232,16 @@ def find_global_best_threshold(
         }
 
         for actual_threshold in tqdm(thresholds):
-            y_pred_global, y_pred_global_binary = local_to_global_predictions(
-                all_y_pred,
-                args.hmc_dataset.local_nodes_idx,
-                args.hmc_dataset.nodes_idx,
-                threshold=actual_threshold,
-            )
+            if args.method != "global_baseline" and args.method != "global":
+                y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                    all_y_pred,
+                    args.hmc_dataset.local_nodes_idx,
+                    args.hmc_dataset.nodes_idx,
+                    threshold=actual_threshold,
+                )
+            else:
+                y_pred_global = all_y_pred
+                y_pred_global_binary = all_y_pred > actual_threshold
             metrics = calculate_metrics(
                 y_true_global_original,
                 y_pred_global,

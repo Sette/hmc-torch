@@ -82,8 +82,8 @@ def train_step(args):
             y_test = torch.cat((y_test, y), dim=0)
 
     best_threshold, best_scores = find_global_best_threshold(
-        constr_test.data,
-        y_test,
+        constr_test.data[:, to_eval],
+        y_test[:, to_eval],
         args,
     )
 
