@@ -17,7 +17,7 @@ import torch
 
 from hmc.arguments import get_parser
 from hmc.pipeline.global_classifier.main import train_global
-from hmc.pipeline.local_classifier.main import train_local
+from hmc.pipeline.local_classifier.main import main_local
 from hmc.utils.train.job import create_job_id_name
 
 # Set a logger config
@@ -204,10 +204,7 @@ def main():
     match args.method:
         case "local" | "local_tabat" | "local_hat" | "local_test":
             logging.info("Local method selected")
-            train_local(args)
-        case "local_tabat":
-            logging.info("Local TabAt method selected")
-            train_local(args)
+            main_local(args)
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset_name, args)

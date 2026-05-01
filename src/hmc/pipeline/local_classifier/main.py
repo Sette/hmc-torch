@@ -183,6 +183,87 @@ def create_dataloader(
     return data_loader
 
 
+def main_local(args):
+    """
+    Main function to train and test a local hierarchical multi-label classifier.
+    """
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset", args.dataset_name)
+
+    args = parse_str_flags(args)
+
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset", args.dataset_name)
+
+    args.train_methods = get_train_methods(args.method)
+
+    # Load train, val and test set
+
+    if not torch.cuda.is_available():
+        print("CUDA is not available. Using CPU.")
+        args.device = torch.device("cpu")
+    else:
+        args.device = torch.device(args.device)
+
+    args.data, args.ontology = args.dataset_name.split("_")
+
+    create_dir(args.results_path)
+
+    # path
+    train_path = os.path.join(args.results_path, "train_dataset.pt")
+    val_path = os.path.join(args.results_path, "val_dataset.pt")
+    test_path = os.path.join(args.results_path, "test_dataset.pt")
+
+    args.hmc_dataset = initialize_dataset_experiments(
+        args.dataset_name,
+        device=args.device,
+        dataset_path=args.dataset_path,
+        dataset_type="arff",
+        is_global=False,
+    )
+
+    args.levels_size = args.hmc_dataset.dataset_values["levels_size"]
+    args.input_dim = args.input_dims[args.data]
+    args.max_depth = args.hmc_dataset.dataset_values["max_depth"]
+    args.to_eval = args.hmc_dataset.dataset_values["to_eval"]
+    data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
+    scaler = preprocessing.StandardScaler().fit(data_concat)
+    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
+
+    args.test_loader = create_dataloader(
+        data_test,
+        scaler=scaler,
+        imp_mean=imp_mean,
+        args=args,
+        is_test=True,
+    )
+    if args.save_torch_dataset:
+        torch.save(args.test_loader, test_path)
+
+    if args.method != "local_test":
+        args.val_dataloader = create_dataloader(
+            data_valid,
+            scaler=scaler,
+            imp_mean=imp_mean,
+            args=args,
+        )
+        args.train_dataloader = create_dataloader(
+            data_train,
+            scaler=scaler,
+            imp_mean=imp_mean,
+            args=args,
+        )
+        if args.save_torch_dataset:
+            # Save datasets in torch format
+            torch.save(args.train_dataloader, train_path)
+            torch.save(args.val_dataloader, val_path)
+
+        train_local(args)
+    test_local(args)
+    return args.score
+
+
 def train_local(args):
     """
     Trains a local hierarchical multi-label classifier using the specified \
@@ -219,84 +300,6 @@ def train_local(args):
             do not match the number of levels.
     """
 
-    logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
-
-    args = parse_str_flags(args)
-
-    logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
-
-    args.train_methods = get_train_methods(args.method)
-
-    if args.method == "local_constrained":
-        logging.info("Using constrained local model")
-
-    # Load train, val and test set
-
-    if not torch.cuda.is_available():
-        print("CUDA is not available. Using CPU.")
-        args.device = torch.device("cpu")
-    else:
-        args.device = torch.device(args.device)
-
-    args.data, args.ontology = args.dataset_name.split("_")
-
-    create_dir(args.results_path)
-
-    # path
-    train_path = os.path.join(args.results_path, "train_dataset.pt")
-    val_path = os.path.join(args.results_path, "val_dataset.pt")
-    test_path = os.path.join(args.results_path, "test_dataset.pt")
-    # is_global = args.method == "global" or args.method == "global_baseline"
-
-    hmc_dataset = initialize_dataset_experiments(
-        args.dataset_name,
-        device=args.device,
-        dataset_path=args.dataset_path,
-        dataset_type="arff",
-        is_global=False,
-    )
-    data_train, data_valid, data_test = hmc_dataset.get_datasets()
-    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
-    scaler = preprocessing.StandardScaler().fit(data_concat)
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
-
-    if args.method != "local_test":
-        val_dataloader = create_dataloader(
-            data_valid,
-            scaler=scaler,
-            imp_mean=imp_mean,
-            args=args,
-        )
-        train_dataloader = create_dataloader(data_train, scaler, imp_mean, args)
-
-        args.train_loader = train_dataloader
-        args.val_loader = val_dataloader
-        if args.save_torch_dataset:
-            # Save datasets in torch format
-            torch.save(train_dataloader, train_path)
-            torch.save(val_dataloader, val_path)
-
-    test_loader = create_dataloader(
-        data_test,
-        scaler=scaler,
-        imp_mean=imp_mean,
-        args=args,
-        is_test=True,
-    )
-
-    if args.save_torch_dataset:
-        # Save datasets in torch format
-        torch.save(test_loader, test_path)
-
-    args.test_loader = test_loader
-    args.hmc_dataset = hmc_dataset
-    args.levels_size = hmc_dataset.dataset_values["levels_size"]
-    args.input_dim = args.input_dims[args.data]
-    args.max_depth = hmc_dataset.dataset_values["max_depth"]
-    args.to_eval = hmc_dataset.dataset_values["to_eval"]
-
     if args.active_levels is None:
         args.active_levels = list(range(args.max_depth))
     else:
@@ -304,7 +307,7 @@ def train_local(args):
     logging.info("Active levels: %s", args.active_levels)
 
     args.criterion_list = [
-        nn.BCELoss() for _ in hmc_dataset.dataset_values["levels_size"]
+        nn.BCELoss() for _ in args.hmc_dataset.dataset_values["levels_size"]
     ]
 
     if args.hpo:
@@ -328,36 +331,46 @@ def train_local(args):
             args.num_layers_values,
             args.weight_decay_values,
         )
-        if args.method == "local_tabat":
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_dims": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropouts": args.dropout_values,
-                "embed_dim": 512,
-                "num_heads": 8,
-                "pooling": "mean",
-            }
-        else:
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_dims": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropouts": args.dropout_values,
-                "active_levels": args.active_levels,
-                "results_path": args.results_path,
-            }
+
+        params = {
+            "levels_size": args.hmc_dataset.levels_size,
+            "input_size": args.input_dims[args.data],
+            "hidden_dims": args.hidden_dims,
+            "num_layers": args.num_layers_values,
+            "dropouts": args.dropout_values,
+            "active_levels": args.active_levels,
+            "results_path": args.results_path,
+        }
 
         model = args.train_methods["model"](**params)
         args.model = model
         logging.info(model)
-        if args.method != "local_test":
-            start_train = time.perf_counter()
-            args.train_methods["train_step"](args)
-            end_train = time.perf_counter()
-            args.usage = log_system_info(args.device)
-            args.training_time_seconds = end_train - start_train
-            print("Tempo de treino: %f segundos", args.training_time_seconds)
-        args.train_methods["test_step"](args)
+
+        start_train = time.perf_counter()
+        args.train_methods["train_step"](args)
+        end_train = time.perf_counter()
+        args.usage = log_system_info(args.device)
+        args.training_time_seconds = end_train - start_train
+        print("Tempo de treino: %f segundos", args.training_time_seconds)
+
+
+def test_local(args):
+    """
+    Tests a local hierarchical multi-label classifier using the specified \
+        arguments.
+    """
+
+    params = {
+        "levels_size": args.hmc_dataset.levels_size,
+        "input_size": args.input_dims[args.data],
+        "hidden_dims": args.hidden_dims,
+        "num_layers": args.num_layers_values,
+        "dropouts": args.dropout_values,
+        "active_levels": args.active_levels,
+        "results_path": args.results_path,
+    }
+
+    model = args.train_methods["model"](**params)
+    args.model = model
+    logging.info(model)
+    args.train_methods["test_step"](args)
