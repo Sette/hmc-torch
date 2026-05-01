@@ -5,7 +5,6 @@ Train a global classifier
 import logging
 import time
 
-import numpy as np
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from torch import nn
@@ -20,6 +19,7 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 from hmc.utils.train.job import (
+    find_global_best_threshold,
     log_system_info,
 )
 
@@ -81,57 +81,11 @@ def train_step(args):
             constr_test = torch.cat((constr_test, cpu_constrained_output), dim=0)
             y_test = torch.cat((y_test, y), dim=0)
 
-    if args.best_threshold:
-        logging.info("finding best threshold")
-
-        thresholds = np.linspace(0.1, 0.9, 17)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
-
-        for actual_threshold in tqdm(thresholds):
-            score = precision_recall_fscore_support(
-                y_test[:, to_eval],
-                constr_test.data[:, to_eval] > actual_threshold,
-                average="micro",
-                zero_division=0,
-            )
-
-            if score[2] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": score[0],
-                    "recall": score[1],
-                    "f1score": score[2],
-                }
-        best_threshold = round(best_threshold, 4)
-        logging.info("Best threshold: %.44f", best_threshold)
-        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
-
-        for actual_threshold in tqdm(thresholds):
-            score = precision_recall_fscore_support(
-                y_test[:, to_eval],
-                constr_test.data[:, to_eval] > actual_threshold,
-                average="micro",
-                zero_division=0,
-            )
-
-            if score[2] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": score[0],
-                    "recall": score[1],
-                    "f1score": score[2],
-                }
+    best_threshold, best_scores = find_global_best_threshold(
+        constr_test.data,
+        y_test,
+        args,
+    )
 
     y_pred_local_binary = global_to_local_predictions(
         constr_test.data > best_threshold,
