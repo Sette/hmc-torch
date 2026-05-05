@@ -6,7 +6,6 @@ import logging
 import time
 from dataclasses import dataclass
 
-import numpy as np
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from torch import nn
@@ -21,10 +20,9 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 from hmc.utils.train.job import (
+    find_global_best_threshold,
     log_system_info,
 )
-
-from hmc.utils.train.job import find_global_best_threshold
 
 
 @dataclass
