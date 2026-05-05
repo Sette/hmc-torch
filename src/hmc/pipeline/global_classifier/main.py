@@ -167,13 +167,14 @@ def fit_trainer(args):
         trainer.fit(args.model, args.train_loader, args.val_loader)
         trainer.test(args.model, args.test_loader)
     else:
+        baseline = args.method == "global_baseline"
         configs = {
             "input_dim": args.registry.input_dims[args.data],
             "hidden_dim": args.hidden_dim,
             "output_dim": args.registry.output_dims[args.ontology][args.data] + args.num_to_skip,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
-            "baseline_model": True,
+            "baseline_model": baseline,
         }
         # Create the model
         args.model = ConstrainedModel(**configs)

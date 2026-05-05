@@ -4,12 +4,14 @@ Train a global classifier
 
 import logging
 import time
-import argparse
+from dataclasses import dataclass
+
+import numpy as np
 import torch
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
-from dataclasses import dataclass
+from torch import nn
 from tqdm import tqdm
-from typing import Any, Dict, Union
+
 from hmc.models.global_classifier.constraint.model import (
     get_constr_out,
 )
@@ -19,48 +21,42 @@ from hmc.utils.path.output import (
     save_dict_to_json,
 )
 from hmc.utils.train.job import (
-    find_global_best_threshold,
     log_system_info,
 )
 
 
-# 2. Data Transfer Object (DTO) - Only for moving tensors safely
 @dataclass
 class EvaluationDataDTO:
-    """
-    Data Transfer Object to carry PyTorch evaluation tensors.
-    """
+    """Data Transfer Object to carry PyTorch evaluation tensors."""
 
-    y_test_local_binary: list[torch.Tensor]
-    y_pred_local_binary: list[torch.Tensor]
+    y_test_local_binary: list
+    y_pred_local_binary: list
     y_test: torch.Tensor
     constr_test_data: torch.Tensor
     to_eval: torch.Tensor
 
 
-def train_step(
-    args,
-):
+def train_step(args):
     """
-    Train a global classifier
+    Train and evaluate a global classifier.
     """
-    args.model = args.model.to(args.device)
-    args.to_eval = args.to_eval.to(args.device)
+    model = args.model.to(args.device)
+    to_eval = args.to_eval.to(args.device)
 
     optimizer = torch.optim.Adam(
-        args.model.parameters(), lr=args.lr, weight_decay=args.weight_decay
+        model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-    criterion = torch.nn.BCELoss()
+    criterion = nn.BCELoss()
 
     start_train = time.perf_counter()
     for _ in range(args.epochs):
-        args.model.train()
+        model.train()
         for _, (x, labels) in tqdm(enumerate(args.train_loader)):
             x = x.to(args.device)
             labels = labels.to(args.device)
 
             optimizer.zero_grad()
-            output = args.model(x.float())
+            output = model(x.float())
 
             # MCLoss
             constr_output = get_constr_out(output, args.r_matrix)
@@ -68,85 +64,105 @@ def train_step(
             train_output = get_constr_out(train_output, args.r_matrix)
             train_output = (1 - labels) * constr_output.double() + labels * train_output
 
-            loss = criterion(train_output[:, args.to_eval], labels[:, args.to_eval])
+            loss = criterion(train_output[:, to_eval], labels[:, to_eval])
             loss.backward()
             optimizer.step()
-    args.usage = log_system_info(args.device)
+
+    usage = log_system_info(args.device)
     end_train = time.perf_counter()
-    args.total_time = end_train - start_train
-    print("Tempo de treino: %f segundos", args.total_time)
-    return test_step(args)
+    total_time = end_train - start_train
+    print("Tempo de treino: %f segundos", total_time)
 
-
-def test_step(
-    args,
-    eval_data: EvaluationDataDTO,
-):
-    """
-    Test a global classifier
-    """
-    args.model.eval()
+    constr_test = None
+    y_test = None
     for i, (x, y) in enumerate(args.test_loader):
-        args.model.eval()
+        model.eval()
 
         x = x.to(args.device)
         y = y.to(args.device)
 
-        constrained_output = args.model(x.float())
-        predicted = constrained_output.data > 0.5
-        predicted = predicted.to("cpu")
-        constrained_output = constrained_output.to("cpu")
+        constrained_output = model(x.float())
+        cpu_constrained_output = constrained_output.to("cpu")
         y = y.to("cpu")
-        args.to_eval = args.to_eval.to("cpu")
+        to_eval = to_eval.to("cpu")
 
         if i == 0:
-            args.predicted_test = predicted
-            args.constr_test = constrained_output
-            args.y_test = y
+            constr_test = cpu_constrained_output
+            y_test = y
         else:
-            args.predicted_test = torch.cat((args.predicted_test, predicted), dim=0)
-            args.constr_test = torch.cat((args.constr_test, constrained_output), dim=0)
-            args.y_test = torch.cat((args.y_test, y), dim=0)
+            constr_test = torch.cat((constr_test, cpu_constrained_output), dim=0)
+            y_test = torch.cat((y_test, y), dim=0)
 
-    args.best_threshold, _ = find_global_best_threshold(
-        args.constr_test.data[:, args.to_eval],
-        args.y_test[:, args.to_eval],
-        args,
-    )
+    best_threshold = 0.5
+    if args.best_threshold:
+        logging.info("finding best threshold")
 
-    args.y_pred_local_binary = global_to_local_predictions(
-        args.constr_test.data > args.best_threshold,
-        args.hmc_dataset.dataset_values["local_nodes_idx"],
-        args.hmc_dataset.dataset_values["nodes_idx"],
-    )
-
-    args.y_test_local_binary = global_to_local_predictions(
-        args.y_test,
-        args.hmc_dataset.dataset_values["local_nodes_idx"],
-        args.hmc_dataset.dataset_values["nodes_idx"],
-    )
-
-    return get_local_scores(args)
-
-
-def get_local_scores(
-    config: argparse.Namespace,
-    eval_data: EvaluationDataDTO,
-):
-    """
-    Get local scores
-    """
-    local_test_score: Dict[Union[int, str], Any] = {
-        level: {
-            "f1score": 0.0,
-            "precision": 0.0,
-            "recall": 0.0,
+        thresholds = np.linspace(0.1, 0.9, 17)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
         }
-        for level in range(len(eval_data.y_test_local_binary))
-    }
 
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test[:, to_eval],
+                constr_test.data[:, to_eval] > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+
+        best_threshold = round(best_threshold, 4)
+        logging.info("Best threshold: %.4f", best_threshold)
+        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test[:, to_eval],
+                constr_test.data[:, to_eval] > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+
+    y_pred_local_binary = global_to_local_predictions(
+        constr_test.data > best_threshold,
+        args.hmc_dataset.dataset_values["local_nodes_idx"],
+        args.hmc_dataset.dataset_values["nodes_idx"],
+    )
+
+    y_test_local_binary = global_to_local_predictions(
+        y_test,
+        args.hmc_dataset.dataset_values["local_nodes_idx"],
+        args.hmc_dataset.dataset_values["nodes_idx"],
+    )
+
+    local_test_score = {
+        level: {"f1score": None, "precision": None, "recall": None}
+        for level in range(len(y_test_local_binary))
+    }
     for level, (y_test_local, y_pred_local) in enumerate(
-        zip(eval_data.y_test_local_binary, eval_data.y_pred_local_binary)
+        zip(y_test_local_binary, y_pred_local_binary)
     ):
         score = precision_recall_fscore_support(
             y_test_local,
@@ -154,12 +170,9 @@ def get_local_scores(
             average="micro",
             zero_division=0,
         )
-
-        # PREVENÇÃO: Envolver em float() para evitar erro de serialização com numpy.float64
-        local_test_score[level]["precision"] = float(score[0])  # Precision
-        local_test_score[level]["recall"] = float(score[1])  # Recall
-        local_test_score[level]["f1score"] = float(score[2])  # F1-score
-
+        local_test_score[level]["precision"] = score[0]
+        local_test_score[level]["recall"] = score[1]
+        local_test_score[level]["f1score"] = score[2]
         logging.info("Local evaluation score:")
         logging.info(
             "Level %d Precision: %.4f, Recall: %.4f, F1-score: %.4f",
@@ -169,63 +182,39 @@ def get_local_scores(
             score[2],
         )
 
-    y_true_global = eval_data.y_test[:, eval_data.to_eval].cpu().numpy()
-    y_pred_global = (
-        (eval_data.constr_test.data[:, eval_data.to_eval] > config.best_threshold)
-        .cpu()
-        .numpy()
-    )
-
     score = precision_recall_fscore_support(
-        y_true_global,
-        y_pred_global,
+        y_test[:, to_eval],
+        constr_test.data[:, to_eval] > best_threshold,
         average="micro",
         zero_division=0,
     )
 
-    # score = precision_recall_fscore_support(
-    #     args.y_test[:, args.to_eval.to("cpu")],
-    #     args.constr_test.data[:, args.to_eval.to("cpu")] > args.best_threshold,
-    #     average="micro",
-    #     zero_division=0,
-    # )
-
     local_test_score["global"] = {}
-
-    local_test_score["global"]["precision"] = float(score[0])  # Precision
-    local_test_score["global"]["recall"] = float(score[1])  # Recall
-    local_test_score["global"]["f1score"] = float(score[2])  # F1-score
-    local_test_score["global"]["best_threshold"] = float(args.best_threshold)
-
+    local_test_score["global"]["precision"] = float(score[0])
+    local_test_score["global"]["recall"] = float(score[1])
+    local_test_score["global"]["f1score"] = float(score[2])
+    local_test_score["global"]["best_threshold"] = float(best_threshold)
     local_test_score["global"]["avg_precision"] = float(
         average_precision_score(
-            y_true_global,
-            y_pred_global,
-            average="micro",
+            y_test[:, to_eval], constr_test.data[:, to_eval], average="micro"
         )
     )
+    local_test_score["global"]["usage"] = usage
+    local_test_score["global"]["training_time_seconds"] = total_time
 
-    local_test_score["global"]["usage"] = args.usage
-    local_test_score["global"]["training_time_seconds"] = args.total_time
-
-    logging.info(
-        "Global evaluation score with best threshold %.3f", args.best_threshold
-    )
+    logging.info("Global evaluation score with best threshold %.3f", best_threshold)
     logging.info(
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
 
     create_dir(args.results_path)
-
     save_dict_to_json(
         local_test_score,
         f"{args.results_path}/test-scores.json",
     )
-
     logging.info(
         "Average precision score: %.4f", local_test_score["global"]["avg_precision"]
     )
 
     args.score = local_test_score["global"]
-
     return args
