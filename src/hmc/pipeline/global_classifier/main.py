@@ -49,7 +49,9 @@ def train_global(dataset_name, args):
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
 
-    args.results_path = f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
+    args.results_path = (
+        f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
+    )
 
     experiment = True
     epochs_by_args = False
@@ -148,7 +150,8 @@ def fit_trainer(args):
         configs = {
             "input_dim": args.registry.input_dims[args.data],
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.registry.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "output_dim": args.registry.output_dims[args.ontology][args.data]
+            + args.num_to_skip,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "to_eval": args.to_eval,
@@ -171,7 +174,8 @@ def fit_trainer(args):
         configs = {
             "input_dim": args.registry.input_dims[args.data],
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.registry.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "output_dim": args.registry.output_dims[args.ontology][args.data]
+            + args.num_to_skip,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "baseline_model": baseline,

@@ -45,9 +45,7 @@ def validate_step(args):
 
     args.model.eval()
 
-    args.result_path = (
-        f"{args.output_path}/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
-    )
+    args.result_path = f"{args.output_path}/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
 
     threshold = 0.5
 
