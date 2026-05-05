@@ -90,7 +90,7 @@ def test_step(args):
     args.score = local_score["f1score"]  # F1-score
 
     local_score["metadata"] = {
-        "dataset": args.dataset_name,
+        "dataset": args.dataset.dataset_name,
         "job_id": args.job_id,
         "method": args.method,
         "epochs_to_evaluate": args.epochs_to_evaluate,

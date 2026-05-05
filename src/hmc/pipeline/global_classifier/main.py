@@ -37,7 +37,7 @@ def train_global(dataset_name, args):
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
-        dataset_path=args.dataset_path,
+        dataset_path=args.dataset.dataset_path,
         dataset_type="arff",
         is_global=True,
     )
@@ -49,16 +49,16 @@ def train_global(dataset_name, args):
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
 
-    args.results_path = f"output/train/{args.method}-{args.dataset_name}/{args.job_id}"
+    args.results_path = f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
 
     experiment = True
     epochs_by_args = False
 
     if experiment:
-        args.hidden_dim = args.hidden_dims[args.ontology][args.data]
-        args.lr = args.lrs[args.ontology][args.data]
+        args.hidden_dim = args.registry.hidden_dims[args.ontology][args.data]
+        args.lr = args.registry.lrs[args.ontology][args.data]
         if not epochs_by_args:
-            args.epochs = args.all_epochs[args.ontology][args.data]
+            args.epochs = args.registry.all_epochs[args.ontology][args.data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
@@ -119,7 +119,7 @@ def train_global(dataset_name, args):
 
     # Create loaders
     args.train_dataset = list(zip(args.train.x, args.train.y))
-    if "others" not in args.dataset_name:
+    if "others" not in args.dataset.dataset_name:
         # val_dataset = [(x, y) for (x, y) in zip(valid.x, valid.y)]
         for x, y in zip(args.valid.x, args.valid.y):
             args.train_dataset.append((x, y))
@@ -132,7 +132,7 @@ def train_global(dataset_name, args):
         dataset=args.test_dataset, batch_size=args.batch_size, shuffle=False
     )
 
-    if "GO" in args.dataset_name:
+    if "GO" in args.dataset.dataset_name:
         args.num_to_skip = 4
     else:
         args.num_to_skip = 1
@@ -146,9 +146,9 @@ def fit_trainer(args):
     """
     if args.method == "globalLM":
         configs = {
-            "input_dim": args.input_dims[args.data],
+            "input_dim": args.registry.input_dims[args.data],
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "output_dim": args.registry.output_dims[args.ontology][args.data] + args.num_to_skip,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "to_eval": args.to_eval,
@@ -168,9 +168,9 @@ def fit_trainer(args):
         trainer.test(args.model, args.test_loader)
     else:
         configs = {
-            "input_dim": args.input_dims[args.data],
+            "input_dim": args.registry.input_dims[args.data],
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.output_dims[args.ontology][args.data] + args.num_to_skip,
+            "output_dim": args.registry.output_dims[args.ontology][args.data] + args.num_to_skip,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "baseline_model": True,

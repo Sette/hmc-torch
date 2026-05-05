@@ -259,12 +259,12 @@ def optimize_hyperparameters(args):
     args.job_id = create_job_id_name(prefix="hpo")
 
     args.results_path = (
-        f"{args.output_path}/hpo/{args.method}/{args.dataset_name}/{args.job_id}"
+        f"{args.output_path}/hpo/{args.method}/{args.dataset.dataset_name}/{args.job_id}"
     )
 
     args.best_params_per_level = {}
 
-    args.input_size = args.input_dims[args.data]
+    args.input_size = args.registry.input_dims[args.data]
 
     create_dir(args.results_path)
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
@@ -299,7 +299,7 @@ def optimize_hyperparameters(args):
 
         save_dict_to_json(
             level_parameters,
-            f"{args.results_path}/best_params_{args.dataset_name}-{level}.json",
+            f"{args.results_path}/best_params_{args.dataset.dataset_name}-{level}.json",
         )
 
         logging.info(
@@ -308,7 +308,7 @@ def optimize_hyperparameters(args):
 
     save_dict_to_json(
         args.best_params_per_level,
-        f"{args.results_path}/best_params_{args.dataset_name}.json",
+        f"{args.results_path}/best_params_{args.dataset.dataset_name}.json",
     )
 
     args.score = None

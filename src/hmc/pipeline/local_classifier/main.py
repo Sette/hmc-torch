@@ -47,7 +47,7 @@ from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
 from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters
 from hmc.utils.path.files import create_dir
-from hmc.utils.train.job import log_system_info, parse_str_flags
+from hmc.utils.train.job import log_system_info
 
 
 def get_train_methods(method: str) -> dict[str, object]:
@@ -183,12 +183,7 @@ def main_local(args):
     Main function to train and test a local hierarchical multi-label classifier.
     """
     logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
-
-    args = parse_str_flags(args)
-
-    logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
+    logging.info("Experiment with %s dataset", args.dataset.dataset_name)
 
     args.train_methods = get_train_methods(args.method)
 
@@ -200,7 +195,7 @@ def main_local(args):
     else:
         args.device = torch.device(args.device)
 
-    args.data, args.ontology = args.dataset_name.split("_")
+    args.data, args.ontology = args.dataset.dataset_name.split("_")
 
     create_dir(args.results_path)
 
@@ -210,15 +205,15 @@ def main_local(args):
     test_path = os.path.join(args.results_path, "test_dataset.pt")
 
     args.hmc_dataset = initialize_dataset_experiments(
-        args.dataset_name,
+        args.dataset.dataset_name,
         device=args.device,
-        dataset_path=args.dataset_path,
+        dataset_path=args.dataset.dataset_path,
         dataset_type="arff",
         is_global=False,
     )
 
     args.levels_size = args.hmc_dataset.dataset_values["levels_size"]
-    args.input_dim = args.input_dims[args.data]
+    args.input_dim = args.registry.input_dims[args.data]
     args.max_depth = args.hmc_dataset.dataset_values["max_depth"]
     args.to_eval = args.hmc_dataset.dataset_values["to_eval"]
     data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
@@ -233,7 +228,7 @@ def main_local(args):
         args=args,
         is_test=True,
     )
-    if args.save_torch_dataset:
+    if args.dataset.save_torch_dataset:
         torch.save(args.test_loader, test_path)
 
     if args.method != "local_test":
@@ -249,7 +244,7 @@ def main_local(args):
             imp_mean=imp_mean,
             args=args,
         )
-        if args.save_torch_dataset:
+        if args.dataset.save_torch_dataset:
             # Save datasets in torch format
             torch.save(args.train_dataloader, train_path)
             torch.save(args.val_dataloader, val_path)
@@ -326,7 +321,7 @@ def train_local(args):
 
         params = {
             "levels_size": args.hmc_dataset.levels_size,
-            "input_size": args.input_dims[args.data],
+            "input_size": args.registry.input_dims[args.data],
             "hidden_dims": args.hidden_dims,
             "num_layers": args.num_layers_values,
             "dropouts": args.dropout_values,
@@ -354,7 +349,7 @@ def test_local(args):
 
     params = {
         "levels_size": args.hmc_dataset.levels_size,
-        "input_size": args.input_dims[args.data],
+        "input_size": args.registry.input_dims[args.data],
         "hidden_dims": args.hidden_dims,
         "num_layers": args.num_layers_values,
         "dropouts": args.dropout_values,

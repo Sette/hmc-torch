@@ -1,164 +1,240 @@
+# HMC Torch
 
-# HMC Torch Project Summary
+Hierarchical Multi-Label Classification (HMC) network implemented in PyTorch.
+
+Supports two classification strategies — **global** (single model for all labels) and **local** (one model per hierarchy level) — with optional hyperparameter optimization via Optuna.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Datasets](#datasets)
+- [Running](#running)
+- [Configuration](#configuration)
+- [Testing](#testing)
+
+---
 
 ## Overview
-This document summarizes the HMC Torch project, a hierarchical multi-label classification network implemented in PyTorch. The project is currently at version 0.0.1 and includes various Jupyter notebooks, scripts, and configuration files.
 
-## Key Updates
-- **Version**: 0.0.1
-- **Main Changes**:
-  - Removed the main function from the training file to simplify the code structure.
-  - Updated `.gitignore` to improve version control management.
+HMC problems involve predicting labels that are organized in a hierarchy (e.g., Gene Ontology). This project benchmarks two approaches:
+
+| Method | Description |
+|---|---|
+| `global` | C-HMCNN: single MLP constrained by a hierarchy matrix (R-matrix) |
+| `global_baseline` | Same model without hierarchical constraint enforcement |
+| `local` | One MLP per hierarchy level, trained jointly with early stopping |
+| `local_test` | Local model in inference-only mode |
+
+---
 
 ## Project Structure
-This section outlines the key components of the project to help users navigate the codebase.
-The project contains the following key files and directories:
-- **Notebooks**:
-  - `Dataset.ipynb`: Handles dataset loading and preprocessing.
-  - `Executer-model.ipynb`: Contains the model execution logic.
-  - `Inference.ipynb`: Used for making predictions with the trained model.
-- **Scripts**:
-  - `executer.py`: Core execution script for the model.
-- **Configuration**:
-  - `pyproject.toml`: Project configuration file.
-  - `poetry.lock`: Dependency lock file.
-- **Documentation**:
-  - `README.md`: Provides an overview and instructions for the project.
-  - `LICENSE`: Licensing information for the project.
-
-## Prerequisites Installation
-
-Before setting up the project, ensure you have the following prerequisites installed and configured:
-
-### 1. Create a Virtual Environment
-It is recommended to use a virtual environment to manage dependencies. Run the following command to create one:
-
-```bash
-python -m venv .venv
-```
-
-#### Activation Steps:
-- **Command Prompt (Windows):**
-  ```bash
-  source .\.venv\Scripts\activate
-  ```
-- **PowerShell (Windows):**
-  ```bash
-  .\.venv\Scripts\Activate.ps1
-  ```
-- **Linux/MacOS:**
-  ```bash
-  source .venv/bin/activate
-  ```
-
-### 2. Install Poetry
-Poetry is used for dependency management. Install it using pip or another method:
-
-```bash
-pip install poetry
-```
-
-### 3a. GPU Setup (Optional)
-If you plan to use a GPU for training, configure the project with the following commands:
-
-```bash
-poetry source add pytorch-gpu https://download.pytorch.org/whl/cu118 --priority=explicit &&
-poetry source remove pytorch-cpu || true
-```
-
-### 3b. CPU Setup (Optional)
-If you plan to use a CPU for training, configure the project with the following commands:
-
-```bash
-poetry source add pytorch-cpu https://download.pytorch.org/whl/cpu --priority=explicit &&
-poetry source remove pytorch-gpu || true
 
 ```
-
-
-These steps will ensure that the project is ready for GPU-based execution.
-
-### 4. Install Dependencies
-Once the virtual environment is activated and Poetry is installed, run the following command to install all project dependencies:
-
-```bash
-poetry install --no-root --with dev
+hmc-torch/
+├── src/hmc/
+│   ├── arguments.py                   # Args dataclass + argparse CLI (parse_args)
+│   ├── main.py                        # Entry point — routes to global or local pipeline
+│   ├── env.py                         # Environment variables
+│   │
+│   ├── datasets/
+│   │   ├── dataset_torch.py           # PyTorch dataset wrapper
+│   │   ├── gofun/
+│   │   │   └── dataset_arff.py        # ARFF file loader (Gene Ontology / FUN)
+│   │   └── manager/
+│   │       └── dataset_manager.py     # initialize_dataset_experiments — main loader entry
+│   │
+│   ├── models/
+│   │   ├── base.py                    # Base model class
+│   │   ├── global_classifier/
+│   │   │   └── constraint/
+│   │   │       ├── model.py           # ConstrainedModel, ConstrainedLightningModel
+│   │   │       └── utils.py           # get_constr_out — applies R-matrix constraint
+│   │   └── local_classifier/
+│   │       ├── baseline/
+│   │       │   └── model.py           # HMCLocalModel — per-level MLP ensemble
+│   │       └── networks.py            # Shared network building blocks
+│   │
+│   ├── pipeline/
+│   │   ├── global_classifier/
+│   │   │   ├── main.py                # train_global() — setup, data loading, fit
+│   │   │   └── core/
+│   │   │       └── train.py           # train_step, test_step, get_local_scores
+│   │   └── local_classifier/
+│   │       ├── main.py                # main_local(), train_local(), test_local()
+│   │       ├── core/
+│   │       │   ├── train.py           # train_step — progressive level training
+│   │       │   ├── validate.py        # validate_step — per-level metrics + early stopping
+│   │       │   └── test.py            # test_step — threshold search + final scores
+│   │       └── hpo/
+│   │           └── hpo_local.py       # optimize_hyperparameters — Optuna study per level
+│   │
+│   └── utils/
+│       ├── dataset/
+│       │   ├── labels.py              # Label conversion (local↔global), binarization
+│       │   └── convert_hpo_json.py    # HPO result format conversion
+│       ├── metrics/
+│       │   └── calculate_metrics.py   # precision, recall, f1, avg precision
+│       ├── path/
+│       │   ├── files.py               # create_dir
+│       │   └── output.py              # save_dict_to_json
+│       ├── predict/
+│       │   └── metrics.py
+│       └── train/
+│           ├── early_stopping.py      # check_early_stopping_normalized, check_loss
+│           ├── job.py                 # create_job_id_name, timers, threshold search
+│           └── losses.py              # compute_loss, focal loss, hierarchical loss
+│
+├── tests/
+│   ├── conftest.py
+│   └── train_global_test.py           # Integration test for global pipeline
+│
+├── config.yaml                        # HPO-tuned hyperparameters per dataset
+├── run.sh                             # Main training script (reads config.yaml via yq)
+├── run.ps1                            # Windows equivalent
+├── Makefile                           # lint, test, build targets
+├── pyproject.toml                     # Project metadata and dependencies (uv)
+└── uv.lock                            # Locked dependency tree
 ```
 
-By completing these steps, your environment will be fully prepared to run the HMC Torch project.
+---
 
-### 5. Download dataset Using Kaggle (Optional)
+## Installation
 
-##### 1. Download dataset via Kaggle CLI
+The project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+
+```bash
+# Install uv (if not already installed)
+pip install uv
+
+# Install all dependencies including dev tools
+uv sync --all-groups
+```
+
+Set the Python path before running:
+
+```bash
+export PYTHONPATH=src
+```
+
+---
+
+## Datasets
+
+Datasets follow the naming convention `{data}_{ontology}`, e.g. `seq_FUN`, `expr_GO`.
+
+**Supported datasets:**
+
+| Group | Datasets |
+|---|---|
+| FUN / GO | `cellcycle`, `derisi`, `eisen`, `expr`, `gasch1`, `gasch2`, `seq`, `spo` |
+| Others | `diatoms`, `enron`, `imclef07a`, `imclef07d` |
+
+**Download from Kaggle:**
+
 ```bash
 pip install kaggle
-```
-
-```bash
 kaggle datasets download brunosette/gene-ontology-original
-```
-
-
-##### 2. Download dataset via curl
-```bash
-# Export your Kaggle username and API key
-# export KAGGLE_USERNAME=<YOUR USERNAME>
-# export KAGGLE_KEY=<YOUR KAGGLE KEY>
-
-curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY\
-  -o ~/Downloads/gene-ontology-original.zip\
-  https://www.kaggle.com/api/v1/datasets/download/brunosette/gene-ontology-original
-
-```
-
-```bash
-mkdir data
-```
-
-```bash
+mkdir -p data
 unzip gene-ontology-original.zip -d data/
 ```
 
-### 5. Running the Project
+Or via curl:
 
-To execute the training process, follow these steps:
+```bash
+curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
+  -o gene-ontology-original.zip \
+  https://www.kaggle.com/api/v1/datasets/download/brunosette/gene-ontology-original
+mkdir -p data && unzip gene-ontology-original.zip -d data/
+```
 
-#### 5.1. Make the Script Executable
-Before running the training script, ensure it has the necessary execution permissions:
+---
+
+## Running
+
+### Using `run.sh`
+
+The script reads per-dataset hyperparameters from `config.yaml` automatically.
 
 ```bash
 chmod +x run.sh
+
+# Train local classifier on a single dataset (CPU)
+./run.sh --dataset_name seq_FUN --method local --device cpu
+
+# Train on all datasets
+./run.sh --dataset_name all --method local --device cuda
+
+# Train global classifier
+./run.sh --dataset_name seq_FUN --method global --device cuda
 ```
 
-#### 5.2. Run the Training Script
-You can run the training script with the desired device configuration:
+**Common options:**
 
-- **For CPU Execution**:
-  ```bash
-  ./run.sh --device cpu
-  ```
+| Option | Default | Description |
+|---|---|---|
+| `--dataset_name` | `seq_FUN` | Dataset name or `all` |
+| `--method` | `local` | `local`, `local_test`, `global`, `global_baseline` |
+| `--device` | `cpu` | `cpu` or `cuda` |
+| `--epochs` | `4000` | Training epochs |
+| `--hpo` | `false` | Enable Optuna HPO (`true`/`false`) |
+| `--n_trials` | `30` | HPO trials per level |
+| `--output_path` | `./results` | Where to save models and scores |
+| `--epochs_to_evaluate` | `20` | Validation frequency |
+| `--warmup` | `false` | Progressive level activation |
 
-- **For GPU Execution**:
-  ```bash
-  ./run.sh --device gpu
-  ```
+### Direct Python invocation
 
-These commands will initiate the training process using the specified hardware.
+```bash
+python -m hmc.main \
+  --dataset_path ./data \
+  --output_path ./results \
+  --dataset_name seq_FUN \
+  --method local \
+  --device cpu \
+  --epochs 2000 \
+  --lr_values 0.001 0.0001 0.0005 0.001 0.0002 0.00005 \
+  --dropout_values 0.3 0.4 0.5 0.3 0.4 0.5 \
+  --hidden_dims "[[512],[256],[128],[256],[128],[64]]" \
+  --num_layers_values 1 1 1 1 1 2 \
+  --weight_decay_values 1e-4 1e-4 1e-4 1e-4 1e-4 1e-4
+```
 
-#### 5.3. Deploy Locally
-To deploy the project locally, you only need to run the deployment script, as it automates all the steps outlined above. Ensure the script has execution permissions and specify the desired hardware configuration:
+### Using `make`
 
-1. Make the script executable:
-  ```bash
-  chmod +x deploy_local.sh
-  ```
+```bash
+make run    # runs run.sh with default settings (seq_FUN, local, cuda)
+make test   # runs pytest with coverage
+make lint   # autopep8 + black + ruff + isort + pylint
+```
 
-2. Run the deployment script:
-  - **For GPU Deployment**:
-    ```bash
-    ./deploy_local cuda
-    ```
-  - **For CPU Deployment**:
-    ```bash
-    ./deploy_local cpu
-    ```
+---
+
+## Configuration
+
+`config.yaml` stores HPO-tuned hyperparameters for each dataset. `run.sh` reads these values using `yq` and passes them to the CLI.
+
+To add a new dataset, append a new entry to `config.yaml`:
+
+```yaml
+datasets_params:
+  my_dataset_FUN:
+    hidden_dims: [[256], [128], [64]]
+    lr_values: [0.001, 0.0005, 0.0002]
+    dropout_values: [0.3, 0.4, 0.5]
+    num_layers_values: [1, 1, 1]
+    weight_decay_values: [1e-4, 1e-4, 1e-4]
+```
+
+---
+
+## Testing
+
+```bash
+pytest --verbose --cov=. tests/
+```
+
+The integration test in `tests/train_global_test.py` runs the full global pipeline on `seq_FUN` with mocked `sys.argv` and validates output metrics.

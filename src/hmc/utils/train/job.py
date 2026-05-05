@@ -49,17 +49,6 @@ def end_timer(start):
     return elapsed
 
 
-def parse_str_flags(args):
-    """Convert certain string command-line arguments to boolean."""
-    args.best_threshold = args.best_threshold == "true"
-    args.use_sample = args.use_sample == "true"
-    args.hpo_by_level = args.hpo_by_level == "true"
-    args.save_torch_dataset = args.save_torch_dataset == "true"
-    args.warmup = args.warmup == "true"
-    args.focal_loss = args.focal_loss == "true"
-    args.hpo = args.hpo == "true"
-    return args
-
 
 def log_gpu_memory(device):
     """Log GPU memory information."""
@@ -201,15 +190,15 @@ def find_global_best_threshold(
 
         for actual_threshold in tqdm(thresholds):
             if args.method in ["global_baseline", "global"]:
-                y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                y_pred_global = all_y_pred
+                y_pred_global_binary = all_y_pred > actual_threshold
+            else:
+                 y_pred_global, y_pred_global_binary = local_to_global_predictions(
                     all_y_pred,
                     args.hmc_dataset.local_nodes_idx,
                     args.hmc_dataset.nodes_idx,
                     threshold=actual_threshold,
                 )
-            else:
-                y_pred_global = all_y_pred
-                y_pred_global_binary = all_y_pred > actual_threshold
             metrics = calculate_metrics(
                 y_true_global_original,
                 y_pred_global,
@@ -233,15 +222,15 @@ def find_global_best_threshold(
 
         for actual_threshold in tqdm(thresholds):
             if args.method in ["global_baseline", "global"]:
+                y_pred_global = all_y_pred
+                y_pred_global_binary = all_y_pred > actual_threshold
+            else:
                 y_pred_global, y_pred_global_binary = local_to_global_predictions(
                     all_y_pred,
                     args.hmc_dataset.local_nodes_idx,
                     args.hmc_dataset.nodes_idx,
                     threshold=actual_threshold,
                 )
-            else:
-                y_pred_global = all_y_pred
-                y_pred_global_binary = all_y_pred > actual_threshold
             metrics = calculate_metrics(
                 y_true_global_original,
                 y_pred_global,
