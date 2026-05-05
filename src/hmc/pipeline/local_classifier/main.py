@@ -42,7 +42,7 @@ from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.pipeline.local_classifier.core.test import test_step
+from src.hmc.pipeline.local_classifier.core.predict import test_step
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
 from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters

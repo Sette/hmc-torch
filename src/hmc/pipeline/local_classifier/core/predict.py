@@ -72,8 +72,8 @@ def test_step(args):
     # Get local scores
 
     local_best_thresholds, local_score = find_local_best_threshold(
-        local_outputs,
         local_inputs,
+        local_outputs,
         args,
     )
 

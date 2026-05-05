@@ -16,6 +16,7 @@ import numpy as np
 import psutil
 import torch
 from tqdm import tqdm
+from sklearn.metrics import precision_recall_fscore_support
 
 from hmc.utils.dataset.labels import local_to_global_predictions
 from hmc.utils.metrics.calculate_metrics import calculate_metrics
@@ -156,9 +157,10 @@ def find_local_best_threshold(
 
 
 def find_global_best_threshold(
-    all_y_pred,
     y_true_global_original,
+    all_y_pred,
     args,
+    mode="local",
 ):
     """
     Find the best threshold for global predictions.
@@ -177,7 +179,7 @@ def find_global_best_threshold(
         "f1score": 0,
         "average_precision_score": 0,
     }
-    if args.best_threshold:
+    if mode == "local":
         logging.info("finding best threshold")
 
         thresholds = np.linspace(0.1, 0.9, 17)
@@ -247,4 +249,56 @@ def find_global_best_threshold(
         logging.info("Best threshold: %.2f", best_threshold)
         logging.info("Best scores: %s", best_scores)
 
-    return best_threshold, best_scores
+        return best_threshold, best_scores
+    else:
+        logging.info("finding best threshold")
+
+        thresholds = np.linspace(0.1, 0.9, 17)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+        y_test = y_true_global_original
+        constr_test = all_y_pred
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test,
+                constr_test > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+
+        best_threshold = round(best_threshold, 4)
+        logging.info("Best threshold: %.4f", best_threshold)
+        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
+        best_scores = {
+            "precision": 0,
+            "recall": 0,
+            "f1score": 0,
+            "average_precision_score": 0,
+        }
+
+        for actual_threshold in tqdm(thresholds):
+            score = precision_recall_fscore_support(
+                y_test,
+                constr_test > actual_threshold,
+                average="micro",
+                zero_division=0,
+            )
+            if score[2] > best_scores["f1score"]:
+                best_threshold = actual_threshold
+                best_scores = {
+                    "precision": score[0],
+                    "recall": score[1],
+                    "f1score": score[2],
+                }
+        return best_threshold, best_scores
