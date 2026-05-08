@@ -1,6 +1,7 @@
 [project]
 name = "hmc-torch"
 version = "0.0.8"
+
 description = "Hierarchical Multi-Label Classification Network in Pytorch"
 authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
 requires-python = ">=3.11,<3.14"
