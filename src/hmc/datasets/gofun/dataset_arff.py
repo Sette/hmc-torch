@@ -7,7 +7,9 @@ and adjacency matrices representing the class hierarchy.
 
 import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
 from itertools import chain
+from typing import Any
 
 import keras
 import networkx as nx
@@ -41,6 +43,32 @@ def get_depth_by_root(g_t, t, roots):
     return None
 
 
+@dataclass
+class HierarchyData:  # pylint: disable=too-many-instance-attributes
+    """Holds all graph and hierarchy structures derived from the @ATTRIBUTE class line."""
+
+    g: Any = field(default_factory=nx.DiGraph)
+    g_t: Any = field(default_factory=nx.DiGraph)
+    levels: Any = field(default_factory=lambda: defaultdict(list))
+    levels_size: dict = field(default_factory=dict)
+    nodes_idx: dict = field(default_factory=dict)
+    local_nodes_idx: dict = field(default_factory=dict)
+    max_depth: int = 0
+    terms: list = field(default_factory=list)
+    edge_index: dict = field(default_factory=dict)
+    a: Any = None
+
+
+@dataclass
+class SampleData:
+    """Holds the feature matrix and label arrays parsed from the @DATA section."""
+
+    x: Any = None
+    y: Any = None
+    y_nodes: list = field(default_factory=list)
+    y_local: list = field(default_factory=list)
+
+
 class HMCDatasetArff:
     """
     Dataset torch para HMC local classifier.
@@ -48,29 +76,88 @@ class HMCDatasetArff:
 
     def __init__(self, arff_file, is_go):
         self.arff_file = arff_file
-        (
-            self.x,
-            self.y,
-            self.y_nodes,
-            self.y_local,
-            self.a,
-            self.edge_index,
-            self.terms,
-            self.g,
-            self.levels,
-            self.levels_size,
-            self.nodes_idx,
-            self.local_nodes_idx,
-            self.max_depth,
-        ) = self.parse_arff(arff_file=arff_file, is_go=is_go)
-        self.to_eval = [t not in to_skip for t in self.terms]
-        r_, c_ = np.where(np.isnan(self.x))
-        m = np.nanmean(self.x, axis=0)
-        for i, j in zip(r_, c_):
-            self.x[i, j] = m[j]
+        self.is_go = is_go
+        self.hierarchy = HierarchyData()
+        self.samples = SampleData()
 
-    def _build_hierarchy_graph(self, h, is_go):
-        """Parse hierarchical attribute declaration into a directed graph."""
+        self.parse_arff()
+
+        self.to_eval = [t not in to_skip for t in self.hierarchy.terms]
+        r_, c_ = np.where(np.isnan(self.samples.x))
+        m = np.nanmean(self.samples.x, axis=0)
+        for i, j in zip(r_, c_):
+            self.samples.x[i, j] = m[j]
+
+    # ------------------------------------------------------------------
+    # Convenience properties that preserve the original flat attribute API
+    # ------------------------------------------------------------------
+
+    @property
+    def x(self):
+        return self.samples.x
+
+    @property
+    def y(self):
+        return self.samples.y
+
+    @property
+    def y_nodes(self):
+        return self.samples.y_nodes
+
+    @property
+    def y_local(self):
+        return self.samples.y_local
+
+    @property
+    def g(self):
+        return self.hierarchy.g
+
+    @property
+    def g_t(self):
+        return self.hierarchy.g_t
+
+    @property
+    def levels(self):
+        return self.hierarchy.levels
+
+    @property
+    def levels_size(self):
+        return self.hierarchy.levels_size
+
+    @property
+    def nodes_idx(self):
+        return self.hierarchy.nodes_idx
+
+    @property
+    def local_nodes_idx(self):
+        return self.hierarchy.local_nodes_idx
+
+    @property
+    def max_depth(self):
+        return self.hierarchy.max_depth
+
+    @property
+    def terms(self):
+        return self.hierarchy.terms
+
+    @property
+    def edge_index(self):
+        return self.hierarchy.edge_index
+
+    @property
+    def a(self):
+        return self.hierarchy.a
+
+    # ------------------------------------------------------------------
+    # Public build methods
+    # ------------------------------------------------------------------
+
+    def build_hierarchy_graph(self, h):
+        """Parse hierarchical attribute declaration into a directed graph.
+
+        Populates ``self.hierarchy.g`` and ``self.hierarchy.levels`` as side
+        effects and also returns them for convenience.
+        """
         g = nx.DiGraph()
         levels = defaultdict(list)
 
@@ -78,7 +165,7 @@ class HMCDatasetArff:
             branch = branch.replace("/", ".")
             terms = branch.split(".")
 
-            if is_go:
+            if self.is_go:
                 g.add_edge(terms[1], terms[0])
             else:
                 level = len(terms) - 1
@@ -92,22 +179,31 @@ class HMCDatasetArff:
                             ".".join(terms[: i - 1]),
                         )
 
+        self.hierarchy.g = g
+        self.hierarchy.levels = levels
         return g, levels
 
-    def _build_node_structures(self, g, levels, is_go):
-        """Compute node indices, level sizes, and local node indices from graph."""
+    def build_node_structures(self):
+        """Compute node indices, level sizes, and local node indices from ``self.hierarchy.g``.
+
+        Populates the corresponding fields in ``self.hierarchy`` as side
+        effects and also returns the node list for convenience.
+        """
+        g = self.hierarchy.g
+        levels = self.hierarchy.levels
+
         nodes = sorted(
             g.nodes(),
             key=lambda x: (
                 (nx.shortest_path_length(g, x, "root"), x)
-                if is_go
+                if self.is_go
                 else (len(x.split(".")), x)
             ),
         )
         nodes_idx = dict(zip(nodes, range(len(nodes))))
         g_t = g.reverse()
 
-        if is_go:
+        if self.is_go:
             for label in nodes:
                 if label != "root":
                     level = nx.shortest_path_length(g_t, "root").get(label) - 1
@@ -120,7 +216,66 @@ class HMCDatasetArff:
             for idx, level_nodes in levels.items()
         }
 
-        return nodes, nodes_idx, g_t, levels_size, max_depth, local_nodes_idx
+        self.hierarchy.terms = nodes
+        self.hierarchy.nodes_idx = nodes_idx
+        self.hierarchy.g_t = g_t
+        self.hierarchy.levels_size = levels_size
+        self.hierarchy.max_depth = max_depth
+        self.hierarchy.local_nodes_idx = local_nodes_idx
+        return nodes
+
+    def build_edge_index(self):
+        """Build parent→child adjacency matrices between consecutive hierarchy levels.
+
+        Populates and returns ``self.hierarchy.edge_index``.
+        """
+        level_nodes_list = list(self.hierarchy.levels.values())
+        edge_index = {}
+
+        for idx, current_level_nodes in enumerate(level_nodes_list):
+            if idx == 0:
+                continue
+            prev_level_nodes = level_nodes_list[idx - 1]
+            shape = (len(prev_level_nodes), len(current_level_nodes))
+            matrix = np.zeros(shape, dtype=np.float32)
+
+            child_map = {node: i for i, node in enumerate(current_level_nodes)}
+            parent_map = {node: i for i, node in enumerate(prev_level_nodes)}
+
+            for c_node in current_level_nodes:
+                if self.hierarchy.g.has_node(c_node):
+                    for p in self.hierarchy.g.successors(c_node):
+                        a = parent_map.get(p)
+                        b = child_map.get(c_node)
+                        if a is not None and b is not None:
+                            matrix[a, b] = 1.0
+
+            edge_index[idx] = matrix
+
+        self.hierarchy.edge_index = edge_index
+        return edge_index
+
+    def parse_arff(self):
+        """Parse ``self.arff_file`` and populate all dataset attributes."""
+        with open(self.arff_file, "r", encoding="utf-8") as f:
+            feature_types = self._parse_attributes(f)
+            self._parse_data_lines(f, feature_types)
+
+        self.build_edge_index()
+        self.hierarchy.a = np.array(
+            nx.to_numpy_array(self.hierarchy.g, nodelist=self.hierarchy.terms)
+        )
+
+        logger.info(
+            "Shape of edges matrix: %s",
+            {k: v.shape for k, v in self.hierarchy.edge_index.items()},
+        )
+        logger.info("Parsed ARFF file: %s", self.arff_file)
+        logger.info("Number of matrix: %d", len(self.hierarchy.edge_index))
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
 
     def _parse_feature_attribute(self, f_type, d, cats_lens):
         """Return a feature parsing function for one non-class @ATTRIBUTE line."""
@@ -150,28 +305,27 @@ class HMCDatasetArff:
             )
         )
 
-    def _parse_sample_labels(
-        self, lab, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go
-    ):
+    def _parse_sample_labels(self, lab):
         """Parse the label column for one sample into y_, y_nodes, y_local_."""
-        sorted_keys = sorted(levels_size.keys())
-        y_ = np.zeros(len(nodes))
+        h = self.hierarchy
+        sorted_keys = sorted(h.levels_size.keys())
+        y_ = np.zeros(len(h.terms))
         y_nodes = []
-        y_local_ = [np.zeros(levels_size.get(key)) for key in sorted_keys]
+        y_local_ = [np.zeros(h.levels_size.get(key)) for key in sorted_keys]
 
         for t in lab.split("@"):
             y_node = t.replace("/", ".")
             y_nodes.append(y_node)
-            y_[[nodes_idx.get(a) for a in nx.ancestors(g_t, y_node)]] = 1
-            y_[nodes_idx[y_node]] = 1
+            y_[[h.nodes_idx.get(a) for a in nx.ancestors(h.g_t, y_node)]] = 1
+            y_[h.nodes_idx[y_node]] = 1
 
-            if is_go:
-                depth = nx.shortest_path_length(g_t, "root").get(y_node) - 1
-                y_local_[depth][local_nodes_idx[depth].get(y_node)] = 1
-                for ancestor in nx.ancestors(g_t, y_node):
+            if self.is_go:
+                depth = nx.shortest_path_length(h.g_t, "root").get(y_node) - 1
+                y_local_[depth][h.local_nodes_idx[depth].get(y_node)] = 1
+                for ancestor in nx.ancestors(h.g_t, y_node):
                     if ancestor != "root":
-                        depth = nx.shortest_path_length(g_t, "root").get(ancestor) - 1
-                        y_local_[depth][local_nodes_idx[depth].get(ancestor)] = 1
+                        depth = nx.shortest_path_length(h.g_t, "root").get(ancestor) - 1
+                        y_local_[depth][h.local_nodes_idx[depth].get(ancestor)] = 1
             else:
                 depth = y_node.count(".") + 1
                 assert depth is not None
@@ -180,91 +334,34 @@ class HMCDatasetArff:
                     local_label = ".".join(local_terms)
                     local_depth = len(local_terms) - 1
                     y_local_[local_depth][
-                        local_nodes_idx.get(local_depth).get(local_label)
+                        h.local_nodes_idx.get(local_depth).get(local_label)
                     ] = 1
 
         return y_, y_nodes, y_local_
 
-    def _build_edge_index(self, levels, g):
-        """Build parent→child adjacency matrices between consecutive hierarchy levels."""
-        level_nodes_list = list(levels.values())
-        edge_index = {}
-
-        for idx, current_level_nodes in enumerate(level_nodes_list):
-            if idx == 0:
-                continue
-            prev_level_nodes = level_nodes_list[idx - 1]
-            shape = (len(prev_level_nodes), len(current_level_nodes))
-            matrix = np.zeros(shape, dtype=np.float32)
-
-            child_map = {node: i for i, node in enumerate(current_level_nodes)}
-            parent_map = {node: i for i, node in enumerate(prev_level_nodes)}
-
-            for c_node in current_level_nodes:
-                if g.has_node(c_node):
-                    for p in g.successors(c_node):
-                        a = parent_map.get(p)
-                        b = child_map.get(c_node)
-                        if a is not None and b is not None:
-                            matrix[a, b] = 1.0
-
-            edge_index[idx] = matrix
-
-        return edge_index
-
-    def _parse_attributes(self, f, is_go):
-        """Read @ATTRIBUTE lines from f (stopping at @DATA) and return parsed structures."""
+    def _parse_attributes(self, f):
+        """Read @ATTRIBUTE lines from f (stopping at @DATA) and return feature_types."""
         feature_types = []
         d = []
         cats_lens = []
-        g = nx.DiGraph()
-        levels = defaultdict(list)
-        nodes = []
-        nodes_idx = {}
-        levels_size = {}
-        local_nodes_idx = {}
-        g_t = None
-        max_depth = 0
 
         for line in f:
             if line.startswith("@DATA"):
                 break
             if line.startswith("@ATTRIBUTE class"):
                 h = line.split("hierarchical")[1].strip()
-                g, levels = self._build_hierarchy_graph(h, is_go)
-                nodes, nodes_idx, g_t, levels_size, max_depth, local_nodes_idx = (
-                    self._build_node_structures(g, levels, is_go)
-                )
+                self.build_hierarchy_graph(h)
+                self.build_node_structures()
             elif line.startswith("@ATTRIBUTE"):
                 _, _, f_type = line.split()
                 feature_types.append(
                     self._parse_feature_attribute(f_type, d, cats_lens)
                 )
 
-        return (
-            feature_types,
-            g,
-            levels,
-            nodes,
-            nodes_idx,
-            g_t,
-            levels_size,
-            max_depth,
-            local_nodes_idx,
-        )
+        return feature_types
 
-    def _parse_data_lines(
-        self,
-        f,
-        feature_types,
-        nodes,
-        nodes_idx,
-        levels_size,
-        local_nodes_idx,
-        g_t,
-        is_go,
-    ):
-        """Read data lines from f and return x, y, y_nodes, y_local arrays."""
+    def _parse_data_lines(self, f, feature_types):
+        """Read data lines from f and populate self.samples."""
         x = []
         y = []
         y_nodes = []
@@ -274,91 +371,12 @@ class HMCDatasetArff:
             d_line = line.split("%")[0].strip().split(",")
             lab = d_line[len(feature_types)].strip()
             x.append(self._parse_feature_vector(d_line, feature_types))
-            y_, sample_y_nodes, y_local_ = self._parse_sample_labels(
-                lab, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go
-            )
+            y_, sample_y_nodes, y_local_ = self._parse_sample_labels(lab)
             y.append(y_)
             y_nodes.append(sample_y_nodes)
             y_local.append([np.stack(yy) for yy in y_local_])
 
-        return np.array(x), np.stack(y), y_nodes, y_local
-
-    def _finalize_parse(
-        self,
-        x,
-        y,
-        y_nodes,
-        y_local,
-        levels,
-        g,
-        nodes,
-        levels_size,
-        nodes_idx,
-        local_nodes_idx,
-        max_depth,
-        arff_file,
-    ):
-        """Build edge_index, log stats, and assemble the final result tuple."""
-        edge_index = self._build_edge_index(levels, g)
-
-        logger.info(
-            "Shape of edges matrix: %s", {k: v.shape for k, v in edge_index.items()}
-        )
-        logger.info("Parsed ARFF file: %s", arff_file)
-        logger.info("Number of matrix: %d", len(edge_index))
-
-        return (
-            x,
-            y,
-            y_nodes,
-            y_local,
-            np.array(nx.to_numpy_array(g, nodelist=nodes)),
-            edge_index,
-            nodes,
-            g,
-            levels,
-            levels_size,
-            nodes_idx,
-            local_nodes_idx,
-            max_depth,
-        )
-
-    def parse_arff(self, arff_file, is_go=False):
-        """Parse an ARFF file and return features, labels, and hierarchy structures."""
-        with open(arff_file, "r", encoding="utf-8") as f:
-            (
-                feature_types,
-                g,
-                levels,
-                nodes,
-                nodes_idx,
-                g_t,
-                levels_size,
-                max_depth,
-                local_nodes_idx,
-            ) = self._parse_attributes(f, is_go)
-            x, y, y_nodes, y_local = self._parse_data_lines(
-                f,
-                feature_types,
-                nodes,
-                nodes_idx,
-                levels_size,
-                local_nodes_idx,
-                g_t,
-                is_go,
-            )
-
-        return self._finalize_parse(
-            x,
-            y,
-            y_nodes,
-            y_local,
-            levels,
-            g,
-            nodes,
-            levels_size,
-            nodes_idx,
-            local_nodes_idx,
-            max_depth,
-            arff_file,
-        )
+        self.samples.x = np.array(x)
+        self.samples.y = np.stack(y)
+        self.samples.y_nodes = y_nodes
+        self.samples.y_local = y_local
