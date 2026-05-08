@@ -95,29 +95,29 @@ def train_global(dataset_name, args):
     imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
         np.concatenate((args.valid.x, args.valid.x, args.valid.x))
     )
-    args.valid.x = (
+    args.valid.samples.x = (
         torch.tensor(scaler.transform(imp_mean.transform(args.valid.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    args.valid.y = torch.tensor(args.valid.y).clone().detach().to(args.device)
+    args.valid.samples.y = torch.tensor(args.valid.y).clone().detach().to(args.device)
 
-    args.train.x = (
+    args.train.samples.x = (
         torch.tensor(scaler.transform(imp_mean.transform(args.train.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    args.train.y = torch.tensor(args.train.y).clone().detach().to(args.device)
+    args.train.samples.y = torch.tensor(args.train.y).clone().detach().to(args.device)
 
-    args.test.x = (
+    args.test.samples.x = (
         torch.as_tensor(scaler.transform(imp_mean.transform(args.test.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    args.test.y = torch.as_tensor(args.test.y).clone().detach().to(args.device)
+    args.test.samples.y = torch.as_tensor(args.test.y).clone().detach().to(args.device)
 
     # Create loaders
     args.train_dataset = list(zip(args.train.x, args.train.y))

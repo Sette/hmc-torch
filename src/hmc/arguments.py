@@ -24,20 +24,9 @@ class DatasetConfig:
 
 
 @dataclass
-class Args:
-    """Configuration for HMC model training and hyperparameter optimization."""
+class TrainingConfig:
+    """Training loop and optimization settings."""
 
-    # Required
-    dataset: DatasetConfig
-    output_path: str
-
-    # Dataset registry (static lookup tables — dimensions, default lrs, epochs)
-    registry: DatasetRegistry = field(default_factory=DatasetRegistry)
-
-    # Job identification
-    job_id: str = "none"
-
-    # Training
     batch_size: int = 64
     non_lin: str = "relu"
     device: str = "cpu"
@@ -45,7 +34,6 @@ class Args:
     epochs_attention: int = 100
     epochs_level: int = 2000
     seed: int = 0
-    method: str = "global"
     focal_loss: bool = False
     warmup: bool = False
     n_warmup_epochs: int = 50
@@ -60,24 +48,221 @@ class Args:
     patience_score: int = 20
     epochs_to_evaluate: int = 20
     epochs_to_test: int = 20
-
-    # Threshold
     best_threshold: bool = True
 
-    # HPO
-    hpo: bool = False
-    hpo_by_level: bool = True
-    n_trials: Optional[int] = None
 
-    # Hyperparameters (used when HPO is disabled)
+@dataclass
+class HyperparameterConfig:
+    """Hyperparameters used when HPO is disabled."""
+
     lr_values: Optional[list[float]] = None
     dropout_values: Optional[list[float]] = None
     hidden_dims: Optional[Any] = None
     num_layers_values: Optional[list[int]] = None
     weight_decay_values: Optional[list[float]] = None
 
+
+@dataclass
+class HpoConfig:
+    """Hyperparameter optimisation settings."""
+
+    hpo: bool = False
+    hpo_by_level: bool = True
+    n_trials: Optional[int] = None
+
+
+@dataclass
+class Args:  # pylint: disable=too-many-instance-attributes
+    """Configuration for HMC model training and hyperparameter optimization."""
+
+    # Required
+    dataset: DatasetConfig
+    output_path: str
+
+    # Dataset registry (static lookup tables — dimensions, default lrs, epochs)
+    registry: DatasetRegistry = field(default_factory=DatasetRegistry)
+
+    # Job identification
+    job_id: str = "none"
+    method: str = "global"
+
+    # Grouped sub-configs
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    hyperparams: HyperparameterConfig = field(default_factory=HyperparameterConfig)
+    hpo_config: HpoConfig = field(default_factory=HpoConfig)
+
     # Paths
     results_path: str = "./results/"
+
+    # ------------------------------------------------------------------ #
+    # Flat convenience properties — keep the existing call-sites working   #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def batch_size(self) -> int:
+        """Batch size for training."""
+        return self.training.batch_size
+
+    @property
+    def non_lin(self) -> str:
+        """Non-linearity function."""
+        return self.training.non_lin
+
+    @property
+    def device(self) -> str:
+        """Computation device."""
+        return self.training.device
+
+    @device.setter
+    def device(self, value: str) -> None:
+        self.training.device = value
+
+    @property
+    def epochs(self) -> int:
+        """Total training epochs."""
+        return self.training.epochs
+
+    @property
+    def epochs_attention(self) -> int:
+        """Training epochs for attention."""
+        return self.training.epochs_attention
+
+    @property
+    def epochs_level(self) -> int:
+        """Training epochs per level."""
+        return self.training.epochs_level
+
+    @property
+    def seed(self) -> int:
+        """Random seed."""
+        return self.training.seed
+
+    @property
+    def focal_loss(self) -> bool:
+        """Whether to use focal loss."""
+        return self.training.focal_loss
+
+    @property
+    def warmup(self) -> bool:
+        """Whether to use learning-rate warmup."""
+        return self.training.warmup
+
+    @property
+    def n_warmup_epochs(self) -> int:
+        """Number of warmup epochs."""
+        return self.training.n_warmup_epochs
+
+    @n_warmup_epochs.setter
+    def n_warmup_epochs(self, value: int) -> None:
+        self.training.n_warmup_epochs = value
+
+    @property
+    def n_warmup_epochs_increment(self) -> int:
+        """Warmup epoch increment."""
+        return self.training.n_warmup_epochs_increment
+
+    @property
+    def parent_conditioning(self) -> str:
+        """Parent conditioning strategy."""
+        return self.training.parent_conditioning
+
+    @property
+    def early_metric(self) -> str:
+        """Metric used for early stopping."""
+        return self.training.early_metric
+
+    @property
+    def predict_test(self) -> bool:
+        """Whether to run prediction on the test set after training."""
+        return self.training.predict_test
+
+    @property
+    def level_model_type(self) -> str:
+        """Model type used at each level."""
+        return self.training.level_model_type
+
+    @property
+    def active_levels(self) -> Optional[list[int]]:
+        """Active hierarchy levels."""
+        return self.training.active_levels
+
+    @active_levels.setter
+    def active_levels(self, value: Optional[list[int]]) -> None:
+        self.training.active_levels = value
+
+    @property
+    def encoder_block(self) -> bool:
+        """Whether to use an encoder block."""
+        return self.training.encoder_block
+
+    @property
+    def patience(self) -> int:
+        """Early-stopping patience (loss)."""
+        return self.training.patience
+
+    @property
+    def patience_score(self) -> int:
+        """Early-stopping patience (score)."""
+        return self.training.patience_score
+
+    @property
+    def epochs_to_evaluate(self) -> int:
+        """Evaluation frequency in epochs."""
+        return self.training.epochs_to_evaluate
+
+    @property
+    def epochs_to_test(self) -> int:
+        """Test frequency in epochs."""
+        return self.training.epochs_to_test
+
+    @property
+    def best_threshold(self) -> bool:
+        """Whether to search for the best threshold."""
+        return self.training.best_threshold
+
+    @property
+    def hpo(self) -> bool:
+        """Whether HPO is enabled."""
+        return self.hpo_config.hpo
+
+    @property
+    def hpo_by_level(self) -> bool:
+        """Whether HPO runs per level."""
+        return self.hpo_config.hpo_by_level
+
+    @property
+    def n_trials(self) -> Optional[int]:
+        """Number of Optuna trials."""
+        return self.hpo_config.n_trials
+
+    @n_trials.setter
+    def n_trials(self, value: Optional[int]) -> None:
+        self.hpo_config.n_trials = value
+
+    @property
+    def lr_values(self) -> Optional[list[float]]:
+        """Per-level learning rates."""
+        return self.hyperparams.lr_values
+
+    @property
+    def dropout_values(self) -> Optional[list[float]]:
+        """Per-level dropout rates."""
+        return self.hyperparams.dropout_values
+
+    @property
+    def hidden_dims(self) -> Optional[Any]:
+        """Per-level hidden dimensions."""
+        return self.hyperparams.hidden_dims
+
+    @property
+    def num_layers_values(self) -> Optional[list[int]]:
+        """Per-level number of layers."""
+        return self.hyperparams.num_layers_values
+
+    @property
+    def weight_decay_values(self) -> Optional[list[float]]:
+        """Per-level weight decay values."""
+        return self.hyperparams.weight_decay_values
 
 
 def _str_to_bool(v: str) -> bool:
@@ -478,12 +663,7 @@ def parse_args() -> Args:
         save_torch_dataset=_str_to_bool(ns.save_torch_dataset),
         dataset_type=ns.dataset_type,
     )
-    return Args(
-        dataset=dataset,
-        output_path=ns.output_path,
-        job_id=ns.job_id,
-        n_trials=ns.n_trials,
-        best_threshold=_str_to_bool(ns.best_threshold),
+    training = TrainingConfig(
         batch_size=ns.batch_size,
         non_lin=ns.non_lin,
         device=ns.device,
@@ -491,27 +671,40 @@ def parse_args() -> Args:
         epochs_attention=ns.epochs_attention,
         epochs_level=ns.epochs_level,
         seed=ns.seed,
-        method=ns.method,
         focal_loss=_str_to_bool(ns.focal_loss),
         warmup=_str_to_bool(ns.warmup),
         n_warmup_epochs=ns.n_warmup_epochs,
         n_warmup_epochs_increment=ns.n_warmup_epochs_increment,
-        hpo=_str_to_bool(ns.hpo),
-        hpo_by_level=_str_to_bool(ns.hpo_by_level),
         parent_conditioning=ns.parent_conditioning,
-        results_path=ns.results_path,
         early_metric=ns.early_metric,
         predict_test=_str_to_bool(ns.predict_test),
         level_model_type=ns.level_model_type,
         active_levels=ns.active_levels,
+        encoder_block=ns.encoder_block,
+        patience=ns.patience,
+        patience_score=ns.patience_score,
+        epochs_to_evaluate=ns.epochs_to_evaluate,
+        epochs_to_test=ns.epochs_to_test,
+        best_threshold=_str_to_bool(ns.best_threshold),
+    )
+    hpo_config = HpoConfig(
+        hpo=_str_to_bool(ns.hpo),
+        hpo_by_level=_str_to_bool(ns.hpo_by_level),
+        n_trials=ns.n_trials,
+    )
+    hyperparams = HyperparameterConfig(
         lr_values=ns.lr_values,
         dropout_values=ns.dropout_values,
         hidden_dims=ns.hidden_dims,
         num_layers_values=ns.num_layers_values,
         weight_decay_values=ns.weight_decay_values,
-        patience=ns.patience,
-        encoder_block=ns.encoder_block,
-        patience_score=ns.patience_score,
-        epochs_to_evaluate=ns.epochs_to_evaluate,
-        epochs_to_test=ns.epochs_to_test,
+    )
+    return Args(
+        dataset=dataset,
+        output_path=ns.output_path,
+        job_id=ns.job_id,
+        method=ns.method,
+        training=training,
+        hpo_config=hpo_config,
+        hyperparams=hyperparams,
     )

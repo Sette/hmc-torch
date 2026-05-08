@@ -152,22 +152,22 @@ def create_dataloader(
             - y: Full label tensor
 
     Side Effects:
-        - Modifies data.X and data.Y in-place by converting to tensors and moving to device.
+        - Modifies data.samples.x and data.samples.y in-place by converting to tensors and moving to device.
     """
     if is_test:
         shuffle = False
     else:
         shuffle = True
 
-    data.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(data.X)))
+    data.samples.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(data.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    data.Y = torch.tensor(data.Y).clone().detach().to(args.device)
+    data.samples.y = torch.tensor(data.y).clone().detach().to(args.device)
     # Create loaders using local (per-level) y labels
-    dataset = list(zip(data.X, data.Y_local, data.Y))
+    dataset = list(zip(data.x, data.y_local, data.y))
 
     data_loader = DataLoader(
         dataset=dataset,
@@ -212,10 +212,10 @@ def main_local(args):
         is_global=False,
     )
 
-    args.levels_size = args.hmc_dataset.dataset_values["levels_size"]
+    args.levels_size = args.hmc_dataset.levels_size
     args.input_dim = args.registry.input_dims[args.data]
-    args.max_depth = args.hmc_dataset.dataset_values["max_depth"]
-    args.to_eval = args.hmc_dataset.dataset_values["to_eval"]
+    args.max_depth = args.hmc_dataset.max_depth
+    args.to_eval = args.hmc_dataset.to_eval
     data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
     data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
     scaler = preprocessing.StandardScaler().fit(data_concat)
@@ -296,9 +296,7 @@ def train_local(args):
         args.active_levels = [int(x) for x in args.active_levels]
     logging.info("Active levels: %s", args.active_levels)
 
-    args.criterion_list = [
-        nn.BCELoss() for _ in args.hmc_dataset.dataset_values["levels_size"]
-    ]
+    args.criterion_list = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
 
     if args.hpo:
         logging.info("Hyperparameter optimization")
