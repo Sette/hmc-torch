@@ -110,9 +110,7 @@ class HMCDatasetArff:
         if is_go:
             for label in nodes:
                 if label != "root":
-                    level = (
-                        nx.shortest_path_length(g_t, "root").get(label) - 1
-                    )
+                    level = nx.shortest_path_length(g_t, "root").get(label) - 1
                     levels[level].append(label)
 
         levels_size = {key: len(set(value)) for key, value in levels.items()}
@@ -152,7 +150,9 @@ class HMCDatasetArff:
             )
         )
 
-    def _parse_sample_labels(self, lab, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go):
+    def _parse_sample_labels(
+        self, lab, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go
+    ):
         """Parse the label column for one sample into y_, y_nodes, y_local_."""
         sorted_keys = sorted(levels_size.keys())
         y_ = np.zeros(len(nodes))
@@ -170,9 +170,7 @@ class HMCDatasetArff:
                 y_local_[depth][local_nodes_idx[depth].get(y_node)] = 1
                 for ancestor in nx.ancestors(g_t, y_node):
                     if ancestor != "root":
-                        depth = (
-                            nx.shortest_path_length(g_t, "root").get(ancestor) - 1
-                        )
+                        depth = nx.shortest_path_length(g_t, "root").get(ancestor) - 1
                         y_local_[depth][local_nodes_idx[depth].get(ancestor)] = 1
             else:
                 depth = y_node.count(".") + 1
@@ -243,9 +241,29 @@ class HMCDatasetArff:
                     self._parse_feature_attribute(f_type, d, cats_lens)
                 )
 
-        return feature_types, g, levels, nodes, nodes_idx, g_t, levels_size, max_depth, local_nodes_idx
+        return (
+            feature_types,
+            g,
+            levels,
+            nodes,
+            nodes_idx,
+            g_t,
+            levels_size,
+            max_depth,
+            local_nodes_idx,
+        )
 
-    def _parse_data_lines(self, f, feature_types, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go):
+    def _parse_data_lines(
+        self,
+        f,
+        feature_types,
+        nodes,
+        nodes_idx,
+        levels_size,
+        local_nodes_idx,
+        g_t,
+        is_go,
+    ):
         """Read data lines from f and return x, y, y_nodes, y_local arrays."""
         x = []
         y = []
@@ -265,11 +283,27 @@ class HMCDatasetArff:
 
         return np.array(x), np.stack(y), y_nodes, y_local
 
-    def _finalize_parse(self, x, y, y_nodes, y_local, levels, g, nodes, levels_size, nodes_idx, local_nodes_idx, max_depth, arff_file):
+    def _finalize_parse(
+        self,
+        x,
+        y,
+        y_nodes,
+        y_local,
+        levels,
+        g,
+        nodes,
+        levels_size,
+        nodes_idx,
+        local_nodes_idx,
+        max_depth,
+        arff_file,
+    ):
         """Build edge_index, log stats, and assemble the final result tuple."""
         edge_index = self._build_edge_index(levels, g)
 
-        logger.info("Shape of edges matrix: %s", {k: v.shape for k, v in edge_index.items()})
+        logger.info(
+            "Shape of edges matrix: %s", {k: v.shape for k, v in edge_index.items()}
+        )
         logger.info("Parsed ARFF file: %s", arff_file)
         logger.info("Number of matrix: %d", len(edge_index))
 
@@ -292,13 +326,39 @@ class HMCDatasetArff:
     def parse_arff(self, arff_file, is_go=False):
         """Parse an ARFF file and return features, labels, and hierarchy structures."""
         with open(arff_file, "r", encoding="utf-8") as f:
-            feature_types, g, levels, nodes, nodes_idx, g_t, levels_size, max_depth, local_nodes_idx = (
-                self._parse_attributes(f, is_go)
-            )
+            (
+                feature_types,
+                g,
+                levels,
+                nodes,
+                nodes_idx,
+                g_t,
+                levels_size,
+                max_depth,
+                local_nodes_idx,
+            ) = self._parse_attributes(f, is_go)
             x, y, y_nodes, y_local = self._parse_data_lines(
-                f, feature_types, nodes, nodes_idx, levels_size, local_nodes_idx, g_t, is_go
+                f,
+                feature_types,
+                nodes,
+                nodes_idx,
+                levels_size,
+                local_nodes_idx,
+                g_t,
+                is_go,
             )
 
         return self._finalize_parse(
-            x, y, y_nodes, y_local, levels, g, nodes, levels_size, nodes_idx, local_nodes_idx, max_depth, arff_file
+            x,
+            y,
+            y_nodes,
+            y_local,
+            levels,
+            g,
+            nodes,
+            levels_size,
+            nodes_idx,
+            local_nodes_idx,
+            max_depth,
+            arff_file,
         )

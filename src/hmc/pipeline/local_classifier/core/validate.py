@@ -4,6 +4,7 @@ This module contains the validation step for the HMC local classifier.
 
 import logging
 import os
+
 import torch
 
 from hmc.utils.metrics.calculate_metrics import calculate_metrics
