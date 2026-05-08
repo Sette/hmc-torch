@@ -1,21 +1,37 @@
 name: Pylint
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # uv supports fast switching between these versions
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Install uv
+    - name: Set up uv
       uses: astral-sh/setup-uv@v5
+      with:
+        # Enable caching to make subsequent runs even faster
+        enable-cache: true
+        cache-dependency-glob: "**/pyproject.toml"
 
-    - name: Set up Python
-      run: uv python install
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
 
     - name: Install dependencies
-      run: uv sync --all-groups
+      # Using 'uv pip' for a drop-in replacement or 'uv add' if using pyproject.toml
+      run: |
+        uv pip install pylint
+        # If you have a requirements file or pyproject.toml, uncomment below:
+        # uv pip install -r requirements.txt 
 
     - name: Analysing the code with pylint
-      run: uv run pylint $(git ls-files '*.py')
+      # 'uv run' ensures the tool runs within the synchronized environment
+      run: |
+        uv run pylint $(git ls-files '*.py')
