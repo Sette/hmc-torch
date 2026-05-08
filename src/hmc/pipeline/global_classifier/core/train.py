@@ -98,7 +98,11 @@ def _compute_local_scores(y_test_local_binary, y_pred_local_binary):
 
 
 def _compute_global_score(
-    constr_test, y_test, to_eval, best_threshold, usage, total_time
+    constr_test,
+    y_test,
+    to_eval,
+    best_threshold,
+    execution_metadata,
 ):
     """Compute global metrics and return the populated score dict."""
     score = precision_recall_fscore_support(
@@ -116,15 +120,17 @@ def _compute_global_score(
     logging.info(
         "Precision: %.4f, Recall: %.4f, F1-score: %.4f", score[0], score[1], score[2]
     )
-    return {
+
+    metrics_dict = {
         "precision": float(score[0]),
         "recall": float(score[1]),
         "f1score": float(score[2]),
         "best_threshold": float(best_threshold),
         "avg_precision": avg_prec,
-        "usage": usage,
-        "training_time_seconds": total_time,
     }
+
+    # Merging metrics with metadata using the | operator
+    return metrics_dict | execution_metadata
 
 
 def train_step(args):
@@ -165,8 +171,13 @@ def train_step(args):
     )
 
     local_test_score = _compute_local_scores(y_test_local_binary, y_pred_local_binary)
+    execution_metadata = {"usage": usage, "total_time": total_time}
     local_test_score["global"] = _compute_global_score(
-        constr_test, y_test, to_eval, best_threshold, usage, total_time
+        constr_test,
+        y_test,
+        to_eval,
+        best_threshold,
+        execution_metadata,
     )
 
     logging.info(

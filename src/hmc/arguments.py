@@ -7,7 +7,7 @@ Classification (HMC) model.
 import argparse
 import json
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from hmc.datasets.registry import DatasetRegistry
 
@@ -75,9 +75,10 @@ class HpoConfig:
 class Args:  # pylint: disable=too-many-instance-attributes
     """Configuration for HMC model training and hyperparameter optimization.
 
-    Most fields are exposed as flat properties that delegate to the grouped
-    sub-configs (``training``, ``hyperparams``, ``hpo_config``) so that
-    existing call-sites continue to work without modification.
+    Flat attribute access (e.g. ``args.epochs``) is transparently delegated to
+    the grouped sub-configs (``training``, ``hyperparams``, ``hpo_config``) via
+    ``__getattr__`` / ``__setattr__``, so all existing call-sites work without
+    modification and no boilerplate properties are needed.
     """
 
     # Required
@@ -100,186 +101,56 @@ class Args:  # pylint: disable=too-many-instance-attributes
     results_path: str = "./results/"
 
     # ------------------------------------------------------------------ #
-    # Flat convenience properties — keep the existing call-sites working   #
+    # Dynamic delegation — no boilerplate properties needed               #
     # ------------------------------------------------------------------ #
 
-    @property
-    def batch_size(self) -> int:
-        """Batch size for training."""
-        return self.training.batch_size
+    # Fields that live directly on Args (not delegated to sub-configs)
+    _DIRECT_FIELDS: ClassVar[frozenset] = frozenset(
+        {
+            "dataset",
+            "output_path",
+            "registry",
+            "job_id",
+            "method",
+            "training",
+            "hyperparams",
+            "hpo_config",
+            "results_path",
+        }
+    )
 
-    @batch_size.setter
-    def batch_size(self, value: int) -> None:
-        self.training.batch_size = value
+    def __getattr__(self, name: str):
+        # Called only when normal attribute lookup fails (i.e. name is not a
+        # direct field).  Search the sub-configs in order.
+        for sub in ("training", "hyperparams", "hpo_config"):
+            # Guard against infinite recursion during __init__
+            try:
+                cfg = object.__getattribute__(self, sub)
+            except AttributeError:
+                continue
+            if hasattr(cfg, name):
+                return getattr(cfg, name)
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
 
-    @property
-    def non_lin(self) -> str:
-        """Non-linearity function."""
-        return self.training.non_lin
-
-    @non_lin.setter
-    def non_lin(self, value: str) -> None:
-        self.training.non_lin = value
-
-    @property
-    def device(self) -> str:
-        """Computation device."""
-        return self.training.device
-
-    @device.setter
-    def device(self, value: str) -> None:
-        self.training.device = value
-
-    @property
-    def epochs(self) -> int:
-        """Total training epochs."""
-        return self.training.epochs
-
-    @epochs.setter
-    def epochs(self, value: int) -> None:
-        self.training.epochs = value
-
-    @property
-    def epochs_attention(self) -> int:
-        """Training epochs for attention."""
-        return self.training.epochs_attention
-
-    @property
-    def epochs_level(self) -> int:
-        """Training epochs per level."""
-        return self.training.epochs_level
-
-    @property
-    def seed(self) -> int:
-        """Random seed."""
-        return self.training.seed
-
-    @property
-    def focal_loss(self) -> bool:
-        """Whether to use focal loss."""
-        return self.training.focal_loss
-
-    @property
-    def warmup(self) -> bool:
-        """Whether to use learning-rate warmup."""
-        return self.training.warmup
-
-    @property
-    def n_warmup_epochs(self) -> int:
-        """Number of warmup epochs."""
-        return self.training.n_warmup_epochs
-
-    @n_warmup_epochs.setter
-    def n_warmup_epochs(self, value: int) -> None:
-        self.training.n_warmup_epochs = value
-
-    @property
-    def n_warmup_epochs_increment(self) -> int:
-        """Warmup epoch increment."""
-        return self.training.n_warmup_epochs_increment
-
-    @property
-    def parent_conditioning(self) -> str:
-        """Parent conditioning strategy."""
-        return self.training.parent_conditioning
-
-    @property
-    def early_metric(self) -> str:
-        """Metric used for early stopping."""
-        return self.training.early_metric
-
-    @property
-    def predict_test(self) -> bool:
-        """Whether to run prediction on the test set after training."""
-        return self.training.predict_test
-
-    @property
-    def level_model_type(self) -> str:
-        """Model type used at each level."""
-        return self.training.level_model_type
-
-    @property
-    def active_levels(self) -> Optional[list[int]]:
-        """Active hierarchy levels."""
-        return self.training.active_levels
-
-    @active_levels.setter
-    def active_levels(self, value: Optional[list[int]]) -> None:
-        self.training.active_levels = value
-
-    @property
-    def encoder_block(self) -> bool:
-        """Whether to use an encoder block."""
-        return self.training.encoder_block
-
-    @property
-    def patience(self) -> int:
-        """Early-stopping patience (loss)."""
-        return self.training.patience
-
-    @property
-    def patience_score(self) -> int:
-        """Early-stopping patience (score)."""
-        return self.training.patience_score
-
-    @property
-    def epochs_to_evaluate(self) -> int:
-        """Evaluation frequency in epochs."""
-        return self.training.epochs_to_evaluate
-
-    @property
-    def epochs_to_test(self) -> int:
-        """Test frequency in epochs."""
-        return self.training.epochs_to_test
-
-    @property
-    def best_threshold(self) -> bool:
-        """Whether to search for the best threshold."""
-        return self.training.best_threshold
-
-    @property
-    def hpo(self) -> bool:
-        """Whether HPO is enabled."""
-        return self.hpo_config.hpo
-
-    @property
-    def hpo_by_level(self) -> bool:
-        """Whether HPO runs per level."""
-        return self.hpo_config.hpo_by_level
-
-    @property
-    def n_trials(self) -> Optional[int]:
-        """Number of Optuna trials."""
-        return self.hpo_config.n_trials
-
-    @n_trials.setter
-    def n_trials(self, value: Optional[int]) -> None:
-        self.hpo_config.n_trials = value
-
-    @property
-    def lr_values(self) -> Optional[list[float]]:
-        """Per-level learning rates."""
-        return self.hyperparams.lr_values
-
-    @property
-    def dropout_values(self) -> Optional[list[float]]:
-        """Per-level dropout rates."""
-        return self.hyperparams.dropout_values
-
-    @property
-    def hidden_dims(self) -> Optional[Any]:
-        """Per-level hidden dimensions."""
-        return self.hyperparams.hidden_dims
-
-    @property
-    def num_layers_values(self) -> Optional[list[int]]:
-        """Per-level number of layers."""
-        return self.hyperparams.num_layers_values
-
-    @property
-    def weight_decay_values(self) -> Optional[list[float]]:
-        """Per-level weight decay values."""
-        return self.hyperparams.weight_decay_values
+    def __setattr__(self, name: str, value) -> None:
+        # Direct fields and any ad-hoc runtime attributes (e.g. args.model,
+        # args.hmc_dataset) are stored on self as usual.
+        if name in Args._DIRECT_FIELDS or name.startswith("_"):
+            object.__setattr__(self, name, value)
+            return
+        # If the name belongs to a sub-config, delegate there.
+        for sub in ("training", "hyperparams", "hpo_config"):
+            try:
+                cfg = object.__getattribute__(self, sub)
+            except AttributeError:
+                continue
+            if hasattr(cfg, name):
+                setattr(cfg, name, value)
+                return
+        # Otherwise store as a regular ad-hoc attribute on self.
+        object.__setattr__(self, name, value)
 
 
 def _str_to_bool(v: str) -> bool:
