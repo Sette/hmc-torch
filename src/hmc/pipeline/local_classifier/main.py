@@ -42,12 +42,12 @@ from torch.utils.data import DataLoader
 
 from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.pipeline.local_classifier.core.test import test_step
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
 from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters
 from hmc.utils.path.files import create_dir
-from hmc.utils.train.job import log_system_info, parse_str_flags
+from hmc.utils.train.job import log_system_info
+from src.hmc.pipeline.local_classifier.core.predict import test_step
 
 
 def get_train_methods(method: str) -> dict[str, object]:
@@ -86,11 +86,6 @@ def get_train_methods(method: str) -> dict[str, object]:
 
 def assert_hyperparameter_lengths(
     args: object,
-    lr_values: list[float],
-    dropout_values: list[float],
-    hidden_dims: list[int],
-    num_layers_values: list[int],
-    weight_decay_values: list[float],
 ) -> None:
     """
     Validates that all hyperparameter lists have a length equal to the
@@ -112,11 +107,11 @@ def assert_hyperparameter_lengths(
         AssertionError: If any list does not have a length equal to args.max_depth.
     """
     checks: dict[str, Sequence[int | float]] = {
-        "lr_values": lr_values,
-        "dropout_values": dropout_values,
-        "hidden_dims": hidden_dims,
-        "num_layers_values": num_layers_values,
-        "weight_decay_values": weight_decay_values,
+        "lr_values": args.hyperparameters["lr_values"],
+        "dropout_values": args.hyperparameters["dropout_values"],
+        "hidden_dims": args.hyperparameters["hidden_dims"],
+        "num_layers_values": args.hyperparameters["num_layers_values"],
+        "weight_decay_values": args.hyperparameters["weight_decay_values"],
     }
     all_passed = True
     for name, lst in checks.items():
@@ -157,22 +152,23 @@ def create_dataloader(
             - y: Full label tensor
 
     Side Effects:
-        - Modifies data.X and data.Y in-place by converting to tensors and moving to device.
+        - Modifies data.samples.x and data.samples.y in-place by converting
+          to tensors and moving to device.
     """
     if is_test:
         shuffle = False
     else:
         shuffle = True
 
-    data.X = (
-        torch.tensor(scaler.transform(imp_mean.transform(data.X)))
+    data.samples.x = (
+        torch.tensor(scaler.transform(imp_mean.transform(data.x)))
         .clone()
         .detach()
         .to(args.device)
     )
-    data.Y = torch.tensor(data.Y).clone().detach().to(args.device)
+    data.samples.y = torch.tensor(data.y).clone().detach().to(args.device)
     # Create loaders using local (per-level) y labels
-    dataset = list(zip(data.X, data.Y_local, data.Y))
+    dataset = list(zip(data.x, data.y_local, data.y))
 
     data_loader = DataLoader(
         dataset=dataset,
@@ -181,6 +177,82 @@ def create_dataloader(
     )
 
     return data_loader
+
+
+def main_local(args):
+    """
+    Main function to train and test a local hierarchical multi-label classifier.
+    """
+    logging.info(".......................................")
+    logging.info("Experiment with %s dataset", args.dataset.dataset_name)
+
+    args.train_methods = get_train_methods(args.method)
+
+    # Load train, val and test set
+
+    if not torch.cuda.is_available():
+        print("CUDA is not available. Using CPU.")
+        args.device = torch.device("cpu")
+    else:
+        args.device = torch.device(args.device)
+
+    args.data, args.ontology = args.dataset.dataset_name.split("_")
+
+    create_dir(args.results_path)
+
+    # path
+    train_path = os.path.join(args.results_path, "train_dataset.pt")
+    val_path = os.path.join(args.results_path, "val_dataset.pt")
+    test_path = os.path.join(args.results_path, "test_dataset.pt")
+
+    args.hmc_dataset = initialize_dataset_experiments(
+        args.dataset.dataset_name,
+        device=args.device,
+        dataset_path=args.dataset.dataset_path,
+        dataset_type="arff",
+        is_global=False,
+    )
+
+    args.levels_size = args.hmc_dataset.levels_size
+    args.input_dim = args.registry.input_dims[args.data]
+    args.max_depth = args.hmc_dataset.max_depth
+    args.to_eval = args.hmc_dataset.to_eval
+    data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
+    scaler = preprocessing.StandardScaler().fit(data_concat)
+    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
+
+    args.test_loader = create_dataloader(
+        data_test,
+        scaler=scaler,
+        imp_mean=imp_mean,
+        args=args,
+        is_test=True,
+    )
+    if args.dataset.save_torch_dataset:
+        torch.save(args.test_loader, test_path)
+
+    if args.method != "local_test":
+        args.val_dataloader = create_dataloader(
+            data_valid,
+            scaler=scaler,
+            imp_mean=imp_mean,
+            args=args,
+        )
+        args.train_dataloader = create_dataloader(
+            data_train,
+            scaler=scaler,
+            imp_mean=imp_mean,
+            args=args,
+        )
+        if args.dataset.save_torch_dataset:
+            # Save datasets in torch format
+            torch.save(args.train_dataloader, train_path)
+            torch.save(args.val_dataloader, val_path)
+
+        train_local(args)
+    test_local(args)
+    return args.score
 
 
 def train_local(args):
@@ -219,93 +291,13 @@ def train_local(args):
             do not match the number of levels.
     """
 
-    logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
-
-    args = parse_str_flags(args)
-
-    logging.info(".......................................")
-    logging.info("Experiment with %s dataset", args.dataset_name)
-
-    args.train_methods = get_train_methods(args.method)
-
-    if args.method == "local_constrained":
-        logging.info("Using constrained local model")
-
-    # Load train, val and test set
-
-    if not torch.cuda.is_available():
-        print("CUDA is not available. Using CPU.")
-        args.device = torch.device("cpu")
-    else:
-        args.device = torch.device(args.device)
-
-    args.data, args.ontology = args.dataset_name.split("_")
-
-    create_dir(args.results_path)
-
-    # path
-    train_path = os.path.join(args.results_path, "train_dataset.pt")
-    val_path = os.path.join(args.results_path, "val_dataset.pt")
-    test_path = os.path.join(args.results_path, "test_dataset.pt")
-    # is_global = args.method == "global" or args.method == "global_baseline"
-
-    hmc_dataset = initialize_dataset_experiments(
-        args.dataset_name,
-        device=args.device,
-        dataset_path=args.dataset_path,
-        dataset_type="arff",
-        is_global=False,
-    )
-    data_train, data_valid, data_test = hmc_dataset.get_datasets()
-    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
-    scaler = preprocessing.StandardScaler().fit(data_concat)
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
-
-    if args.method != "local_test":
-        val_dataloader = create_dataloader(
-            data_valid,
-            scaler=scaler,
-            imp_mean=imp_mean,
-            args=args,
-        )
-        train_dataloader = create_dataloader(data_train, scaler, imp_mean, args)
-
-        args.train_loader = train_dataloader
-        args.val_loader = val_dataloader
-        if args.save_torch_dataset:
-            # Save datasets in torch format
-            torch.save(train_dataloader, train_path)
-            torch.save(val_dataloader, val_path)
-
-    test_loader = create_dataloader(
-        data_test,
-        scaler=scaler,
-        imp_mean=imp_mean,
-        args=args,
-        is_test=True,
-    )
-
-    if args.save_torch_dataset:
-        # Save datasets in torch format
-        torch.save(test_loader, test_path)
-
-    args.test_loader = test_loader
-    args.hmc_dataset = hmc_dataset
-    args.levels_size = hmc_dataset.dataset_values["levels_size"]
-    args.input_dim = args.input_dims[args.data]
-    args.max_depth = hmc_dataset.dataset_values["max_depth"]
-    args.to_eval = hmc_dataset.dataset_values["to_eval"]
-
     if args.active_levels is None:
         args.active_levels = list(range(args.max_depth))
     else:
         args.active_levels = [int(x) for x in args.active_levels]
     logging.info("Active levels: %s", args.active_levels)
 
-    args.criterion_list = [
-        nn.BCELoss() for _ in hmc_dataset.dataset_values["levels_size"]
-    ]
+    args.criterion_list = [nn.BCELoss() for _ in args.hmc_dataset.levels_size]
 
     if args.hpo:
         logging.info("Hyperparameter optimization")
@@ -313,51 +305,58 @@ def train_local(args):
         best_params = args.train_methods["optimize_hyperparameters"](args=args)
         logging.info(best_params)
     else:
-        args.lr_values = [float(x) for x in args.lr_values]
-        args.dropout_values = [float(x) for x in args.dropout_values]
-        # hidden_dims = [int(x) for x in args.hidden_dims]
-        args.num_layers_values = [int(x) for x in args.num_layers_values]
-        args.weight_decay_values = [float(x) for x in args.weight_decay_values]
+        args.hyperparameters = {
+            "lr_values": [float(x) for x in args.lr_values],
+            "dropout_values": [float(x) for x in args.dropout_values],
+            "hidden_dims": [int(x) for x in args.hidden_dims],
+            "num_layers_values": [int(x) for x in args.num_layers_values],
+            "weight_decay_values": [float(x) for x in args.weight_decay_values],
+        }
 
         # Ensure all hyperparameter lists have the same length as 'max_depth'
         assert_hyperparameter_lengths(
             args,
-            args.lr_values,
-            args.dropout_values,
-            args.hidden_dims,
-            args.num_layers_values,
-            args.weight_decay_values,
         )
-        if args.method == "local_tabat":
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_dims": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropouts": args.dropout_values,
-                "embed_dim": 512,
-                "num_heads": 8,
-                "pooling": "mean",
-            }
-        else:
-            params = {
-                "levels_size": args.hmc_dataset.levels_size,
-                "input_size": args.input_dims[args.data],
-                "hidden_dims": args.hidden_dims,
-                "num_layers": args.num_layers_values,
-                "dropouts": args.dropout_values,
-                "active_levels": args.active_levels,
-                "results_path": args.results_path,
-            }
+
+        params = {
+            "levels_size": args.hmc_dataset.levels_size,
+            "input_size": args.registry.input_dims[args.data],
+            "hidden_dims": args.hidden_dims,
+            "num_layers": args.num_layers_values,
+            "dropouts": args.dropout_values,
+            "active_levels": args.active_levels,
+            "results_path": args.results_path,
+        }
 
         model = args.train_methods["model"](**params)
         args.model = model
         logging.info(model)
-        if args.method != "local_test":
-            start_train = time.perf_counter()
-            args.train_methods["train_step"](args)
-            end_train = time.perf_counter()
-            args.usage = log_system_info(args.device)
-            args.training_time_seconds = end_train - start_train
-            print("Tempo de treino: %f segundos", args.training_time_seconds)
-        args.train_methods["test_step"](args)
+
+        start_train = time.perf_counter()
+        args.train_methods["train_step"](args)
+        end_train = time.perf_counter()
+        args.usage = log_system_info(args.device)
+        args.training_time_seconds = end_train - start_train
+        print("Tempo de treino: %f segundos", args.training_time_seconds)
+
+
+def test_local(args):
+    """
+    Tests a local hierarchical multi-label classifier using the specified \
+        arguments.
+    """
+
+    params = {
+        "levels_size": args.hmc_dataset.levels_size,
+        "input_size": args.registry.input_dims[args.data],
+        "hidden_dims": args.hidden_dims,
+        "num_layers": args.num_layers_values,
+        "dropouts": args.dropout_values,
+        "active_levels": args.active_levels,
+        "results_path": args.results_path,
+    }
+
+    model = args.train_methods["model"](**params)
+    args.model = model
+    logging.info(model)
+    args.train_methods["test_step"](args)

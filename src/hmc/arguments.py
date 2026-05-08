@@ -1,30 +1,168 @@
 """
-This module provides a command-line interface for configuring and launching
+This module defines the Args dataclass for configuring and launching
 the training and hyperparameter optimization of a Hierarchical Multi-label
-Classification (HMC) model. It defines all necessary arguments using argparse,
-allowing flexible and reproducible experimentation with different models,
-datasets, and training configurations.
+Classification (HMC) model.
 """
 
 import argparse
 import json
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Optional
 
-# from dataclasses import dataclass
-
-
-# @dataclass
-# class MyArgs:
-#     level_active: list[bool]
+from hmc.datasets.registry import DatasetRegistry
 
 
-def get_parser():
+@dataclass
+class DatasetConfig:
+    """Dataset-specific configuration."""
+
+    dataset_path: str
+    dataset_name: Optional[str] = None
+    use_sample: bool = False
+    save_torch_dataset: bool = True
+    dataset_type: str = "arff"
+
+
+@dataclass
+class TrainingConfig:  # pylint: disable=too-many-instance-attributes
+    """Training loop and optimization settings."""
+
+    batch_size: int = 64
+    non_lin: str = "relu"
+    device: str = "cpu"
+    epochs: int = 2000
+    epochs_attention: int = 100
+    epochs_level: int = 2000
+    seed: int = 0
+    focal_loss: bool = False
+    warmup: bool = False
+    n_warmup_epochs: int = 50
+    n_warmup_epochs_increment: int = 50
+    parent_conditioning: str = "false"
+    early_metric: str = "avg-score"
+    predict_test: bool = True
+    level_model_type: str = "mlp"
+    active_levels: Optional[list[int]] = None
+    encoder_block: bool = False
+    patience: int = 5
+    patience_score: int = 20
+    epochs_to_evaluate: int = 20
+    epochs_to_test: int = 20
+    best_threshold: bool = True
+
+
+@dataclass
+class HyperparameterConfig:
+    """Hyperparameters used when HPO is disabled."""
+
+    lr_values: Optional[list[float]] = None
+    dropout_values: Optional[list[float]] = None
+    hidden_dims: Optional[Any] = None
+    num_layers_values: Optional[list[int]] = None
+    weight_decay_values: Optional[list[float]] = None
+
+
+@dataclass
+class HpoConfig:
+    """Hyperparameter optimisation settings."""
+
+    hpo: bool = False
+    hpo_by_level: bool = True
+    n_trials: Optional[int] = None
+
+
+@dataclass
+class Args:  # pylint: disable=too-many-instance-attributes
+    """Configuration for HMC model training and hyperparameter optimization.
+
+    Flat attribute access (e.g. ``args.epochs``) is transparently delegated to
+    the grouped sub-configs (``training``, ``hyperparams``, ``hpo_config``) via
+    ``__getattr__`` / ``__setattr__``, so all existing call-sites work without
+    modification and no boilerplate properties are needed.
     """
-    Create and return an argument parser for the
-    HMC (Hierarchical Multi-label Classification) model.
+
+    # Required
+    dataset: DatasetConfig
+    output_path: str
+
+    # Dataset registry (static lookup tables — dimensions, default lrs, epochs)
+    registry: DatasetRegistry = field(default_factory=DatasetRegistry)
+
+    # Job identification
+    job_id: str = "none"
+    method: str = "global"
+
+    # Grouped sub-configs
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    hyperparams: HyperparameterConfig = field(default_factory=HyperparameterConfig)
+    hpo_config: HpoConfig = field(default_factory=HpoConfig)
+
+    # Paths
+    results_path: str = "./results/"
+
+    # ------------------------------------------------------------------ #
+    # Dynamic delegation — no boilerplate properties needed               #
+    # ------------------------------------------------------------------ #
+
+    # Fields that live directly on Args (not delegated to sub-configs)
+    _DIRECT_FIELDS: ClassVar[frozenset] = frozenset(
+        {
+            "dataset",
+            "output_path",
+            "registry",
+            "job_id",
+            "method",
+            "training",
+            "hyperparams",
+            "hpo_config",
+            "results_path",
+        }
+    )
+
+    def __getattr__(self, name: str):
+        # Called only when normal attribute lookup fails (i.e. name is not a
+        # direct field).  Search the sub-configs in order.
+        for sub in ("training", "hyperparams", "hpo_config"):
+            # Guard against infinite recursion during __init__
+            try:
+                cfg = object.__getattribute__(self, sub)
+            except AttributeError:
+                continue
+            if hasattr(cfg, name):
+                return getattr(cfg, name)
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+
+    def __setattr__(self, name: str, value) -> None:
+        # Direct fields and any ad-hoc runtime attributes (e.g. args.model,
+        # args.hmc_dataset) are stored on self as usual.
+        if name in Args._DIRECT_FIELDS or name.startswith("_"):
+            object.__setattr__(self, name, value)
+            return
+        # If the name belongs to a sub-config, delegate there.
+        for sub in ("training", "hyperparams", "hpo_config"):
+            try:
+                cfg = object.__getattribute__(self, sub)
+            except AttributeError:
+                continue
+            if hasattr(cfg, name):
+                setattr(cfg, name, value)
+                return
+        # Otherwise store as a regular ad-hoc attribute on self.
+        object.__setattr__(self, name, value)
+
+
+def _str_to_bool(v: str) -> bool:
+    return v.lower() == "true"
+
+
+def get_parser() -> argparse.ArgumentParser:
+    """
+    Create and return an argument parser for the HMC model.
 
     Returns:
-        argparse.ArgumentParser: Configured argument parser with all command-line arguments
-                                 for training and hyperparameter optimization.
+        argparse.ArgumentParser: Configured argument parser.
     """
     parser = argparse.ArgumentParser(
         description="Train a Hierarchical Multi-label Classification model."
@@ -38,7 +176,6 @@ def get_parser():
         help="Job id for trainer job.",
     )
 
-    # Dataset name
     parser.add_argument(
         "--dataset_name",
         type=str,
@@ -101,7 +238,6 @@ def get_parser():
                         Use 'true' to enable and 'false' to disable.",
     )
 
-    # Training parameters
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -130,7 +266,6 @@ def get_parser():
         help="Non-linearity function.",
     )
 
-    # Hardware and execution parameters
     parser.add_argument(
         "--device",
         type=str,
@@ -140,6 +275,7 @@ def get_parser():
         required=False,
         help='Device to use (e.g., "cpu" or "cuda").',
     )
+
     parser.add_argument(
         "--epochs",
         type=int,
@@ -174,7 +310,6 @@ def get_parser():
         help="Random seed for reproducibility.",
     )
 
-    # Method parameters
     parser.add_argument(
         "--method",
         type=str,
@@ -232,7 +367,6 @@ def get_parser():
         metavar="N_WARMUP_EPOCHS_INCREMENT",
     )
 
-    # Hyperparameter Optimization (HPO) parameters
     parser.add_argument(
         "--hpo",
         type=str,
@@ -303,11 +437,7 @@ def get_parser():
         choices=["mlp", "attention", "gcn", "gat"],
         metavar="LEVEL_MODEL_TYPE",
         required=False,
-        help="Specific model type to use at each level. Options: \
-            'mlp' (Multi-Layer Perceptron), \
-            'attention' (Attention mechanism), \
-            'gcn' (Graph Convolutional Network), \
-            'gat' (Graph Attention Network).",
+        help="Specific model type to use at each level.",
     )
 
     parser.add_argument(
@@ -319,49 +449,48 @@ def get_parser():
         metavar="ACTIVE_LEVELS",
     )
 
-    # HPO result parameters (used when HPO is disabled)
     parser.add_argument(
         "--lr_values",
         type=float,
         nargs="+",
         required=False,
-        help="List of values for the learning \
-            rate (used when HPO is disabled).",
+        help="List of values for the learning rate (used when HPO is disabled).",
     )
+
     parser.add_argument(
         "--dropout_values",
         type=float,
         nargs="+",
         required=False,
         metavar="DROPOUT",
-        help="List of values for dropout \
-            (used when HPO is disabled).",
+        help="List of values for dropout (used when HPO is disabled).",
     )
+
     parser.add_argument(
         "--hidden_dims",
-        type=json.loads,  # aceita JSON (ex.: '[[128,64],[256]]')
+        type=json.loads,
         required=False,
         metavar="HIDDEN_DIMS",
         help="List (or list of lists) of hidden neurons. "
         "Can be passed as JSON when HPO is enabled (e.g. '[[128,64],[256]]').",
     )
+
     parser.add_argument(
         "--num_layers_values",
         type=int,
         nargs="+",
         required=False,
         metavar="NUM_LAYERS",
-        help="List of values for the number of \
-            layers (used when HPO is disabled).",
+        help="List of values for the number of layers (used when HPO is disabled).",
     )
+
     parser.add_argument(
         "--weight_decay_values",
         type=float,
         nargs="+",
         required=False,
         metavar="WEIGHT_DECAY",
-        help="List of values for weight decay \
-            (used when HPO is disabled).",
+        help="List of values for weight decay (used when HPO is disabled).",
     )
 
     parser.add_argument(
@@ -370,8 +499,7 @@ def get_parser():
         default=5,
         metavar="PATIENCE",
         required=False,
-        help="Number of epochs with no improvement \
-            after which training will be stopped.",
+        help="Number of epochs with no improvement after which training will be stopped.",
     )
 
     parser.add_argument(
@@ -389,8 +517,7 @@ def get_parser():
         default=20,
         metavar="PATIENCE_SCORE",
         required=False,
-        help="Number of epochs with no improvement \
-            after which training will be stopped.",
+        help="Number of epochs with no improvement after which training will be stopped.",
     )
 
     parser.add_argument(
@@ -399,8 +526,7 @@ def get_parser():
         default=20,
         metavar="EPOCHS_TO_EVALUATE",
         required=False,
-        help="Number of epochs to evaluate the \
-            model during training.",
+        help="Number of epochs to evaluate the model during training.",
     )
 
     parser.add_argument(
@@ -409,8 +535,64 @@ def get_parser():
         default=20,
         metavar="EPOCHS_TO_TEST",
         required=False,
-        help="Number of epochs to test the \
-            model during training.",
+        help="Number of epochs to test the model during training.",
     )
 
     return parser
+
+
+def parse_args() -> Args:
+    """Parse CLI arguments and return a typed Args dataclass."""
+    ns = get_parser().parse_args()
+    dataset = DatasetConfig(
+        dataset_path=ns.dataset_path,
+        dataset_name=ns.dataset_name,
+        use_sample=_str_to_bool(ns.use_sample),
+        save_torch_dataset=_str_to_bool(ns.save_torch_dataset),
+        dataset_type=ns.dataset_type,
+    )
+    training = TrainingConfig(
+        batch_size=ns.batch_size,
+        non_lin=ns.non_lin,
+        device=ns.device,
+        epochs=ns.epochs,
+        epochs_attention=ns.epochs_attention,
+        epochs_level=ns.epochs_level,
+        seed=ns.seed,
+        focal_loss=_str_to_bool(ns.focal_loss),
+        warmup=_str_to_bool(ns.warmup),
+        n_warmup_epochs=ns.n_warmup_epochs,
+        n_warmup_epochs_increment=ns.n_warmup_epochs_increment,
+        parent_conditioning=ns.parent_conditioning,
+        early_metric=ns.early_metric,
+        predict_test=_str_to_bool(ns.predict_test),
+        level_model_type=ns.level_model_type,
+        active_levels=ns.active_levels,
+        encoder_block=ns.encoder_block,
+        patience=ns.patience,
+        patience_score=ns.patience_score,
+        epochs_to_evaluate=ns.epochs_to_evaluate,
+        epochs_to_test=ns.epochs_to_test,
+        best_threshold=_str_to_bool(ns.best_threshold),
+    )
+    hpo_config = HpoConfig(
+        hpo=_str_to_bool(ns.hpo),
+        hpo_by_level=_str_to_bool(ns.hpo_by_level),
+        n_trials=ns.n_trials,
+    )
+    hyperparams = HyperparameterConfig(
+        lr_values=ns.lr_values,
+        dropout_values=ns.dropout_values,
+        hidden_dims=ns.hidden_dims,
+        num_layers_values=ns.num_layers_values,
+        weight_decay_values=ns.weight_decay_values,
+    )
+    return Args(
+        dataset=dataset,
+        output_path=ns.output_path,
+        job_id=ns.job_id,
+        method=ns.method,
+        training=training,
+        hpo_config=hpo_config,
+        hyperparams=hyperparams,
+    )
