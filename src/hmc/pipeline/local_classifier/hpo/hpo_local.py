@@ -8,12 +8,12 @@ import sys
 
 import optuna
 import torch
-from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.utils.dataset.labels import (
     show_local_losses,
 )
+from hmc.utils.metrics.calculate_metrics import calculate_metrics
 from hmc.utils.path.files import create_dir
 from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.early_stopping import (
@@ -388,33 +388,22 @@ def val_optimizer(args):
     y_true = local_inputs[args.current_level].to("cpu").int().numpy()
     y_pred_binary = y_pred > threshold
 
-    score = precision_recall_fscore_support(
-        y_true,
-        y_pred_binary,
-        average="micro",
-        zero_division=0,
-    )
-
-    avg_score = average_precision_score(
-        y_true,
-        y_pred,
-        average="micro",
-    )
+    metrics = calculate_metrics(y_true, y_pred, y_pred_binary)
 
     logging.info(
         "Level %d: precision=%.4f, recall=%.4f, f1-score=%.4f avg score=%.4f",
         args.current_level,
-        score[0],
-        score[1],
-        score[2],
-        avg_score,
+        metrics["precision"],
+        metrics["recall"],
+        metrics["f1score"],
+        metrics["average_precision_score"],
     )
     print(args.early_metric)
     if args.early_metric == "f1-score":
         print("Using f1-score for early stopping...")
-        args.local_val_scores[args.current_level] = score[2]
+        args.local_val_scores[args.current_level] = metrics["f1score"]
     elif args.early_metric == "avg-score":
-        args.local_val_scores[args.current_level] = avg_score
+        args.local_val_scores[args.current_level] = metrics["average_precision_score"]
 
     args.local_val_losses = [
         loss / len(args.val_loader) for loss in args.local_val_losses

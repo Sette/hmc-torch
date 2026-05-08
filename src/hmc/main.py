@@ -31,9 +31,13 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
-def main():
+def main() -> dict:
     """
     Main training function (entrypoint).
+
+    Returns:
+        dict: Score dictionary with keys such as ``"f1score"``, ``"precision"``,
+        ``"recall"``, and ``"avg_precision"``.
     """
     # Training settings
     args = parse_args()
@@ -71,10 +75,11 @@ def main():
         case "global" | "global_baseline":
             logging.info("Global method selected")
             train_global(args.dataset.dataset_name, args)
-        case _:  # Default case (like 'default' in other languages
+        case _:
             print("Invalid option for method. Please select a valid method.")
 
-    return args.score
+    score: dict = args.score if isinstance(args.score, dict) else {}
+    return score
 
 
 if __name__ == "__main__":
