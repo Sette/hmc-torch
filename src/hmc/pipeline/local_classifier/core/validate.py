@@ -3,7 +3,7 @@ This module contains the validation step for the HMC local classifier.
 """
 
 import logging
-
+import os
 import torch
 
 from hmc.utils.metrics.calculate_metrics import calculate_metrics
@@ -45,8 +45,12 @@ def validate_step(args):
 
     args.model.eval()
 
-    args.result_path = f"{args.output_path}/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
-
+    args.result_path = os.path.join(
+        args.output_path,
+        "train",
+        f"{args.method}-{args.dataset.dataset_name}",
+        args.job_id,
+    )
     threshold = 0.5
 
     # Get local scores

@@ -3,6 +3,7 @@ This module contains the Optuna hyperparameter optimization for the HMC local cl
 """
 
 import logging
+import os
 import sys
 
 import optuna
@@ -258,7 +259,13 @@ def optimize_hyperparameters(args):
 
     args.job_id = create_job_id_name(prefix="hpo")
 
-    args.results_path = f"{args.output_path}/hpo/{args.method}/{args.dataset.dataset_name}/{args.job_id}"
+    args.results_path = os.path.join(
+        args.output_path,
+        "hpo",
+        args.method,
+        args.dataset.dataset_name,
+        args.job_id,
+    )
 
     args.best_params_per_level = {}
 
