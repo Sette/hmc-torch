@@ -24,7 +24,7 @@ class DatasetConfig:
 
 
 @dataclass
-class TrainingConfig:
+class TrainingConfig:  # pylint: disable=too-many-instance-attributes
     """Training loop and optimization settings."""
 
     batch_size: int = 64
@@ -73,7 +73,12 @@ class HpoConfig:
 
 @dataclass
 class Args:  # pylint: disable=too-many-instance-attributes
-    """Configuration for HMC model training and hyperparameter optimization."""
+    """Configuration for HMC model training and hyperparameter optimization.
+
+    Most fields are exposed as flat properties that delegate to the grouped
+    sub-configs (``training``, ``hyperparams``, ``hpo_config``) so that
+    existing call-sites continue to work without modification.
+    """
 
     # Required
     dataset: DatasetConfig
@@ -103,10 +108,18 @@ class Args:  # pylint: disable=too-many-instance-attributes
         """Batch size for training."""
         return self.training.batch_size
 
+    @batch_size.setter
+    def batch_size(self, value: int) -> None:
+        self.training.batch_size = value
+
     @property
     def non_lin(self) -> str:
         """Non-linearity function."""
         return self.training.non_lin
+
+    @non_lin.setter
+    def non_lin(self, value: str) -> None:
+        self.training.non_lin = value
 
     @property
     def device(self) -> str:
@@ -121,6 +134,10 @@ class Args:  # pylint: disable=too-many-instance-attributes
     def epochs(self) -> int:
         """Total training epochs."""
         return self.training.epochs
+
+    @epochs.setter
+    def epochs(self, value: int) -> None:
+        self.training.epochs = value
 
     @property
     def epochs_attention(self) -> int:

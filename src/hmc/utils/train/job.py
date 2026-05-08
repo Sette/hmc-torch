@@ -156,6 +156,56 @@ def find_local_best_threshold(
     return best_thresholds, best_scores
 
 
+def _find_global_threshold_global_mode(y_true_global_original, all_y_pred):
+    """Find best threshold when mode='global' (direct global predictions)."""
+    best_threshold = 0.5
+    best_scores = {
+        "precision": 0,
+        "recall": 0,
+        "f1score": 0,
+        "average_precision_score": 0,
+    }
+    y_test = y_true_global_original
+    constr_test = all_y_pred
+
+    for actual_threshold in tqdm(np.linspace(0.1, 0.9, 17)):
+        score = precision_recall_fscore_support(
+            y_test, constr_test > actual_threshold, average="micro", zero_division=0
+        )
+        if score[2] > best_scores["f1score"]:
+            best_threshold = actual_threshold
+            best_scores = {
+                "precision": score[0],
+                "recall": score[1],
+                "f1score": score[2],
+            }
+
+    best_threshold = round(best_threshold, 4)
+    logging.info("Best threshold: %.4f", best_threshold)
+    best_scores = {
+        "precision": 0,
+        "recall": 0,
+        "f1score": 0,
+        "average_precision_score": 0,
+    }
+
+    for actual_threshold in tqdm(
+        np.linspace(best_threshold - 0.01, best_threshold, 10)
+    ):
+        score = precision_recall_fscore_support(
+            y_test, constr_test > actual_threshold, average="micro", zero_division=0
+        )
+        if score[2] > best_scores["f1score"]:
+            best_threshold = actual_threshold
+            best_scores = {
+                "precision": score[0],
+                "recall": score[1],
+                "f1score": score[2],
+            }
+
+    return best_threshold, best_scores
+
+
 def find_global_best_threshold(
     y_true_global_original,
     all_y_pred,
@@ -168,137 +218,70 @@ def find_global_best_threshold(
         all_y_pred: Array of global predictions.
         y_true_global_original: Array of global targets.
         args: Object containing dataset information.
+        mode: "local" uses local-to-global conversion; "global" uses direct predictions.
     Returns:
         Tuple of best threshold and best scores.
     """
-    # Concat global targets
+    if mode != "local":
+        return _find_global_threshold_global_mode(y_true_global_original, all_y_pred)
+
+    logging.info("finding best threshold")
     best_threshold = 0.5
+    best_scores = {"precision": 0, "recall": 0, "f1score": 0}
+
+    for actual_threshold in tqdm(np.linspace(0.1, 0.9, 17)):
+        if args.method in ["global_baseline", "global"]:
+            y_pred_global = all_y_pred
+            y_pred_global_binary = all_y_pred > actual_threshold
+        else:
+            y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                all_y_pred,
+                args.hmc_dataset.local_nodes_idx,
+                args.hmc_dataset.nodes_idx,
+                threshold=actual_threshold,
+            )
+        metrics = calculate_metrics(
+            y_true_global_original, y_pred_global, y_pred_global_binary
+        )
+        if metrics["f1score"] > best_scores["f1score"]:
+            best_threshold = actual_threshold
+            best_scores = {
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1score": metrics["f1score"],
+            }
+
     best_scores = {
         "precision": 0,
         "recall": 0,
         "f1score": 0,
         "average_precision_score": 0,
     }
-    if mode == "local":
-        logging.info("finding best threshold")
-
-        thresholds = np.linspace(0.1, 0.9, 17)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-        }
-
-        for actual_threshold in tqdm(thresholds):
-            if args.method in ["global_baseline", "global"]:
-                y_pred_global = all_y_pred
-                y_pred_global_binary = all_y_pred > actual_threshold
-            else:
-                y_pred_global, y_pred_global_binary = local_to_global_predictions(
-                    all_y_pred,
-                    args.hmc_dataset.local_nodes_idx,
-                    args.hmc_dataset.nodes_idx,
-                    threshold=actual_threshold,
-                )
-            metrics = calculate_metrics(
-                y_true_global_original,
-                y_pred_global,
-                y_pred_global_binary,
+    for actual_threshold in tqdm(
+        np.linspace(best_threshold - 0.01, best_threshold, 10)
+    ):
+        if args.method in ["global_baseline", "global"]:
+            y_pred_global = all_y_pred
+            y_pred_global_binary = all_y_pred > actual_threshold
+        else:
+            y_pred_global, y_pred_global_binary = local_to_global_predictions(
+                all_y_pred,
+                args.hmc_dataset.local_nodes_idx,
+                args.hmc_dataset.nodes_idx,
+                threshold=actual_threshold,
             )
-            if metrics["f1score"] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": metrics["precision"],
-                    "recall": metrics["recall"],
-                    "f1score": metrics["f1score"],
-                }
+        metrics = calculate_metrics(
+            y_true_global_original, y_pred_global, y_pred_global_binary
+        )
+        if metrics["f1score"] > best_scores["f1score"]:
+            best_threshold = actual_threshold
+            best_scores = {
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1score": metrics["f1score"],
+                "average_precision_score": metrics["average_precision_score"],
+            }
 
-        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
-
-        for actual_threshold in tqdm(thresholds):
-            if args.method in ["global_baseline", "global"]:
-                y_pred_global = all_y_pred
-                y_pred_global_binary = all_y_pred > actual_threshold
-            else:
-                y_pred_global, y_pred_global_binary = local_to_global_predictions(
-                    all_y_pred,
-                    args.hmc_dataset.local_nodes_idx,
-                    args.hmc_dataset.nodes_idx,
-                    threshold=actual_threshold,
-                )
-            metrics = calculate_metrics(
-                y_true_global_original,
-                y_pred_global,
-                y_pred_global_binary,
-            )
-            if metrics["f1score"] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": metrics["precision"],
-                    "recall": metrics["recall"],
-                    "f1score": metrics["f1score"],
-                    "average_precision_score": metrics["average_precision_score"],
-                }
-
-        logging.info("Best threshold: %.2f", best_threshold)
-        logging.info("Best scores: %s", best_scores)
-
-        return best_threshold, best_scores
-    else:
-        logging.info("finding best threshold")
-
-        thresholds = np.linspace(0.1, 0.9, 17)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
-        y_test = y_true_global_original
-        constr_test = all_y_pred
-        for actual_threshold in tqdm(thresholds):
-            score = precision_recall_fscore_support(
-                y_test,
-                constr_test > actual_threshold,
-                average="micro",
-                zero_division=0,
-            )
-            if score[2] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": score[0],
-                    "recall": score[1],
-                    "f1score": score[2],
-                }
-
-        best_threshold = round(best_threshold, 4)
-        logging.info("Best threshold: %.4f", best_threshold)
-        thresholds = np.linspace(best_threshold - 0.01, best_threshold, 10)
-        best_scores = {
-            "precision": 0,
-            "recall": 0,
-            "f1score": 0,
-            "average_precision_score": 0,
-        }
-
-        for actual_threshold in tqdm(thresholds):
-            score = precision_recall_fscore_support(
-                y_test,
-                constr_test > actual_threshold,
-                average="micro",
-                zero_division=0,
-            )
-            if score[2] > best_scores["f1score"]:
-                best_threshold = actual_threshold
-                best_scores = {
-                    "precision": score[0],
-                    "recall": score[1],
-                    "f1score": score[2],
-                }
-        return best_threshold, best_scores
+    logging.info("Best threshold: %.2f", best_threshold)
+    logging.info("Best scores: %s", best_scores)
+    return best_threshold, best_scores

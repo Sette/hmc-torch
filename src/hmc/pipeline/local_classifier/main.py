@@ -152,7 +152,8 @@ def create_dataloader(
             - y: Full label tensor
 
     Side Effects:
-        - Modifies data.samples.x and data.samples.y in-place by converting to tensors and moving to device.
+        - Modifies data.samples.x and data.samples.y in-place by converting
+          to tensors and moving to device.
     """
     if is_test:
         shuffle = False

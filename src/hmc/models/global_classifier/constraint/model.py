@@ -12,7 +12,7 @@ from torch import nn
 from hmc.models.global_classifier.constraint.utils import get_constr_out
 
 
-class ConstrainedModel(nn.Module):
+class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attributes
     """C-HMCNN(h) model - during training it returns the not-constrained
     output that is then passed to MCLoss"""
 
@@ -76,7 +76,7 @@ class ConstrainedModel(nn.Module):
         return output
 
 
-class ConstrainedLightningModel(LightningModule):
+class ConstrainedLightningModel(LightningModule):  # pylint: disable=too-many-instance-attributes
     """Constrained Lightning Model."""
 
     def __init__(
