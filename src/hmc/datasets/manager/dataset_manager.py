@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class HMCDatasetManager:
+class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
     """
     Manages hierarchical multi-label datasets, \
     including loading features (X), labels (Y),
@@ -73,6 +73,17 @@ class HMCDatasetManager:
             "dataset_type": kwargs["dataset_type"],
             "is_global": kwargs["is_global"],
         }
+
+        # Direct attributes initialised here; populated by load_arff_data
+        self.a = np.array([])
+        self.edge_index = {}
+        self.to_eval = None
+        self.nodes_idx = {}
+        self.local_nodes_idx = {}
+        self.max_depth = None
+        self.levels = {}
+        self.levels_size = {}
+        self.hierarchy_map = {}
 
         if kwargs["dataset_type"] == "arff":
             (
@@ -257,15 +268,23 @@ class HMCDatasetManager:
         # self.compute_r_matrix_local()
         self.build_hierarchy_map()
         self.to_eval = self.dataset_values["train"].to_eval
-        self.dataset_values["nodes"] = self.dataset_values["train"].g.nodes()
-        self.dataset_values["g_t"] = self.dataset_values["train"].g.copy()
-        self.dataset_values["nodes_idx"] = self.dataset_values["train"].nodes_idx
-        self.dataset_values["local_nodes_idx"] = self.dataset_values[
-            "train"
-        ].local_nodes_idx
-        self.dataset_values["max_depth"] = self.dataset_values["train"].max_depth
-        self.dataset_values["levels"] = self.dataset_values["train"].levels
-        self.dataset_values["levels_size"] = self.dataset_values["train"].levels_size
+
+        # Expose hierarchy attributes directly (also kept in dataset_values for
+        # backward compatibility)
+        train = self.dataset_values["train"]
+        self.nodes_idx = train.nodes_idx
+        self.local_nodes_idx = train.local_nodes_idx
+        self.max_depth = train.max_depth
+        self.levels = train.levels
+        self.levels_size = train.levels_size
+
+        self.dataset_values["nodes"] = train.g.nodes()
+        self.dataset_values["g_t"] = train.g.copy()
+        self.dataset_values["nodes_idx"] = self.nodes_idx
+        self.dataset_values["local_nodes_idx"] = self.local_nodes_idx
+        self.dataset_values["max_depth"] = self.max_depth
+        self.dataset_values["levels"] = self.levels
+        self.dataset_values["levels_size"] = self.levels_size
 
     def build_hierarchy_map(self):
         """
@@ -275,6 +294,7 @@ class HMCDatasetManager:
             children = list(self.dataset_values["train"].g.successors(parent))
             if children:
                 self.dataset_values["hierarchy_map"][parent] = children
+        self.hierarchy_map = self.dataset_values["hierarchy_map"]  # already in __init__
 
     def get_datasets(self):
         """

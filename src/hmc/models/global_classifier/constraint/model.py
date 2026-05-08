@@ -12,41 +12,48 @@ from torch import nn
 from hmc.models.global_classifier.constraint.utils import get_constr_out
 
 
-class ConstrainedModel(nn.Module):
+class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attributes
     """C-HMCNN(h) model - during training it returns the not-constrained
     output that is then passed to MCLoss"""
 
-    def __init__(
-        self,
-        input_dim,
-        hidden_dim,
-        output_dim,
-        hyperparams,
-        r_matrix,
-        baseline_model=False,
-    ):
-        """Initialize the ConstrainedModel."""
+    def __init__(self, **kwargs):
+        """
+        Initialize the ConstrainedModel.
+
+        Args:
+            input_dim: Input dimension.
+            hidden_dim: Hidden dimension.
+            output_dim: Output dimension.
+            hyperparams: Hyperparameters.
+            r_matrix: Constraint matrix.
+            baseline_model: Whether to use baseline model.
+        """
         super().__init__()
 
-        self.nb_layers = hyperparams["num_layers"]
-        self.baseline_model = baseline_model
-        if not self.baseline_model:
-            self.r_matrix = r_matrix
+        self.input_dim = kwargs["input_dim"]
+        self.hidden_dim = kwargs["hidden_dim"]
+        self.output_dim = kwargs["output_dim"]
+        self.hyperparams = kwargs["hyperparams"]
+        self.r_matrix = kwargs["r_matrix"]
+
+        self.baseline_model = kwargs.get("baseline_model", False)
+
+        self.nb_layers = self.hyperparams["num_layers"]
 
         fc = []
         for i in range(self.nb_layers):
             if i == 0:
-                fc.append(nn.Linear(input_dim, hidden_dim))
+                fc.append(nn.Linear(self.input_dim, self.hidden_dim))
             elif i == self.nb_layers - 1:
-                fc.append(nn.Linear(hidden_dim, output_dim))
+                fc.append(nn.Linear(self.hidden_dim, self.output_dim))
             else:
-                fc.append(nn.Linear(hidden_dim, hidden_dim))
+                fc.append(nn.Linear(self.hidden_dim, self.hidden_dim))
         self.fc = nn.ModuleList(fc)
 
-        self.drop = nn.Dropout(hyperparams["dropout"])
+        self.drop = nn.Dropout(self.hyperparams["dropout"])
 
         self.sigmoid = nn.Sigmoid()
-        if hyperparams["non_lin"] == "tanh":
+        if self.hyperparams["non_lin"] == "tanh":
             self.f = nn.Tanh()
         else:
             self.f = nn.ReLU()
@@ -69,20 +76,12 @@ class ConstrainedModel(nn.Module):
         return output
 
 
-class ConstrainedLightningModel(LightningModule):
+class ConstrainedLightningModel(LightningModule):  # pylint: disable=too-many-instance-attributes
     """Constrained Lightning Model."""
 
     def __init__(
         self,
-        input_dim,
-        hidden_dim,
-        output_dim,
-        hyperparams,
-        r_matrix,
-        to_eval,
-        lr,
-        weight_decay,
-        baseline_model=False,
+        **kwargs,
     ):
         """
         Initialize the ConstrainedLightningModel.
@@ -99,17 +98,33 @@ class ConstrainedLightningModel(LightningModule):
             baseline_model: Whether to use baseline model.
         """
         super().__init__()
-        self.model = ConstrainedModel(
-            input_dim, hidden_dim, output_dim, hyperparams, r_matrix
-        )
+        self.input_dim = kwargs.pop("input_dim")
+        self.hidden_dim = kwargs.pop("hidden_dim")
+        self.output_dim = kwargs.pop("output_dim")
+        self.hyperparams = kwargs.pop("hyperparams")
+        self.r_matrix = kwargs.pop("r_matrix")
+        self.to_eval = kwargs.pop("to_eval")
+
+        # Usando .get() para valores que têm padrão (default)
+        self.lr = kwargs.pop("lr", 1e-3)
+        self.weight_decay = kwargs.pop("weight_decay", 0.0)
+        self.baseline_model = kwargs.pop("baseline_model", False)
+
+        configs = {
+            "input_dim": self.input_dim,
+            "hidden_dim": self.hidden_dim,
+            "output_dim": self.output_dim,
+            "hyperparams": self.hyperparams,
+            "r_matrix": self.r_matrix,
+            "baseline_model": True,
+        }
+
+        self.model = ConstrainedModel(**configs)
         self.model = self.model.to(self.device)
-        self.baseline_model = baseline_model
         if not self.baseline_model:
-            self.r_matrix = r_matrix.to(self.device)
-        self.to_eval = to_eval.to(self.device)
+            self.r_matrix = self.r_matrix.to(self.device)
+        self.to_eval = self.to_eval.to(self.device)
         self.criterion = nn.BCELoss()
-        self.lr = lr
-        self.weight_decay = weight_decay
         self.val_outputs = []
         self.test_outputs = []
 

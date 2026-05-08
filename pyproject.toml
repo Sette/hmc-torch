@@ -1,9 +1,10 @@
 [project]
 name = "hmc-torch"
-version = "0.0.7"
+version = "0.0.8"
+
 description = "Hierarchical Multi-Label Classification Network in Pytorch"
 authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
-requires-python = ">=3.11,<4"
+requires-python = ">=3.11,<3.14"
 readme = "README.md"
 dependencies = [
     "tqdm==4.67.3",
@@ -17,7 +18,6 @@ dependencies = [
     "lightning[extra]==2.6.1",
     "tensorflow==2.21.0",
     "tf-keras==2.21.0",
-    "litmodels==0.1.8",
     "optuna==4.8.0",
     "logging==0.4.9.6",
     "torch-geometric==2.7.0",
