@@ -126,6 +126,9 @@ export PYTHONPATH=src
 
 Datasets follow the naming convention `{data}_{ontology}`, e.g. `seq_FUN`, `expr_GO`.
 
+Make sure do you have data dir:
+
+
 **Supported datasets:**
 
 | Group | Datasets |
@@ -133,23 +136,26 @@ Datasets follow the naming convention `{data}_{ontology}`, e.g. `seq_FUN`, `expr
 | FUN / GO | `cellcycle`, `derisi`, `eisen`, `expr`, `gasch1`, `gasch2`, `seq`, `spo` |
 | Others | `diatoms`, `enron`, `imclef07a`, `imclef07d` |
 
-**Download from Kaggle:**
+
+With kaggle python package:
 
 ```bash
 pip install kaggle
-kaggle datasets download brunosette/gene-ontology-original
-mkdir -p data
-unzip gene-ontology-original.zip -d data/
 ```
 
-Or via curl:
+**Download FUN / GO from Kaggle:**
+
 
 ```bash
-curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
-  -o gene-ontology-original.zip \
-  https://www.kaggle.com/api/v1/datasets/download/brunosette/gene-ontology-original
-mkdir -p data && unzip gene-ontology-original.zip -d data/
+kaggle datasets download brunosette/gene-ontology-original --unzip -p data/
 ```
+
+**Download arxiv from Kaggle:**
+
+```bash
+kaggle datasets download -d Cornell-University/arxiv --unzip -p data/arxiv/
+```
+
 
 ---
 

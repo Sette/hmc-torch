@@ -39,6 +39,7 @@ dev = [
     "setuptools>=82.0.1",
     "ruff>=0.15.8",
     "pytest-cov>=7.1.0",
+    "kaggle>=2.1.2",
 ]
 
 [tool.uv]
