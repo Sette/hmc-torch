@@ -40,7 +40,7 @@ from sklearn.impute import SimpleImputer
 from torch import nn
 from torch.utils.data import DataLoader
 
-from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
+from hmc.data.manager.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
