@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Optional
 
-from hmc.data.registry import DatasetRegistry
+from hmc.datasets.registry import DatasetRegistry
 
 
 @dataclass

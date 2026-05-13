@@ -13,7 +13,7 @@ from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
-from src.hmc.data.gofun.manager import initialize_dataset_experiments
+from src.hmc.datasets.gofun.manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
     ConstrainedLightningModel,
     ConstrainedModel,
