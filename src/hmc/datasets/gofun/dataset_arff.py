@@ -15,7 +15,7 @@ import keras
 import networkx as nx
 import numpy as np
 
-from hmc.datasets.gofun import to_skip
+from hmc.utils.datasets.paths import to_skip
 
 # Set a logger config
 logging.basicConfig(
