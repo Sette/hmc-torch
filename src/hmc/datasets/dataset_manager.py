@@ -1,5 +1,6 @@
-from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager
-from hmc.datasets.arxiv.dataset_arxiv import ArXivPyTorchDataset
+"""Dataset manager — entry point for loading all supported HMC datasets."""
+
+from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivPyTorchDataset
 from hmc.datasets.gofun.manager import HMCDatasetManager
 from hmc.utils.datasets.paths import get_dataset_paths
 
@@ -28,7 +29,6 @@ def initialize_dataset_experiments(
     - HMCDatasetManager: Initialized dataset manager.
     """
     if name == "arxiv":
-
         # 1. Preparar a Taxonomia
         manager = ArXivHierarchyManager()
         manager.fit_from_jsonl("arxiv_downloaded_subset.jsonl")
@@ -37,27 +37,24 @@ def initialize_dataset_experiments(
         dataset = ArXivPyTorchDataset(
             jsonl_path="arxiv_downloaded_subset.jsonl",
             hierarchy_manager=manager,
-            tokenizer=tokenizer,
+            tokenizer=None,
         )
 
         return dataset
-    else:
-        # Load dataset paths
-        datasets = get_dataset_paths(dataset_path=dataset_path)
+    # Load dataset paths
+    datasets = get_dataset_paths(dataset_path=dataset_path)
 
-        # Validate if the dataset exists
-        if name not in datasets:
-            raise ValueError(
-                f"Dataset '{name}' not found in experiments datasets. \
-                Available datasets: {list(datasets.keys())}"
-            )
+    if name not in datasets:
+        raise ValueError(
+            f"Dataset '{name}' not found in experiments datasets. "
+            f"Available datasets: {list(datasets.keys())}"
+        )
 
-        # Initialize dataset manager
-        kwargs = {
-            "dataset": datasets[name],
-            "dataset_type": dataset_type,
-            "device": device,
-            "is_global": is_global,
-        }
+    kwargs = {
+        "dataset": datasets[name],
+        "dataset_type": dataset_type,
+        "device": device,
+        "is_global": is_global,
+    }
 
-        return HMCDatasetManager(**kwargs)
+    return HMCDatasetManager(**kwargs)

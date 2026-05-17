@@ -1,4 +1,7 @@
+"""Dataset file paths for all supported HMC datasets."""
+
 import os
+
 to_skip = ["root", "GO0003674", "GO0005575", "GO0008150"]
 
 

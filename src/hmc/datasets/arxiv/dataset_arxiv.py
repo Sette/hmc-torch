@@ -8,7 +8,7 @@ Complies with Clean Architecture and Pylint standards.
 import json
 import logging
 from collections import defaultdict
-from typing import Dict, List, Tuple, Any, Set
+from typing import Any, Dict, List, Set, Tuple
 
 import networkx as nx
 import numpy as np
@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class ArXivHierarchyManager:
+class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes
     """
     Manages the parsing of ArXiv categories, builds the class hierarchy graph,
     and exposes adjacency structures required for HMC architectures.
@@ -219,6 +219,7 @@ class ArXivPyTorchDataset(Dataset):
         }
 
         return encoded_inputs, targets
+
     # ==========================================
     # Propriedades de Compatibilidade para o `args`
     # ==========================================
@@ -239,10 +240,7 @@ class ArXivPyTorchDataset(Dataset):
         return torch.from_numpy(self.hierarchy.a).float()
 
     def get_datasets(
-        self,
-        train_ratio: float = 0.8,
-        valid_ratio: float = 0.1,
-        seed: int = 42
+        self, train_ratio: float = 0.8, valid_ratio: float = 0.1, seed: int = 42
     ) -> Tuple[Subset, Subset, Subset]:
         """
         Splits the dataset into training, validation, and test subsets.
@@ -265,9 +263,7 @@ class ArXivPyTorchDataset(Dataset):
         generator = torch.Generator().manual_seed(seed)
 
         train_dataset, valid_dataset, test_dataset = random_split(
-            self,
-            [train_size, valid_size, test_size],
-            generator=generator
+            self, [train_size, valid_size, test_size], generator=generator
         )
 
         return train_dataset, valid_dataset, test_dataset

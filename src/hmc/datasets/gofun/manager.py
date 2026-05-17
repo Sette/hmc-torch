@@ -9,8 +9,8 @@ import networkx as nx
 import numpy as np
 import torch
 
-from hmc.utils.datasets.paths import get_dataset_paths, to_skip
 from hmc.datasets.gofun.dataset_arff import HMCDatasetArff
+from hmc.utils.datasets.paths import to_skip
 from hmc.utils.path.files import __load_json__
 
 # Set a logger config
