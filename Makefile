@@ -22,7 +22,7 @@ lint:
 	ruff format src/
 	ruff check src/ --fix
 	isort src/
-	pylint $(git ls-files '*.py')
+	pylint $$(git ls-files '*.py')
 
 dvc:
 	@dvc pull
