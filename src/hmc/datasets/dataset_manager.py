@@ -1,7 +1,7 @@
 from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager
 from hmc.datasets.arxiv.dataset_arxiv import ArXivPyTorchDataset
 from hmc.datasets.gofun.manager import HMCDatasetManager
-from hmc.utils.dataset.paths import get_dataset_paths
+from hmc.utils.datasets.paths import get_dataset_paths
 
 def initialize_dataset_experiments(
     name: str,
