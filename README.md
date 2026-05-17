@@ -38,17 +38,21 @@ hmc-torch/
 ├── src/hmc/
 │   ├── arguments.py                   # Args dataclass + argparse CLI (parse_args)
 │   ├── main.py                        # Entry point — routes to global or local pipeline
-│   ├── env.py                         # Environment variables
+│   ├── env.py                         # Logging and environment configuration
 │   │
 │   ├── datasets/
-│   │   ├── dataset_torch.py           # PyTorch dataset wrapper
-│   │   ├── gofun/
-│   │   │   └── dataset_arff.py        # ARFF file loader (Gene Ontology / FUN)
-│   │   └── manager/
-│   │       └── dataset_manager.py     # initialize_dataset_experiments — main loader entry
+│   │   ├── dataset_manager.py         # initialize_dataset_experiments — main loader entry
+│   │   ├── dataset_torch.py           # PyTorch dataset wrapper for .pt tensor files
+│   │   ├── registry.py                # DatasetRegistry — dimensions, lr, epochs per dataset
+│   │   ├── arxiv/
+│   │   │   ├── dataset_arxiv.py       # ArXivHierarchyManager, ArXivPyTorchDataset
+│   │   │   └── manager.py             # (stub)
+│   │   └── gofun/
+│   │       ├── dataset_arff.py        # HMCDatasetArff — ARFF parser, HierarchyData, SampleData
+│   │       └── manager.py             # HMCDatasetManager — scaling, splits, adjacency matrices
 │   │
 │   ├── models/
-│   │   ├── base.py                    # Base model class
+│   │   ├── base.py                    # HierarchicalModel — abstract base for all classifiers
 │   │   ├── global_classifier/
 │   │   │   └── constraint/
 │   │   │       ├── model.py           # ConstrainedModel, ConstrainedLightningModel
@@ -56,46 +60,49 @@ hmc-torch/
 │   │   └── local_classifier/
 │   │       ├── baseline/
 │   │       │   └── model.py           # HMCLocalModel — per-level MLP ensemble
-│   │       └── networks.py            # Shared network building blocks
+│   │       └── networks.py            # ClassificationNetwork, BuildClassification (MLP/GCN/GAT)
 │   │
 │   ├── pipeline/
 │   │   ├── global_classifier/
-│   │   │   ├── main.py                # train_global() — setup, data loading, fit
+│   │   │   ├── main.py                # train_global() — setup, R-matrix, data loading, fit
 │   │   │   └── core/
-│   │   │       └── train.py           # train_step, test_step, get_local_scores
+│   │   │       └── train.py           # _run_training_loop, _collect_test_outputs, _compute_local_scores
 │   │   └── local_classifier/
-│   │       ├── main.py                # main_local(), train_local(), test_local()
+│   │       ├── main.py                # main_local(), train_local(), test_local(), get_train_methods()
 │   │       ├── core/
 │   │       │   ├── train.py           # train_step — progressive level training
 │   │       │   ├── validate.py        # validate_step — per-level metrics + early stopping
-│   │       │   └── test.py            # test_step — threshold search + final scores
+│   │       │   └── predict.py         # test_step — threshold search + final scores
 │   │       └── hpo/
 │   │           └── hpo_local.py       # optimize_hyperparameters — Optuna study per level
 │   │
 │   └── utils/
-│       ├── dataset/
-│       │   ├── labels.py              # Label conversion (local↔global), binarization
-│       │   └── convert_hpo_json.py    # HPO result format conversion
+│       ├── parser.py                  # create_example — feature/label tuple to dict
+│       ├── datasets/
+│       │   ├── labels.py              # Label conversion (local↔global), group_labels_by_level
+│       │   ├── paths.py               # get_dataset_paths — file paths for all datasets
+│       │   └── convert_hpo_json.py    # HPO result consolidation to YAML
 │       ├── metrics/
 │       │   └── calculate_metrics.py   # precision, recall, f1, avg precision
 │       ├── path/
-│       │   ├── files.py               # create_dir
+│       │   ├── files.py               # create_dir, join_path, __load_json__
 │       │   └── output.py              # save_dict_to_json
 │       ├── predict/
-│       │   └── metrics.py
+│       │   └── metrics.py             # find_best_threshold(s), create_report_metrics
 │       └── train/
-│           ├── early_stopping.py      # check_early_stopping_normalized, check_loss
-│           ├── job.py                 # create_job_id_name, timers, threshold search
-│           └── losses.py              # compute_loss, focal loss, hierarchical loss
+│           ├── early_stopping.py      # check_early_stopping_normalized, check_loss, check_metric
+│           ├── job.py                 # create_job_id_name, timers, GPU logging, threshold search
+│           └── losses.py              # compute_loss, calculate_local_loss
 │
 ├── tests/
-│   ├── conftest.py
-│   └── train_global_test.py           # Integration test for global pipeline
+│   ├── conftest.py                    # Adds src/ to Python path
+│   └── train_global_test.py           # Integration test for global pipeline (seq_FUN)
 │
 ├── config.yaml                        # HPO-tuned hyperparameters per dataset
 ├── run.sh                             # Main training script (reads config.yaml via yq)
-├── run.ps1                            # Windows equivalent
-├── Makefile                           # lint, test, build targets
+├── install.sh                         # Dependency installation helper
+├── deploy_kaggle.sh                   # Kaggle dataset upload helper
+├── Makefile                           # lint, test, build, run targets
 ├── pyproject.toml                     # Project metadata and dependencies (uv)
 └── uv.lock                            # Locked dependency tree
 ```
@@ -126,16 +133,13 @@ export PYTHONPATH=src
 
 Datasets follow the naming convention `{data}_{ontology}`, e.g. `seq_FUN`, `expr_GO`.
 
-Make sure do you have data dir:
-
-
 **Supported datasets:**
 
 | Group | Datasets |
 |---|---|
 | FUN / GO | `cellcycle`, `derisi`, `eisen`, `expr`, `gasch1`, `gasch2`, `seq`, `spo` |
 | Others | `diatoms`, `enron`, `imclef07a`, `imclef07d` |
-
+| ArXiv | `arxiv` (category hierarchy: cs.AI, cs.LG, …) |
 
 With kaggle python package:
 
@@ -145,17 +149,15 @@ pip install kaggle
 
 **Download FUN / GO from Kaggle:**
 
-
 ```bash
 kaggle datasets download brunosette/gene-ontology-original --unzip -p data/
 ```
 
-**Download arxiv from Kaggle:**
+**Download ArXiv from Kaggle:**
 
 ```bash
 kaggle datasets download -d Cornell-University/arxiv --unzip -p data/arxiv/
 ```
-
 
 ---
 
@@ -223,7 +225,7 @@ make lint   # autopep8 + black + ruff + isort + pylint
 
 `config.yaml` stores HPO-tuned hyperparameters for each dataset. `run.sh` reads these values using `yq` and passes them to the CLI.
 
-To add a new dataset, append a new entry to `config.yaml`:
+To add a new dataset, register its dimensions in `datasets/registry.py:DatasetRegistry`, then append a new entry to `config.yaml`:
 
 ```yaml
 datasets_params:
