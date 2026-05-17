@@ -12,7 +12,7 @@ from torch import nn
 from tqdm import tqdm
 
 from hmc.models.global_classifier.constraint.model import get_constr_out
-from hmc.utils.dataset.labels import global_to_local_predictions
+from hmc.utils.datasets.labels import global_to_local_predictions
 from hmc.utils.path.files import create_dir
 from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.job import find_global_best_threshold, log_system_info

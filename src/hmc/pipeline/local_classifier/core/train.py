@@ -22,7 +22,7 @@ import logging
 
 import torch
 
-from hmc.utils.dataset.labels import show_local_losses
+from hmc.utils.datasets.labels import show_local_losses
 from hmc.utils.train.job import (
     create_job_id_name,
     end_timer,

@@ -40,14 +40,14 @@ from sklearn.impute import SimpleImputer
 from torch import nn
 from torch.utils.data import DataLoader
 
-from src.hmc.datasets.gofun.manager import initialize_dataset_experiments
+
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
 from hmc.pipeline.local_classifier.core.train import train_step
 from hmc.pipeline.local_classifier.core.validate import validate_step
 from hmc.pipeline.local_classifier.hpo.hpo_local import optimize_hyperparameters
 from hmc.utils.path.files import create_dir
 from hmc.utils.train.job import log_system_info
-from src.hmc.pipeline.local_classifier.core.predict import test_step
+from hmc.pipeline.local_classifier.core.predict import test_step
 
 
 def get_train_methods(method: str) -> dict[str, object]:
@@ -205,23 +205,37 @@ def main_local(args):
     val_path = os.path.join(args.results_path, "val_dataset.pt")
     test_path = os.path.join(args.results_path, "test_dataset.pt")
 
+    if dataset_name == 'arxiv':
+        dataset_type = 'jsonl'
+    else:
+        dataset_type = 'arff'
+
     args.hmc_dataset = initialize_dataset_experiments(
         args.dataset.dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arff",
+        dataset_type=dataset_type,
         is_global=False,
     )
 
     args.levels_size = args.hmc_dataset.levels_size
     args.input_dim = args.registry.input_dims[args.data]
     args.max_depth = args.hmc_dataset.max_depth
-    args.to_eval = args.hmc_dataset.to_eval
-    data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
-    data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
-    scaler = preprocessing.StandardScaler().fit(data_concat)
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
+    
 
+    # 1. Initialize scaler and imputer as None (Default for NLP/Text datasets)
+    scaler = None
+    imp_mean = None
+    data_train, data_valid, data_test = args.hmc_dataset.get_datasets()
+    # 2. Apply transformations ONLY if the dataset is tabular/numerical
+    if args.dataset_type == "arff":
+        args.to_eval = args.hmc_dataset.to_eval
+        data_concat = np.concatenate((data_train.x, data_valid.x, data_test.x))
+        scaler = preprocessing.StandardScaler().fit(data_concat)
+        imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(data_concat)
+
+    # 3. Create the test dataloader
+    # Ensure your create_dataloader function internally ignores scaler/imp_mean if they are None
     args.test_loader = create_dataloader(
         data_test,
         scaler=scaler,

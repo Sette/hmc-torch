@@ -10,7 +10,7 @@ import optuna
 import torch
 
 from hmc.models.local_classifier.baseline.model import HMCLocalModel
-from hmc.utils.dataset.labels import (
+from hmc.utils.datasets.labels import (
     show_local_losses,
 )
 from hmc.utils.metrics.calculate_metrics import calculate_metrics
