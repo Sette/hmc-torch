@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple, Any, Set
 import networkx as nx
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset, random_split
 from transformers import PreTrainedTokenizer
 
 # Configure logging
@@ -219,3 +219,54 @@ class ArXivPyTorchDataset(Dataset):
         }
 
         return encoded_inputs, targets
+    # ==========================================
+    # Propriedades de Compatibilidade para o `args`
+    # ==========================================
+    @property
+    def levels_size(self) -> dict:
+        """dict: Number of unique nodes at each depth level."""
+        return self.hierarchy.levels_size
+
+    @property
+    def max_depth(self) -> int:
+        """int: Total number of depth levels in the hierarchy."""
+        return self.hierarchy.max_depth
+
+    @property
+    def adjacency_matrix(self) -> torch.Tensor:
+        """torch.Tensor: Returns the full graph adjacency matrix."""
+        return torch.from_numpy(self.hierarchy.a).float()
+
+    def get_datasets(
+        self, 
+        train_ratio: float = 0.8, 
+        valid_ratio: float = 0.1, 
+        seed: int = 42
+    ) -> Tuple[Subset, Subset, Subset]:
+        """
+        Splits the dataset into training, validation, and test subsets.
+        Uses a fixed random seed for reproducible splits across experiment runs.
+
+        Args:
+            train_ratio (float): Proportion of the dataset to include in the train split.
+            valid_ratio (float): Proportion of the dataset to include in the validation split.
+            seed (int): Random seed for reproducibility.
+
+        Returns:
+            Tuple[Subset, Subset, Subset]: The train, validation, and test datasets.
+        """
+        total_size = len(self)
+        train_size = int(train_ratio * total_size)
+        valid_size = int(valid_ratio * total_size)
+        test_size = total_size - train_size - valid_size
+
+        # Create a generator with a manual seed to ensure the split is reproducible
+        generator = torch.Generator().manual_seed(seed)
+        
+        train_dataset, valid_dataset, test_dataset = random_split(
+            self, 
+            [train_size, valid_size, test_size],
+            generator=generator
+        )
+
+        return train_dataset, valid_dataset, test_dataset
