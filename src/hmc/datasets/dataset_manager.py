@@ -3,6 +3,7 @@ from hmc.datasets.arxiv.dataset_arxiv import ArXivPyTorchDataset
 from hmc.datasets.gofun.manager import HMCDatasetManager
 from hmc.utils.datasets.paths import get_dataset_paths
 
+
 def initialize_dataset_experiments(
     name: str,
     device: str = "cpu",
@@ -27,7 +28,7 @@ def initialize_dataset_experiments(
     - HMCDatasetManager: Initialized dataset manager.
     """
     if name == "arxiv":
-        
+
         # 1. Preparar a Taxonomia
         manager = ArXivHierarchyManager()
         manager.fit_from_jsonl("arxiv_downloaded_subset.jsonl")
@@ -60,5 +61,3 @@ def initialize_dataset_experiments(
         }
 
         return HMCDatasetManager(**kwargs)
-
-

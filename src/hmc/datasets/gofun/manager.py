@@ -307,4 +307,3 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
             self.dataset_values["valid"],
             self.dataset_values["test"],
         )
-

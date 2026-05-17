@@ -221,7 +221,6 @@ def main_local(args):
     args.levels_size = args.hmc_dataset.levels_size
     args.input_dim = args.registry.input_dims[args.data]
     args.max_depth = args.hmc_dataset.max_depth
-    
 
     # 1. Initialize scaler and imputer as None (Default for NLP/Text datasets)
     scaler = None

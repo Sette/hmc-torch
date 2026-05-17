@@ -222,6 +222,7 @@ class ArXivPyTorchDataset(Dataset):
     # ==========================================
     # Propriedades de Compatibilidade para o `args`
     # ==========================================
+
     @property
     def levels_size(self) -> dict:
         """dict: Number of unique nodes at each depth level."""
@@ -238,9 +239,9 @@ class ArXivPyTorchDataset(Dataset):
         return torch.from_numpy(self.hierarchy.a).float()
 
     def get_datasets(
-        self, 
-        train_ratio: float = 0.8, 
-        valid_ratio: float = 0.1, 
+        self,
+        train_ratio: float = 0.8,
+        valid_ratio: float = 0.1,
         seed: int = 42
     ) -> Tuple[Subset, Subset, Subset]:
         """
@@ -262,9 +263,9 @@ class ArXivPyTorchDataset(Dataset):
 
         # Create a generator with a manual seed to ensure the split is reproducible
         generator = torch.Generator().manual_seed(seed)
-        
+
         train_dataset, valid_dataset, test_dataset = random_split(
-            self, 
+            self,
             [train_size, valid_size, test_size],
             generator=generator
         )
