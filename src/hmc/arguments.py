@@ -21,6 +21,8 @@ class DatasetConfig:
     use_sample: bool = False
     save_torch_dataset: bool = True
     dataset_type: str = "arff"
+    arxiv_feature_type: str = "tfidf"
+    arxiv_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 @dataclass
@@ -249,11 +251,30 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dataset_type",
         type=str,
-        choices=["csv", "torch", "arff"],
+        choices=["csv", "torch", "arff", "arxiv"],
         default="arff",
         metavar="DATASET_TYPE",
         required=False,
         help="Type of dataset to load.",
+    )
+
+    parser.add_argument(
+        "--arxiv_feature_type",
+        type=str,
+        choices=["tfidf", "embedding"],
+        default="tfidf",
+        metavar="ARXIV_FEATURE_TYPE",
+        required=False,
+        help="Feature extraction for ArXiv: 'tfidf' (TF-IDF + SVD) or 'embedding' (transformer mean-pool).",
+    )
+
+    parser.add_argument(
+        "--arxiv_model_name",
+        type=str,
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        metavar="ARXIV_MODEL_NAME",
+        required=False,
+        help="HuggingFace model name used when --arxiv_feature_type=embedding.",
     )
 
     parser.add_argument(
@@ -550,6 +571,8 @@ def parse_args() -> Args:
         use_sample=_str_to_bool(ns.use_sample),
         save_torch_dataset=_str_to_bool(ns.save_torch_dataset),
         dataset_type=ns.dataset_type,
+        arxiv_feature_type=ns.arxiv_feature_type,
+        arxiv_model_name=ns.arxiv_model_name,
     )
     training = TrainingConfig(
         batch_size=ns.batch_size,
