@@ -8,7 +8,7 @@ Complies with Clean Architecture and Pylint standards.
 import json
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 import numpy as np
@@ -21,6 +21,33 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+class _SamplesHolder:
+    """Mutable holder so create_dataloader can attach tensor views."""
+
+    x: Optional[Any] = None
+    y: Optional[Any] = None
+
+
+class ArXivSplit:
+    """ARFF-compatible data split for one ArXiv partition.
+
+    Exposes the same ``.x``, ``.y``, ``.y_local`` and ``.samples`` interface
+    as ``HMCDatasetArff`` so the local and global pipelines can treat arxiv
+    splits identically to ARFF splits.
+    """
+
+    def __init__(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        y_local: List[List[np.ndarray]],
+    ) -> None:
+        self.x = x          # (N, feat_dim) float32
+        self.y = y          # (N, total_labels) float32  — global binary labels
+        self.y_local = y_local  # list[list[ndarray]] — per-sample, per-level
+        self.samples = _SamplesHolder()
 
 
 class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes

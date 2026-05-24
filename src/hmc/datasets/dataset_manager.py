@@ -1,6 +1,7 @@
 """Dataset manager — entry point for loading all supported HMC datasets."""
 
-from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivPyTorchDataset
+import os
+
 from hmc.datasets.gofun.manager import HMCDatasetManager
 from hmc.utils.datasets.paths import get_dataset_paths
 
@@ -11,36 +12,34 @@ def initialize_dataset_experiments(
     dataset_path: str = "data/",
     dataset_type="torch",
     is_global: bool = False,
+    arxiv_feature_type: str = "tfidf",
+    arxiv_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> HMCDatasetManager:
     """
-    Initialize and return an HMCDatasetManager for the specified dataset.
+    Initialize and return a dataset manager for the specified dataset.
 
     Parameters:
     - name (str): Name of the dataset to load.
-    - output_path (str): Path to store output files.
-    - device (str, optional): Device to be used ('cpu' or 'cuda'). \
-        Default is 'cpu'.
-    - is_local (bool, optional): Whether to use local_classifier hierarchy. \
-        Default is False.
-    - is_global (bool, optional): Whether to use global hierarchy. \
-        Default is False.
+    - device (str, optional): Device to be used ('cpu' or 'cuda'). Default 'cpu'.
+    - dataset_path (str): Root directory for dataset files.
+    - dataset_type (str): Type hint for ARFF datasets (ignored for arxiv).
+    - is_global (bool): Whether to load in global-classifier mode.
 
     Returns:
-    - HMCDatasetManager: Initialized dataset manager.
+    - HMCDatasetManager or ArXivManager instance.
     """
     if name == "arxiv":
-        # 1. Preparar a Taxonomia
-        manager = ArXivHierarchyManager()
-        manager.fit_from_jsonl("arxiv_downloaded_subset.jsonl")
+        from hmc.datasets.arxiv.manager import ArXivManager  # pylint: disable=import-outside-toplevel
 
-        # 2. Inicializar Dataset
-        dataset = ArXivPyTorchDataset(
-            jsonl_path="arxiv_downloaded_subset.jsonl",
-            hierarchy_manager=manager,
-            tokenizer=None,
+        jsonl_path = os.path.join(
+            dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
+        )
+        return ArXivManager(
+            jsonl_path=jsonl_path,
+            feature_type=arxiv_feature_type,
+            model_name=arxiv_model_name,
         )
 
-        return dataset
     # Load dataset paths
     datasets = get_dataset_paths(dataset_path=dataset_path)
 

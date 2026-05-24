@@ -30,16 +30,26 @@ def train_global(dataset_name, args):
     """
     logging.info(".......................................")
     logging.info("Experiment with %s dataset ", dataset_name)
-    # Load train, val and test set
+
     args.device = torch.device(args.device)
-    args.data, args.ontology = dataset_name.split("_")
+    is_arxiv = dataset_name == "arxiv"
+
+    if is_arxiv:
+        args.data = "arxiv"
+        args.ontology = None
+        dataset_type = "arxiv"
+    else:
+        args.data, args.ontology = dataset_name.split("_")
+        dataset_type = "arff"
 
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arff",
+        dataset_type=dataset_type,
         is_global=True,
+        arxiv_feature_type=args.dataset.arxiv_feature_type,
+        arxiv_model_name=args.dataset.arxiv_model_name,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -53,19 +63,33 @@ def train_global(dataset_name, args):
         f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
     )
 
-    experiment = True
-    epochs_by_args = False
-
-    if experiment:
+    if is_arxiv:
+        defaults = args.registry.arxiv_defaults
+        args.hidden_dim = defaults["hidden_dim"]
+        args.lr = defaults["lr"]
+        args.epochs = defaults["epochs"]
+        args.weight_decay = defaults["weight_decay"]
+        args.batch_size = defaults["batch_size"]
+        args.num_layers = defaults["num_layers"]
+        args.dropout = defaults["dropout"]
+        args.non_lin = "relu"
+        args.input_dim = args.hmc_dataset.input_dim
+        args.output_dim = args.hmc_dataset.output_dim
+        args.num_to_skip = 1
+    else:
         args.hidden_dim = args.registry.hidden_dims[args.ontology][args.data]
         args.lr = args.registry.lrs[args.ontology][args.data]
-        if not epochs_by_args:
-            args.epochs = args.registry.all_epochs[args.ontology][args.data]
+        args.epochs = args.registry.all_epochs[args.ontology][args.data]
         args.weight_decay = 1e-5
         args.batch_size = 4
         args.num_layers = 3
         args.dropout = 0.7
         args.non_lin = "relu"
+        args.input_dim = args.registry.input_dims[args.data]
+        args.num_to_skip = 4 if "GO" in dataset_name else 1
+        args.output_dim = (
+            args.registry.output_dims[args.ontology][args.data] + args.num_to_skip
+        )
 
     args.hyperparams = {
         "batch_size": args.batch_size,
@@ -88,41 +112,36 @@ def train_global(dataset_name, args):
     args.r_matrix = args.r_matrix.transpose(1, 0)
     args.r_matrix = args.r_matrix.unsqueeze(0).to(args.device)
 
-    scaler = preprocessing.StandardScaler().fit(
-        np.concatenate((args.valid.x, args.valid.x))
-    )
+    if is_arxiv:
+        # Text features: convert directly to tensors without sklearn scaling.
+        for split in (args.train, args.valid, args.test):
+            split.samples.x = (
+                torch.tensor(split.x).clone().detach().float().to(args.device)
+            )
+            split.samples.y = (
+                torch.tensor(split.y).clone().detach().float().to(args.device)
+            )
+    else:
+        scaler = preprocessing.StandardScaler().fit(
+            np.concatenate((args.train.x, args.valid.x))
+        )
+        imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
+            np.concatenate((args.train.x, args.valid.x, args.test.x))
+        )
+        for split in (args.train, args.valid, args.test):
+            split.samples.x = (
+                torch.tensor(scaler.transform(imp_mean.transform(split.x)))
+                .clone()
+                .detach()
+                .float()
+                .to(args.device)
+            )
+            split.samples.y = (
+                torch.tensor(split.y).clone().detach().float().to(args.device)
+            )
 
-    imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-        np.concatenate((args.valid.x, args.valid.x, args.valid.x))
-    )
-    args.valid.samples.x = (
-        torch.tensor(scaler.transform(imp_mean.transform(args.valid.x)))
-        .clone()
-        .detach()
-        .to(args.device)
-    )
-    args.valid.samples.y = torch.tensor(args.valid.y).clone().detach().to(args.device)
-
-    args.train.samples.x = (
-        torch.tensor(scaler.transform(imp_mean.transform(args.train.x)))
-        .clone()
-        .detach()
-        .to(args.device)
-    )
-    args.train.samples.y = torch.tensor(args.train.y).clone().detach().to(args.device)
-
-    args.test.samples.x = (
-        torch.as_tensor(scaler.transform(imp_mean.transform(args.test.x)))
-        .clone()
-        .detach()
-        .to(args.device)
-    )
-    args.test.samples.y = torch.as_tensor(args.test.y).clone().detach().to(args.device)
-
-    # Create loaders
     args.train_dataset = list(zip(args.train.x, args.train.y))
-    if "others" not in args.dataset.dataset_name:
-        # val_dataset = [(x, y) for (x, y) in zip(valid.x, valid.y)]
+    if "others" not in dataset_name:
         for x, y in zip(args.valid.x, args.valid.y):
             args.train_dataset.append((x, y))
     args.test_dataset = list(zip(args.test.x, args.test.y))
@@ -134,11 +153,6 @@ def train_global(dataset_name, args):
         dataset=args.test_dataset, batch_size=args.batch_size, shuffle=False
     )
 
-    if "GO" in args.dataset.dataset_name:
-        args.num_to_skip = 4
-    else:
-        args.num_to_skip = 1
-
     return fit_trainer(args)
 
 
@@ -148,10 +162,9 @@ def fit_trainer(args):
     """
     if args.method == "globalLM":
         configs = {
-            "input_dim": args.registry.input_dims[args.data],
+            "input_dim": args.input_dim,
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.registry.output_dims[args.ontology][args.data]
-            + args.num_to_skip,
+            "output_dim": args.output_dim,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "to_eval": args.to_eval,
@@ -172,15 +185,13 @@ def fit_trainer(args):
     else:
         baseline = args.method == "global_baseline"
         configs = {
-            "input_dim": args.registry.input_dims[args.data],
+            "input_dim": args.input_dim,
             "hidden_dim": args.hidden_dim,
-            "output_dim": args.registry.output_dims[args.ontology][args.data]
-            + args.num_to_skip,
+            "output_dim": args.output_dim,
             "hyperparams": args.hyperparams,
             "r_matrix": args.r_matrix,
             "baseline_model": baseline,
         }
-        # Create the model
         args.model = ConstrainedModel(**configs)
 
         train_step(args)
