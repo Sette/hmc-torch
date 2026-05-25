@@ -40,7 +40,7 @@ main.py → parse_args() → Args dataclass
 
 Definida em `src/hmc/arguments.py`. Organizada em grupos aninhados:
 
-- `DatasetConfig` — paths, dataset_name, device
+- `DatasetConfig` — paths, dataset_name, dataset_type, arxiv_feature_type, arxiv_model_name
 - `TrainingConfig` — epochs, batch_size, epochs_to_evaluate, warmup, early_metric
 - `HyperparameterConfig` — lr_values, dropout_values, hidden_dims, num_layers_values, weight_decay_values
 - `HpoConfig` — hpo, n_trials, output_path
@@ -62,7 +62,15 @@ O split `args.data, args.ontology = dataset_name.split("_")` é feito no início
 
 Carregamento: `datasets/dataset_manager.py:initialize_dataset_experiments()`  
 - Para ARFF (FUN/GO/others): usa `datasets/gofun/manager.py:HMCDatasetManager`  
-- Para ArXiv: usa `datasets/arxiv/dataset_arxiv.py:ArXivHierarchyManager` + `ArXivPyTorchDataset`
+- Para ArXiv: usa `datasets/arxiv/manager.py:ArXivManager`
+
+`ArXivManager` suporta dois modos de extração de features controlados por `args.dataset.arxiv_feature_type`:
+- `"tfidf"` (padrão): TF-IDF (50 K termos) + TruncatedSVD → vetor denso de 256 dims
+- `"embedding"`: mean-pool de token embeddings de um modelo HuggingFace (`transformers.AutoModel`); modelo configurável via `args.dataset.arxiv_model_name` (padrão `sentence-transformers/all-MiniLM-L6-v2`, 384 dims)
+
+**Feature cache:** ambos os modos persistem a matrix `X` em `data/arxiv/.feature_cache/<hash>.npy`. A chave de cache inclui path do JSONL, mtime, tamanho do arquivo, `feature_type`, `model_name`, `n_components` e número de registros carregados — invalidação automática se qualquer um mudar. A lógica fica em `ArXivManager._cache_path()` e `_compute_features()`.
+
+O `input_dim` é determinado pelo shape real das features — o registry não é consultado para arxiv no pipeline global.
 
 Dimensões por dataset registradas em `datasets/registry.py:DatasetRegistry` (não em `main.py`).
 
@@ -134,7 +142,7 @@ Testes de integração em `tests/train_global_test.py` usam `mock.patch.object(s
 | `optuna` | HPO por nível |
 | `scikit-learn` | Normalização, métricas, SimpleImputer |
 | `networkx` | Construção da R-matrix de ancestralidade |
-| `transformers` | Tokenização para datasets ArXiv |
+| `transformers` | Features semânticas para ArXiv (`AutoTokenizer` + `AutoModel` no modo `embedding`) |
 | `torch-geometric` | Suporte a GCN/GAT em `BuildClassification` |
 | `yq` / `jq` | Leitura de `config.yaml` no `run.sh` |
 

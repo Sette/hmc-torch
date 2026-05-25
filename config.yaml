@@ -937,3 +937,19 @@ datasets_params:
     - 9.735247026819912e-05
     - 9.582279610728686e-06
   
+  arxiv:
+    hidden_dims:
+    - - 512
+    - - 512
+    lr_values:
+    - 0.0001
+    - 0.0001
+    dropout_values:
+    - 0.3
+    - 0.3
+    num_layers_values:
+    - 3
+    - 3
+    weight_decay_values:
+    - 0.00001
+    - 0.00001

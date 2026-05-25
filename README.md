@@ -45,8 +45,8 @@ hmc-torch/
 │   │   ├── dataset_torch.py           # PyTorch dataset wrapper for .pt tensor files
 │   │   ├── registry.py                # DatasetRegistry — dimensions, lr, epochs per dataset
 │   │   ├── arxiv/
-│   │   │   ├── dataset_arxiv.py       # ArXivHierarchyManager, ArXivPyTorchDataset
-│   │   │   └── manager.py             # (stub)
+│   │   │   ├── dataset_arxiv.py       # ArXivHierarchyManager, ArXivSplit, ArXivPyTorchDataset
+│   │   │   └── manager.py             # ArXivManager — TF-IDF/SVD or transformer mean-pool features
 │   │   └── gofun/
 │   │       ├── dataset_arff.py        # HMCDatasetArff — ARFF parser, HierarchyData, SampleData
 │   │       └── manager.py             # HMCDatasetManager — scaling, splits, adjacency matrices
@@ -180,6 +180,45 @@ chmod +x run.sh
 ./run.sh --dataset_name seq_FUN --method global --device cuda
 ```
 
+### ArXiv dataset
+
+The ArXiv dataset uses a two-level category hierarchy (e.g. `cs` → `cs.AI`, `cs.LG`) and supports two text feature extraction modes controlled by `--arxiv_feature_type`:
+
+| Mode | Flag | Description | `input_dim` |
+|---|---|---|---|
+| `tfidf` (default) | `--arxiv_feature_type tfidf` | TF-IDF (50 K terms) + TruncatedSVD to 256 dims — fast, no GPU needed | 256 |
+| `embedding` | `--arxiv_feature_type embedding` | Mean-pooled transformer embeddings via HuggingFace `transformers` — more semantic | model-dependent |
+
+Place the dataset file at `data/arxiv/arxiv-metadata-oai-snapshot.json` (see [Datasets](#datasets) for the download command), then:
+
+```bash
+# Default: TF-IDF + SVD features
+./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv
+
+# Semantic embeddings with the default model (all-MiniLM-L6-v2, 384-dim)
+./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv \
+  --arxiv_feature_type embedding
+
+# Different model (e.g. bert-base-uncased, 768-dim)
+./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv \
+  --arxiv_feature_type embedding \
+  --arxiv_model_name "bert-base-uncased"
+
+# Local classifier with embeddings
+./run.sh --dataset_name arxiv --method local --device cuda --epochs 100 --dataset_type arxiv \
+  --arxiv_feature_type embedding
+
+# Hyperparameter search
+./run.sh --dataset_name arxiv --method local --hpo true --n_trials 30 --device cuda \
+  --dataset_type arxiv
+```
+
+The global pipeline uses the hyperparameters from `DatasetRegistry.arxiv_defaults` (hidden_dim=512, lr=1e-4, 3 layers, dropout=0.3). The local pipeline reads them from `config.yaml` under the `arxiv` key.
+
+> **Feature cache:** both modes cache the computed feature matrix to `data/arxiv/.feature_cache/<hash>.npy`. The hash encodes the JSONL path, file mtime/size, `feature_type`, `model_name`, `n_components`, and number of loaded records — so the cache is invalidated automatically if any of those change. Subsequent runs skip feature computation entirely.
+>
+> **Note on embedding mode:** the first run downloads model weights from the HuggingFace Hub (~80 MB for MiniLM). Encoding 50 K documents takes a few minutes on CPU; use `--device cuda` to speed it up.
+
 **Common options:**
 
 | Option | Default | Description |
@@ -193,6 +232,8 @@ chmod +x run.sh
 | `--output_path` | `./results` | Where to save models and scores |
 | `--epochs_to_evaluate` | `20` | Validation frequency |
 | `--warmup` | `false` | Progressive level activation |
+| `--arxiv_feature_type` | `tfidf` | ArXiv features: `tfidf` or `embedding` |
+| `--arxiv_model_name` | `sentence-transformers/all-MiniLM-L6-v2` | HuggingFace model for `embedding` mode |
 
 ### Direct Python invocation
 
