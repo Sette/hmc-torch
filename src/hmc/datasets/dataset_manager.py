@@ -29,7 +29,9 @@ def initialize_dataset_experiments(
     - HMCDatasetManager or ArXivManager instance.
     """
     if name == "arxiv":
-        from hmc.datasets.arxiv.manager import ArXivManager  # pylint: disable=import-outside-toplevel
+        from hmc.datasets.arxiv.manager import (  # pylint: disable=import-outside-toplevel
+            ArXivManager,
+        )
 
         jsonl_path = os.path.join(
             dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"

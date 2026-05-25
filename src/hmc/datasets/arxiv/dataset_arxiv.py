@@ -44,8 +44,8 @@ class ArXivSplit:
         y: np.ndarray,
         y_local: List[List[np.ndarray]],
     ) -> None:
-        self.x = x          # (N, feat_dim) float32
-        self.y = y          # (N, total_labels) float32  — global binary labels
+        self.x = x  # (N, feat_dim) float32
+        self.y = y  # (N, total_labels) float32  — global binary labels
         self.y_local = y_local  # list[list[ndarray]] — per-sample, per-level
         self.samples = _SamplesHolder()
 

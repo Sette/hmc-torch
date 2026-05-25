@@ -60,8 +60,8 @@ Nome do dataset segue o padrão `{data}_{ontology}`, ex: `seq_FUN`, `expr_GO`.
 
 O split `args.data, args.ontology = dataset_name.split("_")` é feito no início de cada pipeline (não se aplica a "others" nem arxiv).
 
-Carregamento: `datasets/dataset_manager.py:initialize_dataset_experiments()`  
-- Para ARFF (FUN/GO/others): usa `datasets/gofun/manager.py:HMCDatasetManager`  
+Carregamento: `datasets/dataset_manager.py:initialize_dataset_experiments()`
+- Para ARFF (FUN/GO/others): usa `datasets/gofun/manager.py:HMCDatasetManager`
 - Para ArXiv: usa `datasets/arxiv/manager.py:ArXivManager`
 
 `ArXivManager` suporta dois modos de extração de features controlados por `args.dataset.arxiv_feature_type`:
@@ -115,8 +115,8 @@ Dimensões por dataset registradas em `datasets/registry.py:DatasetRegistry` (n�
 
 ### Early stopping
 
-Local: por nível, monitorando `f1-score` ou `avg-score` (configurável via `--early_metric`).  
-Controle em `utils/train/early_stopping.py:check_early_stopping_normalized()`.  
+Local: por nível, monitorando `f1-score` ou `avg-score` (configurável via `--early_metric`).
+Controle em `utils/train/early_stopping.py:check_early_stopping_normalized()`.
 Quando um nível para, seus parâmetros são congelados (`requires_grad = False`).
 
 ### Flags booleanas no CLI

@@ -7,11 +7,8 @@ splits as ArXivSplit objects that the local and global pipelines consume
 without modification.
 """
 
-import hashlib
 import json
 import logging
-import os
-from pathlib import Path
 from typing import Optional, Tuple
 
 import networkx as nx
@@ -63,7 +60,9 @@ class ArXivManager:
         self.feature_type = feature_type
         self.model_name = model_name
         self._jsonl_path = jsonl_path
-        self._fit(jsonl_path, max_records, category_prefix, train_ratio, valid_ratio, seed)
+        self._fit(
+            jsonl_path, max_records, category_prefix, train_ratio, valid_ratio, seed
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -159,7 +158,10 @@ class ArXivManager:
     def _compute_features_embedding(self, texts: list) -> np.ndarray:
         """Mean-pool token embeddings from a pre-trained transformer model."""
         import torch  # pylint: disable=import-outside-toplevel
-        from transformers import AutoModel, AutoTokenizer  # pylint: disable=import-outside-toplevel
+        from transformers import (  # pylint: disable=import-outside-toplevel
+            AutoModel,
+            AutoTokenizer,
+        )
 
         logger.info("Loading model %s for semantic embeddings …", self.model_name)
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -181,7 +183,9 @@ class ArXivManager:
             with torch.no_grad():
                 output = model(**encoded)
             mask = encoded["attention_mask"].unsqueeze(-1).float()
-            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
+            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(1).clamp(
+                min=1e-9
+            )
             all_embeddings.append(embeddings.cpu().numpy())
 
         X = np.concatenate(all_embeddings, axis=0).astype(np.float32)
@@ -244,9 +248,7 @@ class ArXivManager:
     ) -> None:
         # Re-index levels to skip root (level 0) — same convention as ARFF.
         self.levels_size: dict = {
-            k - 1: v
-            for k, v in hierarchy.levels_size.items()
-            if k > 0
+            k - 1: v for k, v in hierarchy.levels_size.items() if k > 0
         }
         self.max_depth: int = len(self.levels_size)
 
@@ -257,9 +259,7 @@ class ArXivManager:
         # Re-index local_nodes_idx to skip root (level 0) — same convention as
         # levels_size so that local evaluation functions see matching indices.
         self.local_nodes_idx: dict = {
-            k - 1: v
-            for k, v in hierarchy.local_nodes_idx.items()
-            if k > 0
+            k - 1: v for k, v in hierarchy.local_nodes_idx.items() if k > 0
         }
         self.to_eval: list = [term != "root" for term in hierarchy.terms]
         self.hierarchy_map: dict = {}

@@ -65,7 +65,29 @@ include = ["src/hmc"]
 "src/hmc" = "hmc"
 
 [tool.pylint.main]
-# Garante que o Pylint encontre seus módulos dentro de src
 init-hook = "import sys; sys.path.append('src')"
-# Ativa a descoberta automática de módulos e pacotes
 recursive = true
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.basic]
+# Short conventional names and single uppercase letters for ML (X=features, Y=labels)
+good-names = "X,Y,lr,i,j,k,f,e,ex,fp,id"
+# Allow any lowercase-starting name (any length) + uppercase-prefixed ML names (X_tfidf, Y_global)
+variable-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
+argument-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
+
+[tool.pylint.design]
+max-args = 10
+max-positional-arguments = 10
+max-locals = 20
+max-attributes = 20
+max-statements = 70
+min-public-methods = 0
+
+[tool.pylint."messages control"]
+disable = [
+    "E1101",   # no-member: numpy/torch dynamic attributes cause false positives
+    "W0201",   # attribute-defined-outside-init: intentional lazy initialization pattern
+]

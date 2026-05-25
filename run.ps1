@@ -135,9 +135,9 @@ if ($DATASET -eq "all") {
 
         Write-Host "Using dataset_name: $dataset_local"
         Write-Host "Using hidden dimensions: $HIDDEN_DIMS"
-        
+
         $cmd_dataset = $cmd
-        
+
         if ($ACTIVE_LEVELS) {
             $cmd_dataset += " --active_levels $($ACTIVE_LEVELS -join ' ')"
         }
@@ -153,9 +153,9 @@ if ($DATASET -eq "all") {
         Write-Host "Starting experiment for dataset: $dataset_local"
         $cmd_dataset += " --dataset_name $dataset_local"
         Write-Host "Running: $cmd_dataset"
-        
+
         $process = Start-Process -FilePath "python" -ArgumentList ($cmd_dataset -replace '^python ') -NoNewWindow -PassThru
-        
+
         try {
             $process.WaitForExit()
         }
@@ -166,7 +166,7 @@ if ($DATASET -eq "all") {
 }
 else {
     Write-Host "Using specific dataset_name: $DATASET_NAME"
-    
+
     # Extração de parâmetros do config.yaml
     $HIDDEN_DIMS = (yq -j ".datasets_params.$DATASET_NAME.hidden_dims" config.yaml | jq -c .)
     $LR_VALUES = (yq ".datasets_params.$DATASET_NAME.lr_values[]" config.yaml) -split "`n"
@@ -191,9 +191,9 @@ else {
     }
 
     Write-Host $cmd
-    
+
     $process = Start-Process -FilePath "python" -ArgumentList ($cmd -replace '^python ') -NoNewWindow -PassThru
-    
+
     try {
         $process.WaitForExit()
     }

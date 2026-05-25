@@ -76,7 +76,9 @@ class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         return output
 
 
-class ConstrainedLightningModel(LightningModule):  # pylint: disable=too-many-instance-attributes
+class ConstrainedLightningModel(
+    LightningModule
+):  # pylint: disable=too-many-instance-attributes
     """Constrained Lightning Model."""
 
     def __init__(
