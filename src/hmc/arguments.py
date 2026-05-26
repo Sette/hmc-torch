@@ -22,7 +22,10 @@ class DatasetConfig:
     save_torch_dataset: bool = True
     dataset_type: str = "arff"
     arxiv_feature_type: str = "tfidf"
-    arxiv_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # allenai/specter2_base is trained on scientific paper retrieval (title+abstract)
+    # and outperforms general-purpose sentence transformers on ArXiv categorisation.
+    # Alternatives: allenai/scibert_scivocab_uncased, sentence-transformers/all-mpnet-base-v2
+    arxiv_model_name: str = "allenai/specter2_base"
 
 
 @dataclass
@@ -51,6 +54,8 @@ class TrainingConfig:  # pylint: disable=too-many-instance-attributes
     epochs_to_evaluate: int = 20
     epochs_to_test: int = 20
     best_threshold: bool = True
+    use_contrastive_loss: bool = False
+    lambda_contrastive: float = 0.1
 
 
 @dataclass
@@ -271,10 +276,29 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--arxiv_model_name",
         type=str,
-        default="sentence-transformers/all-MiniLM-L6-v2",
+        default="allenai/specter2_base",
         metavar="ARXIV_MODEL_NAME",
         required=False,
         help="HuggingFace model name used when --arxiv_feature_type=embedding.",
+    )
+
+    parser.add_argument(
+        "--use_contrastive_loss",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        metavar="USE_CONTRASTIVE_LOSS",
+        required=False,
+        help="Enable hierarchical contrastive loss for globalGNN training.",
+    )
+
+    parser.add_argument(
+        "--lambda_contrastive",
+        type=float,
+        default=0.1,
+        metavar="LAMBDA_CONTRASTIVE",
+        required=False,
+        help="Weight for the contrastive loss term (default: 0.1).",
     )
 
     parser.add_argument(
@@ -340,6 +364,7 @@ def get_parser() -> argparse.ArgumentParser:
             "local",
             "globalLM",
             "global_baseline",
+            "globalGNN",
             "local_constraint",
             "local_hat",
             "local_tabat",
@@ -597,6 +622,8 @@ def parse_args() -> Args:
         epochs_to_evaluate=ns.epochs_to_evaluate,
         epochs_to_test=ns.epochs_to_test,
         best_threshold=_str_to_bool(ns.best_threshold),
+        use_contrastive_loss=_str_to_bool(ns.use_contrastive_loss),
+        lambda_contrastive=ns.lambda_contrastive,
     )
     hpo_config = HpoConfig(
         hpo=_str_to_bool(ns.hpo),

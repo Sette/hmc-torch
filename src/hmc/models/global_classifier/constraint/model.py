@@ -1,10 +1,12 @@
 """
-This module contains the ConstrainedModel and ConstrainedLightningModel classes.
+This module contains the ConstrainedModel, ConstrainedGNNModel, and
+ConstrainedLightningModel classes for global hierarchical classification.
 """
 
 import os
 
 import torch
+import torch.nn.functional as F
 from lightning import LightningModule
 from sklearn.metrics import average_precision_score
 from torch import nn
@@ -74,6 +76,87 @@ class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             else:
                 output = get_constr_out(x, self.r_matrix)
         return output
+
+
+class ConstrainedGNNModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+    """Global HMC model with GCN on the label hierarchy (Step 3 from arxiv-hmc-sota.md).
+
+    Architecture:
+        Document encoder : MLP  input_dim → hidden_dim
+        Label encoder    : GCN  (output_dim nodes, hidden_dim features) on hierarchy graph
+        Classification   : sigmoid( doc_emb @ label_emb.T )  →  (batch, output_dim)
+
+    During eval, hierarchical constraints are enforced via get_constr_out (same as
+    ConstrainedModel), so predictions are always consistent with the label hierarchy.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        from torch_geometric.nn import (  # pylint: disable=import-outside-toplevel
+            GCNConv,
+        )
+
+        self.input_dim = kwargs["input_dim"]
+        self.hidden_dim = kwargs["hidden_dim"]
+        self.output_dim = kwargs["output_dim"]
+        self.r_matrix = kwargs["r_matrix"]
+        dropout = kwargs.get("dropout", 0.3)
+        num_layers = kwargs.get("num_layers", 3)
+
+        # Document encoder: MLP mapping input features to hidden_dim space
+        encoder_layers = []
+        current_dim = self.input_dim
+        for _ in range(num_layers - 1):
+            encoder_layers.extend(
+                [
+                    nn.Linear(current_dim, self.hidden_dim),
+                    nn.ReLU(),
+                    nn.Dropout(dropout),
+                ]
+            )
+            current_dim = self.hidden_dim
+        self.doc_encoder = nn.Sequential(*encoder_layers)
+
+        # Label hierarchy encoder: learnable initial per-node embeddings + 2-layer GCN
+        self.label_emb = nn.Embedding(self.output_dim, self.hidden_dim)
+        self.gcn1 = GCNConv(self.hidden_dim, self.hidden_dim)
+        self.gcn2 = GCNConv(self.hidden_dim, self.hidden_dim)
+        self.drop = nn.Dropout(dropout)
+
+        # edge_index is fixed (hierarchy structure does not change)
+        self.register_buffer("edge_index", kwargs["edge_index"])
+
+    def _label_representations(self) -> torch.Tensor:
+        """Two-layer GCN forward on the label hierarchy graph."""
+        x = self.label_emb.weight  # (N, hidden_dim)
+        x = F.relu(self.gcn1(x, self.edge_index))
+        x = self.drop(x)
+        x = self.gcn2(x, self.edge_index)
+        return x  # (N, hidden_dim)
+
+    def forward(self, x, return_embeddings: bool = False):
+        """Forward pass.
+
+        Args:
+            x: (batch, input_dim) document feature tensor.
+            return_embeddings: if True, also return the doc embedding for
+                contrastive loss computation.
+
+        Returns:
+            scores               if return_embeddings is False
+            (scores, doc_emb)   if return_embeddings is True
+        """
+        doc_emb = self.doc_encoder(x)  # (B, hidden_dim)
+        label_emb = self._label_representations()  # (N, hidden_dim)
+
+        scores = torch.sigmoid(doc_emb @ label_emb.T)  # (B, N)
+
+        if not self.training:
+            scores = get_constr_out(scores, self.r_matrix)
+
+        if return_embeddings:
+            return scores, doc_emb
+        return scores
 
 
 class ConstrainedLightningModel(

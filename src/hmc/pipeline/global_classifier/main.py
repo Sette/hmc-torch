@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
+    ConstrainedGNNModel,
     ConstrainedLightningModel,
     ConstrainedModel,
 )
@@ -112,6 +113,13 @@ def train_global(dataset_name, args):
     args.r_matrix = args.r_matrix.transpose(1, 0)
     args.r_matrix = args.r_matrix.unsqueeze(0).to(args.device)
 
+    # Undirected edge_index for ConstrainedGNNModel label-hierarchy GCN.
+    # Both directions are included so GCN can propagate parent→child and child→parent.
+    rows, cols = np.where(args.hmc_dataset.a > 0)
+    fwd = torch.tensor([rows, cols], dtype=torch.long)
+    rev = torch.tensor([cols, rows], dtype=torch.long)
+    args.label_edge_index = torch.cat([fwd, rev], dim=1).to(args.device)
+
     if is_arxiv:
         # Text features: convert directly to tensors without sklearn scaling.
         for split in (args.train, args.valid, args.test):
@@ -182,6 +190,18 @@ def fit_trainer(args):
 
         trainer.fit(args.model, args.train_loader, args.val_loader)
         trainer.test(args.model, args.test_loader)
+    elif args.method == "globalGNN":
+        configs = {
+            "input_dim": args.input_dim,
+            "hidden_dim": args.hidden_dim,
+            "output_dim": args.output_dim,
+            "r_matrix": args.r_matrix,
+            "edge_index": args.label_edge_index,
+            "dropout": args.dropout,
+            "num_layers": args.num_layers,
+        }
+        args.model = ConstrainedGNNModel(**configs)
+        train_step(args)
     else:
         baseline = args.method == "global_baseline"
         configs = {
