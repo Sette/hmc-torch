@@ -55,7 +55,7 @@ def _run_training_loop(model, args, optimizer, criterion, to_eval):
             train_output = labels * output.double()
             train_output = get_constr_out(train_output, args.r_matrix)
             train_output = (1 - labels) * constr_output.double() + labels * train_output
-            loss = criterion(train_output[:, to_eval], labels[:, to_eval])
+            loss = criterion(train_output[:, to_eval].float(), labels[:, to_eval])
 
             if use_contrastive and doc_emb is not None:
                 loss = loss + lambda_c * global_contrastive_loss(doc_emb, labels)

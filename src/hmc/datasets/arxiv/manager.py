@@ -7,8 +7,11 @@ splits as ArXivSplit objects that the local and global pipelines consume
 without modification.
 """
 
+import hashlib
 import json
 import logging
+import os
+from pathlib import Path
 from typing import Optional, Tuple
 
 import networkx as nx
@@ -54,12 +57,14 @@ class ArXivManager:
         valid_ratio: float = 0.1,
         seed: int = 42,
         feature_type: str = "tfidf",
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = "allenai/specter2_base",
+        cache_dir: Optional[str] = None,
     ) -> None:
         self.n_components = n_components
         self.feature_type = feature_type
         self.model_name = model_name
         self._jsonl_path = jsonl_path
+        self._cache_dir = Path(cache_dir) if cache_dir else None
         self._fit(
             jsonl_path, max_records, category_prefix, train_ratio, valid_ratio, seed
         )
@@ -88,6 +93,7 @@ class ArXivManager:
         texts, cats_list = self._load_records(jsonl_path, max_records, category_prefix)
 
         hierarchy = self._build_hierarchy(cats_list)
+        self.hierarchy_manager = hierarchy  # exposed for E2E pipeline
         X = self._compute_features(texts, seed)
         Y_global, Y_local_all = self._compute_labels(hierarchy, cats_list)
 
@@ -138,10 +144,43 @@ class ArXivManager:
         )
         return hierarchy
 
+    def _cache_path(self, n_records: int) -> Path:
+        """Deterministic cache path based on all inputs that affect the feature matrix."""
+        stat = os.stat(self._jsonl_path)
+        key = "|".join(
+            [
+                self._jsonl_path,
+                str(stat.st_mtime),
+                str(stat.st_size),
+                self.feature_type,
+                self.model_name,
+                str(self.n_components),
+                str(n_records),
+            ]
+        )
+        digest = hashlib.md5(key.encode()).hexdigest()[:16]
+        cache_dir = (
+            self._cache_dir
+            if self._cache_dir
+            else Path(self._jsonl_path).parent / ".feature_cache"
+        )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"{digest}.npy"
+
     def _compute_features(self, texts: list, seed: int) -> np.ndarray:
+        cache = self._cache_path(len(texts))
+        if cache.exists():
+            logger.info("Loading features from cache %s …", cache)
+            return np.load(str(cache))
+
         if self.feature_type == "embedding":
-            return self._compute_features_embedding(texts)
-        return self._compute_features_tfidf(texts, seed)
+            X = self._compute_features_embedding(texts)
+        else:
+            X = self._compute_features_tfidf(texts, seed)
+
+        np.save(str(cache), X)
+        logger.info("Features cached to %s", cache)
+        return X
 
     def _compute_features_tfidf(self, texts: list, seed: int) -> np.ndarray:
         logger.info("Computing TF-IDF features …")
@@ -155,18 +194,33 @@ class ArXivManager:
         logger.info("Feature matrix shape: %s", X.shape)
         return X
 
+    # Models that use CLS-token pooling instead of mean-pool.
+    # SPECTER2 was trained with a contrastive objective where [CLS] carries the
+    # document-level representation; mean-pool degrades its retrieval quality.
+    _CLS_POOL_MODELS = ("specter",)
+
+    def _use_cls_pooling(self) -> bool:
+        return any(k in self.model_name.lower() for k in self._CLS_POOL_MODELS)
+
     def _compute_features_embedding(self, texts: list) -> np.ndarray:
-        """Mean-pool token embeddings from a pre-trained transformer model."""
+        """Extract transformer embeddings using CLS-pool (SPECTER*) or mean-pool."""
         import torch  # pylint: disable=import-outside-toplevel
         from transformers import (  # pylint: disable=import-outside-toplevel
             AutoModel,
             AutoTokenizer,
         )
 
-        logger.info("Loading model %s for semantic embeddings …", self.model_name)
+        cls_pool = self._use_cls_pooling()
+        pool_mode = "CLS" if cls_pool else "mean"
+        logger.info(
+            "Loading %s for embeddings (pooling=%s) …", self.model_name, pool_mode
+        )
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         model = AutoModel.from_pretrained(self.model_name)
         model.eval()
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
 
         batch_size = 64
         all_embeddings: list = []
@@ -180,12 +234,16 @@ class ArXivManager:
                 max_length=256,
                 return_tensors="pt",
             )
+            encoded = {k: v.to(device) for k, v in encoded.items()}
             with torch.no_grad():
                 output = model(**encoded)
-            mask = encoded["attention_mask"].unsqueeze(-1).float()
-            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(1).clamp(
-                min=1e-9
-            )
+            if cls_pool:
+                embeddings = output.last_hidden_state[:, 0, :]
+            else:
+                mask = encoded["attention_mask"].unsqueeze(-1).float()
+                embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(
+                    1
+                ).clamp(min=1e-9)
             all_embeddings.append(embeddings.cpu().numpy())
 
         X = np.concatenate(all_embeddings, axis=0).astype(np.float32)

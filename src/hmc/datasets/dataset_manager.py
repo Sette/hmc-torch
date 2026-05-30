@@ -14,6 +14,8 @@ def initialize_dataset_experiments(
     is_global: bool = False,
     arxiv_feature_type: str = "tfidf",
     arxiv_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    arxiv_max_records: int = 50_000,
+    arxiv_cache_dir: str = None,
 ) -> HMCDatasetManager:
     """
     Initialize and return a dataset manager for the specified dataset.
@@ -40,6 +42,8 @@ def initialize_dataset_experiments(
             jsonl_path=jsonl_path,
             feature_type=arxiv_feature_type,
             model_name=arxiv_model_name,
+            max_records=arxiv_max_records if arxiv_max_records > 0 else None,
+            cache_dir=arxiv_cache_dir,
         )
 
     # Load dataset paths

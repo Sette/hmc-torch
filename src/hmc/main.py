@@ -16,7 +16,11 @@ import numpy as np
 import torch
 
 from hmc.arguments import parse_args
-from hmc.pipeline.global_classifier.main import train_global
+from hmc.pipeline.global_classifier.main import (
+    train_global,
+    train_global_e2e,
+    train_global_sota,
+)
 from hmc.pipeline.local_classifier.main import main_local
 from hmc.utils.train.job import create_job_id_name
 
@@ -72,9 +76,15 @@ def main() -> dict:
         case "local" | "local_tabat" | "local_hat" | "local_test":
             logging.info("Local method selected")
             main_local(args)
-        case "global" | "global_baseline":
+        case "global" | "global_baseline" | "globalGNN" | "globalLM":
             logging.info("Global method selected")
             train_global(args.dataset.dataset_name, args)
+        case "globalE2E":
+            logging.info("Global E2E (fine-tuned transformer) method selected")
+            train_global_e2e(args.dataset.dataset_name, args)
+        case "globalSOTA":
+            logging.info("Global SOTA (transformer + label GCN) method selected")
+            train_global_sota(args.dataset.dataset_name, args)
         case _:
             print("Invalid option for method. Please select a valid method.")
 

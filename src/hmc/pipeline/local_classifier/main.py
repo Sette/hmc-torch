@@ -205,10 +205,8 @@ def main_local(args):
     val_path = os.path.join(args.results_path, "val_dataset.pt")
     test_path = os.path.join(args.results_path, "test_dataset.pt")
 
-    if args.dataset.dataset_name == "arxiv":
-        dataset_type = "jsonl"
-    else:
-        dataset_type = "arff"
+    is_arxiv = args.dataset.dataset_name == "arxiv"
+    dataset_type = "jsonl" if is_arxiv else "arff"
 
     args.hmc_dataset = initialize_dataset_experiments(
         args.dataset.dataset_name,
@@ -216,6 +214,10 @@ def main_local(args):
         dataset_path=args.dataset.dataset_path,
         dataset_type=dataset_type,
         is_global=False,
+        arxiv_feature_type=args.dataset.arxiv_feature_type,
+        arxiv_model_name=args.dataset.arxiv_model_name,
+        arxiv_max_records=args.dataset.arxiv_max_records,
+        arxiv_cache_dir=args.output_path if is_arxiv else None,
     )
 
     args.levels_size = args.hmc_dataset.levels_size

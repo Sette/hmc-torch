@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import networkx as nx
 import numpy as np
 import torch
-from torch.utils.data import Dataset, Subset, random_split
+from torch.utils.data import Dataset, Subset
 from transformers import PreTrainedTokenizer
 
 # Configure logging
@@ -201,6 +201,7 @@ class ArXivPyTorchDataset(Dataset):
         hierarchy_manager: ArXivHierarchyManager,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
+        max_records: Optional[int] = None,
     ):
         """
         Initialise the dataset, loading the JSONL into memory (suitable for abstracts).
@@ -213,6 +214,8 @@ class ArXivPyTorchDataset(Dataset):
         logger.info("Loading records from %s into memory...", jsonl_path)
         with open(jsonl_path, "r", encoding="utf-8") as file:
             for line in file:
+                if max_records and len(self.records) >= max_records:
+                    break
                 record = json.loads(line)
                 self.records.append(
                     {
@@ -269,28 +272,20 @@ class ArXivPyTorchDataset(Dataset):
     def get_datasets(
         self, train_ratio: float = 0.8, valid_ratio: float = 0.1, seed: int = 42
     ) -> Tuple[Subset, Subset, Subset]:
+        """Split into train/val/test using the same numpy permutation as ArXivManager.
+
+        Keeping split logic identical ensures the test set is the same whether
+        features are pre-computed (ArXivManager) or tokenised on-the-fly (E2E).
         """
-        Splits the dataset into training, validation, and test subsets.
-        Uses a fixed random seed for reproducible splits across experiment runs.
+        rng = np.random.RandomState(seed)
+        idx = rng.permutation(len(self))
+        train_end = int(train_ratio * len(self))
+        valid_end = train_end + int(valid_ratio * len(self))
 
-        Args:
-            train_ratio (float): Proportion of the dataset to include in the train split.
-            valid_ratio (float): Proportion of the dataset to include in the validation split.
-            seed (int): Random seed for reproducibility.
+        train_dataset = Subset(self, idx[:train_end].tolist())
+        valid_dataset = Subset(self, idx[train_end:valid_end].tolist())
+        test_dataset = Subset(self, idx[valid_end:].tolist())
 
-        Returns:
-            Tuple[Subset, Subset, Subset]: The train, validation, and test datasets.
-        """
-        total_size = len(self)
-        train_size = int(train_ratio * total_size)
-        valid_size = int(valid_ratio * total_size)
-        test_size = total_size - train_size - valid_size
-
-        # Create a generator with a manual seed to ensure the split is reproducible
-        generator = torch.Generator().manual_seed(seed)
-
-        train_dataset, valid_dataset, test_dataset = random_split(
-            self, [train_size, valid_size, test_size], generator=generator
-        )
+        return train_dataset, valid_dataset, test_dataset
 
         return train_dataset, valid_dataset, test_dataset

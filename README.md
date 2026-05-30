@@ -20,14 +20,27 @@ Supports two classification strategies — **global** (single model for all labe
 
 ## Overview
 
-HMC problems involve predicting labels that are organized in a hierarchy (e.g., Gene Ontology). This project benchmarks two approaches:
+HMC problems involve predicting labels organized in a hierarchy (e.g., Gene Ontology, ArXiv taxonomy). This project benchmarks several approaches:
 
 | Method | Description |
 |---|---|
 | `global` | C-HMCNN: single MLP constrained by a hierarchy matrix (R-matrix) |
 | `global_baseline` | Same model without hierarchical constraint enforcement |
+| `globalGNN` | MLP document encoder + 2-layer GCN on the label hierarchy graph |
+| `globalE2E` | HuggingFace transformer fine-tuned end-to-end with MLP head |
+| `globalSOTA` | Transformer (fine-tuned) + GCN label encoder — HiAGM-style SOTA |
+| `globalLM` | Lightning-wrapped version of `global` |
 | `local` | One MLP per hierarchy level, trained jointly with early stopping |
 | `local_test` | Local model in inference-only mode |
+
+### Method comparison (ArXiv, Micro-F1 approximate)
+
+| Method | Features | Architecture | Micro-F1 |
+|---|---|---|---|
+| `global` | TF-IDF + SVD(256) | MLP + R-matrix | ~70% |
+| `globalGNN` | TF-IDF or SPECTER | MLP + GCN label graph + R-matrix | ~75–80% |
+| `globalE2E` | SPECTER fine-tuned | Transformer + MLP head + R-matrix | ~85–87% |
+| `globalSOTA` | SPECTER fine-tuned | Transformer + GCN label graph + R-matrix | ~87–90% |
 
 ---
 
@@ -46,7 +59,7 @@ hmc-torch/
 │   │   ├── registry.py                # DatasetRegistry — dimensions, lr, epochs per dataset
 │   │   ├── arxiv/
 │   │   │   ├── dataset_arxiv.py       # ArXivHierarchyManager, ArXivSplit, ArXivPyTorchDataset
-│   │   │   └── manager.py             # ArXivManager — TF-IDF/SVD or transformer mean-pool features
+│   │   │   └── manager.py             # ArXivManager — TF-IDF/SVD or transformer embedding features
 │   │   └── gofun/
 │   │       ├── dataset_arff.py        # HMCDatasetArff — ARFF parser, HierarchyData, SampleData
 │   │       └── manager.py             # HMCDatasetManager — scaling, splits, adjacency matrices
@@ -54,9 +67,11 @@ hmc-torch/
 │   ├── models/
 │   │   ├── base.py                    # HierarchicalModel — abstract base for all classifiers
 │   │   ├── global_classifier/
-│   │   │   └── constraint/
-│   │   │       ├── model.py           # ConstrainedModel, ConstrainedLightningModel
-│   │   │       └── utils.py           # get_constr_out — applies R-matrix constraint
+│   │   │   ├── constraint/
+│   │   │   │   ├── model.py           # ConstrainedModel, ConstrainedGNNModel, ConstrainedLightningModel
+│   │   │   │   └── utils.py           # get_constr_out — applies R-matrix constraint
+│   │   │   └── e2e/
+│   │   │       └── model.py           # E2EConstrainedModel (globalE2E), E2EGNNModel (globalSOTA)
 │   │   └── local_classifier/
 │   │       ├── baseline/
 │   │       │   └── model.py           # HMCLocalModel — per-level MLP ensemble
@@ -64,7 +79,8 @@ hmc-torch/
 │   │
 │   ├── pipeline/
 │   │   ├── global_classifier/
-│   │   │   ├── main.py                # train_global() — setup, R-matrix, data loading, fit
+│   │   │   ├── main.py                # train_global, train_global_e2e, train_global_sota
+│   │   │   ├── e2e_train.py           # train_e2e_step — training loop for E2E and SOTA methods
 │   │   │   └── core/
 │   │   │       └── train.py           # _run_training_loop, _collect_test_outputs, _compute_local_scores
 │   │   └── local_classifier/
@@ -92,11 +108,14 @@ hmc-torch/
 │       └── train/
 │           ├── early_stopping.py      # check_early_stopping_normalized, check_loss, check_metric
 │           ├── job.py                 # create_job_id_name, timers, GPU logging, threshold search
-│           └── losses.py              # compute_loss, calculate_local_loss
+│           └── losses.py              # compute_loss, calculate_local_loss, global_contrastive_loss
 │
 ├── tests/
 │   ├── conftest.py                    # Adds src/ to Python path
 │   └── train_global_test.py           # Integration test for global pipeline (seq_FUN)
+│
+├── docs/
+│   └── arxiv-hmc-sota.md              # SOTA analysis and improvement roadmap for ArXiv
 │
 ├── config.yaml                        # HPO-tuned hyperparameters per dataset
 ├── run.sh                             # Main training script (reads config.yaml via yq)
@@ -187,53 +206,96 @@ The ArXiv dataset uses a two-level category hierarchy (e.g. `cs` → `cs.AI`, `c
 | Mode | Flag | Description | `input_dim` |
 |---|---|---|---|
 | `tfidf` (default) | `--arxiv_feature_type tfidf` | TF-IDF (50 K terms) + TruncatedSVD to 256 dims — fast, no GPU needed | 256 |
-| `embedding` | `--arxiv_feature_type embedding` | Mean-pooled transformer embeddings via HuggingFace `transformers` — more semantic | model-dependent |
+| `embedding` | `--arxiv_feature_type embedding` | Transformer embeddings via HuggingFace — more semantic, GPU recommended | model-dependent |
 
-Place the dataset file at `data/arxiv/arxiv-metadata-oai-snapshot.json` (see [Datasets](#datasets) for the download command), then:
+Place the dataset file at `data/arxiv/arxiv-metadata-oai-snapshot.json` (see [Datasets](#datasets)), then:
 
 ```bash
-# Default: TF-IDF + SVD features
-./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv
+# Default: TF-IDF + SVD features, MLP + R-matrix
+./run.sh --dataset_name arxiv --method global --device cpu --epochs 50
 
-# Semantic embeddings with the default model (all-MiniLM-L6-v2, 384-dim)
-./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv \
-  --arxiv_feature_type embedding
-
-# Different model (e.g. bert-base-uncased, 768-dim)
-./run.sh --dataset_name arxiv --method global --device cpu --epochs 50 --dataset_type arxiv \
+# GNN on label graph + SPECTER embeddings
+./run.sh --dataset_name arxiv --method globalGNN --device cuda --epochs 50 \
   --arxiv_feature_type embedding \
-  --arxiv_model_name "bert-base-uncased"
+  --arxiv_model_name allenai/specter2_base
 
-# Local classifier with embeddings
-./run.sh --dataset_name arxiv --method local --device cuda --epochs 100 --dataset_type arxiv \
-  --arxiv_feature_type embedding
+# GNN + hierarchical contrastive loss
+./run.sh --dataset_name arxiv --method globalGNN --device cuda --epochs 50 \
+  --arxiv_feature_type embedding \
+  --use_contrastive_loss true \
+  --lambda_contrastive 0.1
 
-# Hyperparameter search
-./run.sh --dataset_name arxiv --method local --hpo true --n_trials 30 --device cuda \
-  --dataset_type arxiv
+# E2E fine-tuning (transformer + MLP head)
+python -m hmc.main \
+  --dataset_name arxiv --method globalE2E --device cuda \
+  --arxiv_model_name allenai/specter2_base \
+  --dataset_path ./data --output_path ./output
+
+# SOTA: E2E transformer + GCN label graph (HiAGM-style, best expected F1)
+python -m hmc.main \
+  --dataset_name arxiv --method globalSOTA --device cuda \
+  --arxiv_model_name allenai/specter2_base \
+  --dataset_path ./data --output_path ./output
 ```
 
 The global pipeline uses the hyperparameters from `DatasetRegistry.arxiv_defaults` (hidden_dim=512, lr=1e-4, 3 layers, dropout=0.3). The local pipeline reads them from `config.yaml` under the `arxiv` key.
 
-> **Feature cache:** both modes cache the computed feature matrix to `data/arxiv/.feature_cache/<hash>.npy`. The hash encodes the JSONL path, file mtime/size, `feature_type`, `model_name`, `n_components`, and number of loaded records — so the cache is invalidated automatically if any of those change. Subsequent runs skip feature computation entirely.
+> **Feature cache:** both modes cache the computed feature matrix to `data/arxiv/.feature_cache/<hash>.npy`. The hash encodes the JSONL path, file mtime/size, `feature_type`, `model_name`, `n_components`, and number of loaded records — the cache is invalidated automatically if any of those change.
 >
-> **Note on embedding mode:** the first run downloads model weights from the HuggingFace Hub (~80 MB for MiniLM). Encoding 50 K documents takes a few minutes on CPU; use `--device cuda` to speed it up.
+> **Note on embedding mode:** the first run downloads model weights from the HuggingFace Hub (~500 MB for SPECTER2). Encoding 50 K documents takes a few minutes on CPU; use `--device cuda` to speed it up.
+
+### globalSOTA architecture
+
+`globalSOTA` implements the core idea from [HiAGM (Zhou et al., ACL 2020)](https://aclanthology.org/2020.acl-main.104/): a text encoder and a graph-aware label encoder whose representations are combined via dot-product scoring.
+
+```
+Input text
+    │
+    ▼
+HuggingFace transformer (fine-tuned, discriminative LR)
+    │  CLS / mean-pool
+    ▼
+doc_emb  (hidden_dim)
+    │
+    ├──────────────────────────────────────────┐
+    │                                          │
+    ▼                                          ▼
+label_emb = GCN(label_hierarchy)     sigmoid(doc_emb @ label_emb.T)
+              (N, hidden_dim)                  │
+                                      get_constr_out (R-matrix)
+                                               │
+                                          predictions
+```
+
+The transformer is optimized at a smaller learning rate (`--lr_transformer`, default `2e-5`) while the GCN label encoder uses the standard `--lr`.
+
+**Recommended models for `--arxiv_model_name`:**
+
+| Model | Dims | Notes |
+|---|---|---|
+| `allenai/specter2_base` (default) | 768 | Pre-trained on scientific paper retrieval — best for ArXiv |
+| `allenai/scibert_scivocab_uncased` | 768 | Scientific language model |
+| `sentence-transformers/all-mpnet-base-v2` | 768 | Strong general-purpose baseline |
 
 **Common options:**
 
 | Option | Default | Description |
 |---|---|---|
 | `--dataset_name` | `seq_FUN` | Dataset name or `all` |
-| `--method` | `local` | `local`, `local_test`, `global`, `global_baseline` |
+| `--method` | `local` | See method table above |
 | `--device` | `cpu` | `cpu` or `cuda` |
-| `--epochs` | `4000` | Training epochs |
+| `--epochs` | `2000` | Training epochs |
 | `--hpo` | `false` | Enable Optuna HPO (`true`/`false`) |
 | `--n_trials` | `30` | HPO trials per level |
 | `--output_path` | `./results` | Where to save models and scores |
 | `--epochs_to_evaluate` | `20` | Validation frequency |
 | `--warmup` | `false` | Progressive level activation |
 | `--arxiv_feature_type` | `tfidf` | ArXiv features: `tfidf` or `embedding` |
-| `--arxiv_model_name` | `sentence-transformers/all-MiniLM-L6-v2` | HuggingFace model for `embedding` mode |
+| `--arxiv_model_name` | `allenai/specter2_base` | HuggingFace model for `embedding` / E2E modes |
+| `--arxiv_max_records` | `50000` | Max ArXiv records to load (0 = all) |
+| `--use_contrastive_loss` | `false` | Hierarchical contrastive loss for `globalGNN` |
+| `--lambda_contrastive` | `0.1` | Weight of the contrastive loss term |
+| `--lr_transformer` | `2e-5` | Transformer learning rate for `globalE2E` / `globalSOTA` |
 
 ### Direct Python invocation
 

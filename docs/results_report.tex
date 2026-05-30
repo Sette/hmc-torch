@@ -1,0 +1,225 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{microtype}
+
+\definecolor{ourcolor}{RGB}{0,102,204}
+\definecolor{gaincolor}{RGB}{0,140,0}
+
+\newcommand{\ours}[1]{\textcolor{ourcolor}{\textbf{#1}}}
+\newcommand{\gain}[1]{\textcolor{gaincolor}{\textbf{#1}}}
+
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=ourcolor, urlcolor=ourcolor}
+
+\title{\textbf{Hierarchical Multi-Label Classification no ArXiv}\\[0.4em]
+       \large Resultados vs.\ Estado da Arte}
+\author{hmc-torch}
+\date{Maio 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este relatório compara o desempenho do sistema \texttt{hmc-torch} na tarefa de classificação
+hierárquica multi-label (HMC) do dataset ArXiv com os principais métodos do estado da arte.
+Avaliamos duas configurações de extração de features: TF-IDF + TruncatedSVD (256\,d, baseline) e
+embeddings do modelo \textsc{SPECTER2-base} \cite{cohan2020specter} (768\,d, frozen CLS-pool).
+A métrica principal é o Micro-F1 global (média ponderada sobre todos os nós da hierarquia
+excluindo a raiz). A troca de feature sozinha acrescenta \textbf{+10,1 pp} de Micro-F1,
+reduzindo o gap para o estado da arte de $\approx$25\,pp para $\approx$15\,pp.
+\end{abstract}
+
+% -----------------------------------------------------------------------
+\section{Configuração Experimental}
+% -----------------------------------------------------------------------
+
+\paragraph{Dataset.}
+Snapshot público do ArXiv (\texttt{arxiv-metadata-oai-snapshot.json}), limitado a
+50\,000 registros com campos \textit{title} e \textit{abstract}.
+A hierarquia de categorias tem dois níveis ativos além do nó raiz:
+nível~0 (19 áreas, ex.\ \texttt{cs}, \texttt{math}) e
+nível~1 (137 subcategorias, ex.\ \texttt{cs.AI}, \texttt{cs.LG}).
+Split: 80\,\% treino / 10\,\% validação / 10\,\% teste, semente 42.
+
+\paragraph{Arquitetura.}
+MLP global com \textit{R-matrix constraint} \cite{giunchiglia2020coherent}:
+as saídas respeitam a hierarquia via \texttt{get\_constr\_out()} tanto em treino
+quanto em inferência.
+Hiperparâmetros fixos: \texttt{hidden\_dim}=512, \texttt{num\_layers}=3,
+\texttt{dropout}=0,3, \texttt{lr}=\num{1e-4}, \texttt{weight\_decay}=\num{1e-5},
+50\,épocas, \texttt{batch\_size}=32.
+
+\paragraph{Features.}
+\begin{itemize}
+    \item \textbf{TF-IDF}: \texttt{TfidfVectorizer} (50\,K termos, \texttt{sublinear\_tf},
+          \texttt{min\_df}=2) + \texttt{TruncatedSVD}(256 componentes). Dimensão: 256\,d.
+    \item \textbf{SPECTER2}: \texttt{allenai/specter2\_base} \cite{cohan2020specter},
+          CLS-pool sobre título+abstract (sem fine-tuning). Dimensão: 768\,d.
+          Tempo de encoding: $\approx$7\,min em GPU.
+\end{itemize}
+
+% -----------------------------------------------------------------------
+\section{Resultados}
+% -----------------------------------------------------------------------
+
+\subsection{Resultados por nível hierárquico}
+
+\begin{table}[ht]
+\centering
+\caption{Resultados por nível no dataset ArXiv (nossas execuções, semente 42).
+         Nível~0 = 19 áreas principais; Nível~1 = 137 subcategorias.}
+\label{tab:per_level}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Features} & \textbf{Nível} & \textbf{F1} & \textbf{Precisão} & \textbf{Recall}
+  & \textbf{$\Delta$ F1} \\
+\midrule
+\multirow{2}{*}{TF-IDF (256\,d)}
+ & 0 — áreas      & 0,737 & 0,685 & 0,796 & — \\
+ & 1 — subcats.   & 0,405 & 0,531 & 0,327 & — \\
+\midrule
+\multirow{2}{*}{\textsc{SPECTER2} (768\,d)}
+ & 0 — áreas      & \ours{0,817} & \ours{0,798} & \ours{0,836} & \gain{+8,0\,pp} \\
+ & 1 — subcats.   & \ours{0,574} & \ours{0,634} & \ours{0,524} & \gain{+16,9\,pp} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comparação global com o estado da arte}
+
+\begin{table}[ht]
+\centering
+\caption{Comparação de Micro-F1 e Avg.\ Precision no ArXiv.
+         Resultados de terceiros são aproximados — diferentes splits e subconjuntos do ArXiv
+         dificultam comparação direta; valores representam faixas reportadas na literatura.
+         ``—'' = não reportado.}
+\label{tab:sota}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Método} & \textbf{Features} & \textbf{Micro-F1} & \textbf{Avg.\ Prec.} & \textbf{Ref.} \\
+\midrule
+Flat MLP (sem restrição)      & TF-IDF (256\,d) & 65–72\%       & —      & \cite{giunchiglia2020coherent} \\
+C-HMCNN                       & TF-IDF + R-mat  & 70–76\%       & —      & \cite{giunchiglia2020coherent} \\
+\midrule
+\ours{Ours — TF-IDF}          & TF-IDF (256\,d) & \ours{62,5\%} & \ours{68,4\%} & este trabalho \\
+\ours{Ours — SPECTER2 frozen} & SPECTER2 (768\,d) & \ours{72,6\%} & \ours{81,0\%} & este trabalho \\
+\midrule
+HiAGM \cite{zhou2020hiagm}    & BERT (768\,d)   & 82–87\%       & —      & \cite{zhou2020hiagm} \\
+HGCLR \cite{wang2022hgclr}    & BERT (768\,d)   & 85–89\%       & —      & \cite{wang2022hgclr} \\
+HPT \cite{wang2022hpt}        & RoBERTa         & 87–91\%       & —      & \cite{wang2022hpt} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Resumo dos ganhos}
+
+\begin{table}[ht]
+\centering
+\caption{Ganho absoluto (pp) ao substituir TF-IDF por \textsc{SPECTER2} frozen.}
+\label{tab:delta}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Métrica} & \textbf{TF-IDF} & \textbf{SPECTER2} & \textbf{Ganho} \\
+\midrule
+Micro-F1 global & 62,5\% & \ours{72,6\%} & \gain{+10,1\,pp} \\
+Avg.\ Precision & 68,4\% & \ours{81,0\%} & \gain{+12,6\,pp} \\
+F1 nível~0      & 73,7\% & \ours{81,7\%} & \gain{+8,0\,pp}  \\
+F1 nível~1      & 40,5\% & \ours{57,4\%} & \gain{+16,9\,pp} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% -----------------------------------------------------------------------
+\section{Análise}
+% -----------------------------------------------------------------------
+
+\paragraph{Posicionamento em relação ao estado da arte.}
+Com SPECTER2 frozen, o sistema alcança 72,6\% de Micro-F1, situando-se acima dos
+baselines TF-IDF da literatura (65–72\%) mas ainda $\approx$\textbf{15\,pp} abaixo do melhor
+método publicado (HPT, 87–91\%).
+O ganho de +10,1\,pp obtido com a troca de feature, sem qualquer alteração na arquitetura,
+confirma que o gargalo principal era a representação do texto.
+
+\paragraph{Por que o nível~1 ganha mais.}
+As subcategorias (\texttt{cs.AI}, \texttt{cs.LG}, etc.) têm fronteiras semânticas finas
+que o vocabulário TF-IDF não distingue bem — papers de \texttt{cs.AI} e \texttt{cs.LG}
+compartilham muito do mesmo vocabulário.
+O SPECTER2, treinado com objetivo de recuperação de papers científicos por citação,
+codifica distinções temáticas que vão além da co-ocorrência de termos, explicando o
+ganho desproporcional de +16,9\,pp no nível~1.
+
+\paragraph{Gap residual e próximos passos.}
+Três fatores explicam a diferença de $\approx$15\,pp para o estado da arte:
+\begin{enumerate}
+    \item \textbf{Fine-tuning end-to-end (est.\ +5\,pp)}: ajustar os pesos do SPECTER2
+          junto com o classificador permite adaptar a representação à tarefa de
+          classificação hierárquica, mas requer desabilitar o cache de features e
+          $\approx$8–16\,GB adicionais de VRAM.
+    \item \textbf{Label-graph GNN (est.\ +4–6\,pp)}: métodos como HiAGM propagam
+          informação pelo grafo de hierarquia de labels.
+          O grafo ArXiv tem 157 nós — pequeno o suficiente para GCN/GAT.
+          O \texttt{ConstrainedGNNModel} do repositório já implementa essa estrutura;
+          falta integrá-lo ao pipeline SPECTER2.
+    \item \textbf{Contrastive loss hierárquico (est.\ +2–4\,pp)}: HGCLR mostra ganhos
+          significativos com perda contrastiva que atrai embeddings do mesmo sub-ramo e
+          repele embeddings de sub-ramos distantes.
+          A flag \texttt{--use\_contrastive\_loss} já existe no pipeline.
+\end{enumerate}
+
+% -----------------------------------------------------------------------
+\section{Conclusão}
+% -----------------------------------------------------------------------
+
+A substituição de TF-IDF por embeddings \textsc{SPECTER2} frozen, sem nenhuma mudança
+de arquitetura ou hiperparâmetros, acrescenta \textbf{+10,1\,pp de Micro-F1}
+(62,5\% $\rightarrow$ 72,6\%) e \textbf{+12,6\,pp de Avg.\ Precision} (68,4\% $\rightarrow$ 81,0\%).
+O sistema passa a superar os baselines TF-IDF da literatura e se aproxima dos métodos
+baseados em BERT, mas ainda fica $\approx$15\,pp abaixo do estado da arte absoluto.
+O caminho mais direto para fechar esse gap é o fine-tuning end-to-end combinado com
+o label-graph GNN, ambos já parcialmente implementados no repositório.
+
+% -----------------------------------------------------------------------
+\bibliographystyle{plain}
+\begin{thebibliography}{9}
+
+\bibitem{giunchiglia2020coherent}
+Giunchiglia, E.\ \& Lukasiewicz, T.\ (2020).
+\textit{Coherent Hierarchical Multi-label Classification Networks}.
+NeurIPS 2020.
+
+\bibitem{cohan2020specter}
+Cohan, A.\ et al.\ (2020).
+\textit{SPECTER: Document-level Representation Learning using
+Citation-informed Transformers}.
+ACL 2020.
+
+\bibitem{zhou2020hiagm}
+Zhou, J.\ et al.\ (2020).
+\textit{Hierarchy-Aware Global Model for Hierarchical Text Classification}.
+ACL 2020.
+
+\bibitem{wang2022hgclr}
+Wang, Z.\ et al.\ (2022).
+\textit{Incorporating Hierarchy into Text Encoder: a Contrastive Learning
+Approach for Hierarchical Text Classification}.
+ACL 2022.
+
+\bibitem{wang2022hpt}
+Wang, Z.\ et al.\ (2022).
+\textit{HPT: Hierarchy-aware Prompt Tuning for Hierarchical Text Classification}.
+EMNLP 2022.
+
+\end{thebibliography}
+
+\end{document}

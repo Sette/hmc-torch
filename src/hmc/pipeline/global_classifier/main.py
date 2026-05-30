@@ -3,6 +3,7 @@ Train a global classifier
 """
 
 import logging
+import os
 
 import networkx as nx
 import numpy as np
@@ -51,6 +52,8 @@ def train_global(dataset_name, args):
         is_global=True,
         arxiv_feature_type=args.dataset.arxiv_feature_type,
         arxiv_model_name=args.dataset.arxiv_model_name,
+        arxiv_max_records=args.dataset.arxiv_max_records,
+        arxiv_cache_dir=args.output_path if is_arxiv else None,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -162,6 +165,207 @@ def train_global(dataset_name, args):
     )
 
     return fit_trainer(args)
+
+
+def train_global_e2e(dataset_name, args):
+    """End-to-end fine-tuning of a HuggingFace transformer for HMC (globalE2E)."""
+    from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
+
+    from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
+        ArXivPyTorchDataset,
+    )
+    from hmc.models.global_classifier.e2e.model import (  # pylint: disable=import-outside-toplevel
+        E2EConstrainedModel,
+    )
+    from hmc.pipeline.global_classifier.e2e_train import (  # pylint: disable=import-outside-toplevel
+        train_e2e_step,
+    )
+
+    args.device = torch.device(args.device)
+    model_name = args.dataset.arxiv_model_name
+    max_records = args.dataset.arxiv_max_records or None
+
+    # 1. Load ArXivManager for hierarchy, to_eval, adjacency, nodes_idx
+    args.hmc_dataset = initialize_dataset_experiments(
+        dataset_name,
+        device=args.device,
+        dataset_path=args.dataset.dataset_path,
+        dataset_type="arxiv",
+        is_global=True,
+        arxiv_feature_type="tfidf",  # frozen features not used — hierarchy only
+        arxiv_model_name=model_name,
+        arxiv_max_records=args.dataset.arxiv_max_records,
+    )
+
+    # 2. Hierarchy-derived tensors (same logic as train_global)
+    args.data = "arxiv"
+    args.ontology = None
+    args.to_eval = (
+        torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    )
+    defaults = args.registry.arxiv_defaults
+    args.hidden_dim = defaults["hidden_dim"]
+    args.lr = defaults["lr"]
+    args.epochs = defaults["epochs"]
+    args.weight_decay = defaults["weight_decay"]
+    args.batch_size = defaults["batch_size"]
+    args.output_dim = args.hmc_dataset.output_dim
+    args.num_to_skip = 1
+
+    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
+    np.fill_diagonal(args.r_matrix, 1)
+    g = nx.DiGraph(args.hmc_dataset.a)
+    for i in range(len(args.hmc_dataset.a)):
+        ancestors = list(nx.descendants(g, i))
+        if ancestors:
+            args.r_matrix[i, ancestors] = 1
+    args.r_matrix = (
+        torch.tensor(args.r_matrix).transpose(1, 0).unsqueeze(0).to(args.device)
+    )
+
+    # 3. Job ID and output path
+    args.job_id = create_job_id_name(prefix="e2e")
+    args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
+
+    # 4. Build text dataset with tokenizer (shared test split with ArXivManager)
+    jsonl_path = os.path.join(
+        args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    text_dataset = ArXivPyTorchDataset(
+        jsonl_path=jsonl_path,
+        hierarchy_manager=args.hmc_dataset.hierarchy_manager,
+        tokenizer=tokenizer,
+        max_records=max_records,
+    )
+    train_set, _val_set, test_set = text_dataset.get_datasets(seed=args.seed)
+
+    args.train_loader = DataLoader(
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=2
+    )
+    args.test_loader = DataLoader(
+        test_set, batch_size=args.batch_size, shuffle=False, num_workers=2
+    )
+
+    # 5. E2E model
+    args.model = E2EConstrainedModel(
+        model_name=model_name,
+        output_dim=args.output_dim,
+        r_matrix=args.r_matrix,
+        hidden_dim=args.hidden_dim,
+        num_layers=defaults["num_layers"],
+        dropout=defaults["dropout"],
+    )
+
+    return train_e2e_step(args)
+
+
+def train_global_sota(dataset_name, args):
+    """globalSOTA: fine-tuned transformer + label-hierarchy GCN for HMC.
+
+    Combines globalE2E (end-to-end transformer fine-tuning) with the GCN label
+    encoder from globalGNN.  The model architecture follows HiAGM (Zhou et al.,
+    ACL 2020): a text encoder and a graph-aware label encoder whose embeddings
+    are combined via dot-product scoring.
+
+    Requires the ArXiv dataset (JSONL) and torch-geometric.
+    """
+    from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
+
+    from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
+        ArXivPyTorchDataset,
+    )
+    from hmc.models.global_classifier.e2e.model import (  # pylint: disable=import-outside-toplevel
+        E2EGNNModel,
+    )
+    from hmc.pipeline.global_classifier.e2e_train import (  # pylint: disable=import-outside-toplevel
+        train_e2e_step,
+    )
+
+    args.device = torch.device(args.device)
+    model_name = args.dataset.arxiv_model_name
+    max_records = args.dataset.arxiv_max_records or None
+
+    # 1. Load ArXivManager for hierarchy, to_eval, adjacency, nodes_idx
+    args.hmc_dataset = initialize_dataset_experiments(
+        dataset_name,
+        device=args.device,
+        dataset_path=args.dataset.dataset_path,
+        dataset_type="arxiv",
+        is_global=True,
+        arxiv_feature_type="tfidf",  # hierarchy only; text encoded by transformer
+        arxiv_model_name=model_name,
+        arxiv_max_records=args.dataset.arxiv_max_records,
+    )
+
+    args.data = "arxiv"
+    args.ontology = None
+    args.to_eval = (
+        torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
+    )
+    defaults = args.registry.arxiv_defaults
+    args.hidden_dim = defaults["hidden_dim"]
+    args.lr = defaults["lr"]
+    args.epochs = defaults["epochs"]
+    args.weight_decay = defaults["weight_decay"]
+    args.batch_size = defaults["batch_size"]
+    args.output_dim = args.hmc_dataset.output_dim
+    args.num_to_skip = 1
+
+    # 2. R-matrix for hierarchical constraint
+    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
+    np.fill_diagonal(args.r_matrix, 1)
+    g = nx.DiGraph(args.hmc_dataset.a)
+    for i in range(len(args.hmc_dataset.a)):
+        ancestors = list(nx.descendants(g, i))
+        if ancestors:
+            args.r_matrix[i, ancestors] = 1
+    args.r_matrix = (
+        torch.tensor(args.r_matrix).transpose(1, 0).unsqueeze(0).to(args.device)
+    )
+
+    # 3. Undirected edge_index for label-hierarchy GCN
+    rows, cols = np.where(args.hmc_dataset.a > 0)
+    fwd = torch.tensor([rows, cols], dtype=torch.long)
+    rev = torch.tensor([cols, rows], dtype=torch.long)
+    label_edge_index = torch.cat([fwd, rev], dim=1).to(args.device)
+
+    # 4. Job ID and output path
+    args.job_id = create_job_id_name(prefix="sota")
+    args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
+
+    # 5. Text DataLoader (tokenized)
+    jsonl_path = os.path.join(
+        args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    text_dataset = ArXivPyTorchDataset(
+        jsonl_path=jsonl_path,
+        hierarchy_manager=args.hmc_dataset.hierarchy_manager,
+        tokenizer=tokenizer,
+        max_records=max_records,
+    )
+    train_set, _val_set, test_set = text_dataset.get_datasets(seed=args.seed)
+
+    args.train_loader = DataLoader(
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=2
+    )
+    args.test_loader = DataLoader(
+        test_set, batch_size=args.batch_size, shuffle=False, num_workers=2
+    )
+
+    # 6. E2E + GNN model
+    args.model = E2EGNNModel(
+        model_name=model_name,
+        output_dim=args.output_dim,
+        r_matrix=args.r_matrix,
+        edge_index=label_edge_index,
+        hidden_dim=args.hidden_dim,
+        num_layers=defaults["num_layers"],
+        dropout=defaults["dropout"],
+    )
+
+    return train_e2e_step(args)
 
 
 def fit_trainer(args):

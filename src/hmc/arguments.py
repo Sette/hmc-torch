@@ -26,6 +26,7 @@ class DatasetConfig:
     # and outperforms general-purpose sentence transformers on ArXiv categorisation.
     # Alternatives: allenai/scibert_scivocab_uncased, sentence-transformers/all-mpnet-base-v2
     arxiv_model_name: str = "allenai/specter2_base"
+    arxiv_max_records: int = 50_000
 
 
 @dataclass
@@ -56,6 +57,7 @@ class TrainingConfig:  # pylint: disable=too-many-instance-attributes
     best_threshold: bool = True
     use_contrastive_loss: bool = False
     lambda_contrastive: float = 0.1
+    lr_transformer: float = 2e-5
 
 
 @dataclass
@@ -129,7 +131,7 @@ class Args:  # pylint: disable=too-many-instance-attributes
     def __getattr__(self, name: str):
         # Called only when normal attribute lookup fails (i.e. name is not a
         # direct field).  Search the sub-configs in order.
-        for sub in ("training", "hyperparams", "hpo_config"):
+        for sub in ("dataset", "training", "hyperparams", "hpo_config"):
             # Guard against infinite recursion during __init__
             try:
                 cfg = object.__getattribute__(self, sub)
@@ -148,7 +150,7 @@ class Args:  # pylint: disable=too-many-instance-attributes
             object.__setattr__(self, name, value)
             return
         # If the name belongs to a sub-config, delegate there.
-        for sub in ("training", "hyperparams", "hpo_config"):
+        for sub in ("dataset", "training", "hyperparams", "hpo_config"):
             try:
                 cfg = object.__getattribute__(self, sub)
             except AttributeError:
@@ -283,6 +285,15 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--arxiv_max_records",
+        type=int,
+        default=50_000,
+        metavar="ARXIV_MAX_RECORDS",
+        required=False,
+        help="Maximum number of ArXiv records to load (0 = all).",
+    )
+
+    parser.add_argument(
         "--use_contrastive_loss",
         type=str,
         default="false",
@@ -299,6 +310,15 @@ def get_parser() -> argparse.ArgumentParser:
         metavar="LAMBDA_CONTRASTIVE",
         required=False,
         help="Weight for the contrastive loss term (default: 0.1).",
+    )
+
+    parser.add_argument(
+        "--lr_transformer",
+        type=float,
+        default=2e-5,
+        metavar="LR_TRANSFORMER",
+        required=False,
+        help="Learning rate for the transformer encoder in globalE2E (default: 2e-5).",
     )
 
     parser.add_argument(
@@ -365,6 +385,8 @@ def get_parser() -> argparse.ArgumentParser:
             "globalLM",
             "global_baseline",
             "globalGNN",
+            "globalE2E",
+            "globalSOTA",
             "local_constraint",
             "local_hat",
             "local_tabat",
@@ -598,6 +620,7 @@ def parse_args() -> Args:
         dataset_type=ns.dataset_type,
         arxiv_feature_type=ns.arxiv_feature_type,
         arxiv_model_name=ns.arxiv_model_name,
+        arxiv_max_records=ns.arxiv_max_records,
     )
     training = TrainingConfig(
         batch_size=ns.batch_size,
@@ -624,6 +647,7 @@ def parse_args() -> Args:
         best_threshold=_str_to_bool(ns.best_threshold),
         use_contrastive_loss=_str_to_bool(ns.use_contrastive_loss),
         lambda_contrastive=ns.lambda_contrastive,
+        lr_transformer=ns.lr_transformer,
     )
     hpo_config = HpoConfig(
         hpo=_str_to_bool(ns.hpo),
