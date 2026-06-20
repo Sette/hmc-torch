@@ -21,7 +21,6 @@ class DatasetConfig:
     use_sample: bool = False
     save_torch_dataset: bool = True
     dataset_type: str = "arff"
-    arxiv_feature_type: str = "tfidf"
     # allenai/specter2_base is trained on scientific paper retrieval (title+abstract)
     # and outperforms general-purpose sentence transformers on ArXiv categorisation.
     # Alternatives: allenai/scibert_scivocab_uncased, sentence-transformers/all-mpnet-base-v2
@@ -266,22 +265,12 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--arxiv_feature_type",
-        type=str,
-        choices=["tfidf", "embedding"],
-        default="tfidf",
-        metavar="ARXIV_FEATURE_TYPE",
-        required=False,
-        help="Feature extraction for ArXiv: 'tfidf' (TF-IDF + SVD) or 'embedding' (transformer mean-pool).",
-    )
-
-    parser.add_argument(
         "--arxiv_model_name",
         type=str,
         default="allenai/specter2_base",
         metavar="ARXIV_MODEL_NAME",
         required=False,
-        help="HuggingFace model name used when --arxiv_feature_type=embedding.",
+        help="HuggingFace model name used for ArXiv transformer embeddings.",
     )
 
     parser.add_argument(
@@ -618,7 +607,6 @@ def parse_args() -> Args:
         use_sample=_str_to_bool(ns.use_sample),
         save_torch_dataset=_str_to_bool(ns.save_torch_dataset),
         dataset_type=ns.dataset_type,
-        arxiv_feature_type=ns.arxiv_feature_type,
         arxiv_model_name=ns.arxiv_model_name,
         arxiv_max_records=ns.arxiv_max_records,
     )

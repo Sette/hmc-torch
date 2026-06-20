@@ -34,10 +34,10 @@ def train_global(dataset_name, args):
     logging.info("Experiment with %s dataset ", dataset_name)
 
     args.device = torch.device(args.device)
-    is_arxiv = dataset_name == "arxiv"
+    is_transformer_dataset = dataset_name in ("arxiv", "wos")
 
-    if is_arxiv:
-        args.data = "arxiv"
+    if is_transformer_dataset:
+        args.data = dataset_name
         args.ontology = None
         dataset_type = "arxiv"
     else:
@@ -50,10 +50,9 @@ def train_global(dataset_name, args):
         dataset_path=args.dataset.dataset_path,
         dataset_type=dataset_type,
         is_global=True,
-        arxiv_feature_type=args.dataset.arxiv_feature_type,
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
-        arxiv_cache_dir=args.output_path if is_arxiv else None,
+        arxiv_cache_dir=args.output_path if is_transformer_dataset else None,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -67,8 +66,11 @@ def train_global(dataset_name, args):
         f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
     )
 
-    if is_arxiv:
-        defaults = args.registry.arxiv_defaults
+    if is_transformer_dataset:
+        if dataset_name == "wos":
+            defaults = args.registry.wos_defaults
+        else:
+            defaults = args.registry.arxiv_defaults
         args.hidden_dim = defaults["hidden_dim"]
         args.lr = defaults["lr"]
         args.epochs = defaults["epochs"]
@@ -123,7 +125,7 @@ def train_global(dataset_name, args):
     rev = torch.tensor([cols, rows], dtype=torch.long)
     args.label_edge_index = torch.cat([fwd, rev], dim=1).to(args.device)
 
-    if is_arxiv:
+    if is_transformer_dataset:
         # Text features: convert directly to tensors without sklearn scaling.
         for split in (args.train, args.valid, args.test):
             split.samples.x = (
@@ -192,9 +194,9 @@ def train_global_e2e(dataset_name, args):
         dataset_path=args.dataset.dataset_path,
         dataset_type="arxiv",
         is_global=True,
-        arxiv_feature_type="tfidf",  # frozen features not used — hierarchy only
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
+        arxiv_load_features=False,
     )
 
     # 2. Hierarchy-derived tensors (same logic as train_global)
@@ -238,7 +240,7 @@ def train_global_e2e(dataset_name, args):
         tokenizer=tokenizer,
         max_records=max_records,
     )
-    train_set, _val_set, test_set = text_dataset.get_datasets(seed=args.seed)
+    train_set, _val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True, num_workers=2
@@ -293,9 +295,9 @@ def train_global_sota(dataset_name, args):
         dataset_path=args.dataset.dataset_path,
         dataset_type="arxiv",
         is_global=True,
-        arxiv_feature_type="tfidf",  # hierarchy only; text encoded by transformer
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
+        arxiv_load_features=False,
     )
 
     args.data = "arxiv"
@@ -345,7 +347,7 @@ def train_global_sota(dataset_name, args):
         tokenizer=tokenizer,
         max_records=max_records,
     )
-    train_set, _val_set, test_set = text_dataset.get_datasets(seed=args.seed)
+    train_set, _val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True, num_workers=2

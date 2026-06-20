@@ -14,6 +14,14 @@ make lint                      # autopep8 + black + ruff + isort + pylint
 make run                       # ./run.sh com seq_FUN, method=local, device=cuda
 
 uv sync --all-groups           # instalar/atualizar dependências
+
+# Download datasets
+make download-all              # todos os datasets (arxiv + wos + FUN + GO + others)
+make download-arxiv            # apenas ArXiv (via kagglehub)
+make download-wos              # apenas WOS (via HDLTex GitHub)
+make download-arff-fun         # apenas FUN (8 datasets ARFF)
+make download-arff-go          # apenas GO (8 datasets ARFF)
+make download-arff-others      # apenas others (enron, diatoms, imclef)
 ```
 
 ---
@@ -40,7 +48,7 @@ main.py → parse_args() → Args dataclass
 
 Definida em `src/hmc/arguments.py`. Organizada em grupos aninhados:
 
-- `DatasetConfig` — paths, dataset_name, dataset_type, arxiv_feature_type, arxiv_model_name
+- `DatasetConfig` — paths, dataset_name, dataset_type, arxiv_model_name, arxiv_max_records
 - `TrainingConfig` — epochs, batch_size, epochs_to_evaluate, warmup, early_metric
 - `HyperparameterConfig` — lr_values, dropout_values, hidden_dims, num_layers_values, weight_decay_values
 - `HpoConfig` — hpo, n_trials, output_path
@@ -64,11 +72,9 @@ Carregamento: `datasets/dataset_manager.py:initialize_dataset_experiments()`
 - Para ARFF (FUN/GO/others): usa `datasets/gofun/manager.py:HMCDatasetManager`
 - Para ArXiv: usa `datasets/arxiv/manager.py:ArXivManager`
 
-`ArXivManager` suporta dois modos de extração de features controlados por `args.dataset.arxiv_feature_type`:
-- `"tfidf"` (padrão): TF-IDF (50 K termos) + TruncatedSVD → vetor denso de 256 dims
-- `"embedding"`: mean-pool de token embeddings de um modelo HuggingFace (`transformers.AutoModel`); modelo configurável via `args.dataset.arxiv_model_name` (padrão `sentence-transformers/all-MiniLM-L6-v2`, 384 dims)
+`ArXivManager` usa embeddings de um modelo HuggingFace (`transformers.AutoModel`) configurável via `args.dataset.arxiv_model_name` (padrão `allenai/specter2_base`, 768 dims). Modelos da família SPECTER usam CLS pooling; os demais usam mean-pool com máscara de atenção.
 
-**Feature cache:** ambos os modos persistem a matrix `X` em `data/arxiv/.feature_cache/<hash>.npy`. A chave de cache inclui path do JSONL, mtime, tamanho do arquivo, `feature_type`, `model_name`, `n_components` e número de registros carregados — invalidação automática se qualquer um mudar. A lógica fica em `ArXivManager._cache_path()` e `_compute_features()`.
+**Feature cache:** os embeddings persistem a matrix `X` em `.feature_cache/<hash>.npy` ou no diretório de cache informado. A chave de cache inclui path do JSONL, mtime, tamanho do arquivo, `model_name` e número de registros carregados — invalidação automática se qualquer um mudar. A lógica fica em `ArXivManager._cache_path()` e `_compute_features()`.
 
 O `input_dim` é determinado pelo shape real das features — o registry não é consultado para arxiv no pipeline global.
 

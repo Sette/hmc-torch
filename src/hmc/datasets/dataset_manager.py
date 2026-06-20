@@ -12,10 +12,10 @@ def initialize_dataset_experiments(
     dataset_path: str = "data/",
     dataset_type="torch",
     is_global: bool = False,
-    arxiv_feature_type: str = "tfidf",
-    arxiv_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    arxiv_model_name: str = "allenai/specter2_base",
     arxiv_max_records: int = 50_000,
     arxiv_cache_dir: str = None,
+    arxiv_load_features: bool = True,
 ) -> HMCDatasetManager:
     """
     Initialize and return a dataset manager for the specified dataset.
@@ -40,10 +40,23 @@ def initialize_dataset_experiments(
         )
         return ArXivManager(
             jsonl_path=jsonl_path,
-            feature_type=arxiv_feature_type,
             model_name=arxiv_model_name,
             max_records=arxiv_max_records if arxiv_max_records > 0 else None,
             cache_dir=arxiv_cache_dir,
+            load_features=arxiv_load_features,
+        )
+
+    if name == "wos":
+        from hmc.datasets.wos.manager import (  # pylint: disable=import-outside-toplevel
+            WOSManager,
+        )
+
+        data_dir = os.path.join(dataset_path, "wos")
+        return WOSManager(
+            data_dir=data_dir,
+            model_name=arxiv_model_name,
+            cache_dir=arxiv_cache_dir,
+            load_features=arxiv_load_features,
         )
 
     # Load dataset paths

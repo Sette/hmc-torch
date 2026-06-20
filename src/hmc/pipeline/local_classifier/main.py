@@ -196,7 +196,12 @@ def main_local(args):
     else:
         args.device = torch.device(args.device)
 
-    args.data, args.ontology = args.dataset.dataset_name.split("_")
+    is_transformer_dataset = args.dataset.dataset_name in ("arxiv", "wos")
+    if is_transformer_dataset:
+        args.data = args.dataset.dataset_name
+        args.ontology = None
+    else:
+        args.data, args.ontology = args.dataset.dataset_name.split("_")
 
     create_dir(args.results_path)
 
@@ -205,8 +210,7 @@ def main_local(args):
     val_path = os.path.join(args.results_path, "val_dataset.pt")
     test_path = os.path.join(args.results_path, "test_dataset.pt")
 
-    is_arxiv = args.dataset.dataset_name == "arxiv"
-    dataset_type = "jsonl" if is_arxiv else "arff"
+    dataset_type = "jsonl" if is_transformer_dataset else "arff"
 
     args.hmc_dataset = initialize_dataset_experiments(
         args.dataset.dataset_name,
@@ -214,14 +218,16 @@ def main_local(args):
         dataset_path=args.dataset.dataset_path,
         dataset_type=dataset_type,
         is_global=False,
-        arxiv_feature_type=args.dataset.arxiv_feature_type,
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
-        arxiv_cache_dir=args.output_path if is_arxiv else None,
+        arxiv_cache_dir=args.output_path if is_transformer_dataset else None,
     )
 
     args.levels_size = args.hmc_dataset.levels_size
-    args.input_dim = args.registry.input_dims[args.data]
+    if is_transformer_dataset:
+        args.input_dim = args.hmc_dataset.input_dim
+    else:
+        args.input_dim = args.registry.input_dims[args.data]
     args.max_depth = args.hmc_dataset.max_depth
 
     # 1. Initialize scaler and imputer as None (Default for NLP/Text datasets)

@@ -270,22 +270,27 @@ class ArXivPyTorchDataset(Dataset):
         return torch.from_numpy(self.hierarchy.a).float()
 
     def get_datasets(
-        self, train_ratio: float = 0.8, valid_ratio: float = 0.1, seed: int = 42
+        self,
     ) -> Tuple[Subset, Subset, Subset]:
-        """Split into train/val/test using the same numpy permutation as ArXivManager.
+        """Split into 64/16/20 using HPT methodology — same as ArXivManager."""
+        from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
+            train_test_split,
+        )
 
-        Keeping split logic identical ensures the test set is the same whether
-        features are pre-computed (ArXivManager) or tokenised on-the-fly (E2E).
-        """
-        rng = np.random.RandomState(seed)
-        idx = rng.permutation(len(self))
-        train_end = int(train_ratio * len(self))
-        valid_end = train_end + int(valid_ratio * len(self))
+        np.random.seed(7)
+        n = len(self)
+        idx = list(range(n))
+        np.random.shuffle(idx)
 
-        train_dataset = Subset(self, idx[:train_end].tolist())
-        valid_dataset = Subset(self, idx[train_end:valid_end].tolist())
-        test_dataset = Subset(self, idx[valid_end:].tolist())
+        train_idx, test_idx = train_test_split(
+            idx, test_size=0.2, random_state=0
+        )
+        train_idx, val_idx = train_test_split(
+            train_idx, test_size=0.2, random_state=0
+        )
 
-        return train_dataset, valid_dataset, test_dataset
+        train_dataset = Subset(self, sorted(train_idx))
+        valid_dataset = Subset(self, sorted(val_idx))
+        test_dataset = Subset(self, sorted(test_idx))
 
         return train_dataset, valid_dataset, test_dataset

@@ -78,7 +78,7 @@ max-line-length = 120
 [tool.pylint.basic]
 # Short conventional names and single uppercase letters for ML (X=features, Y=labels)
 good-names = "X,Y,lr,i,j,k,f,e,ex,fp,id"
-# Allow any lowercase-starting name (any length) + uppercase-prefixed ML names (X_tfidf, Y_global)
+# Allow any lowercase-starting name (any length) + uppercase-prefixed ML names (X_embed, Y_global)
 variable-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
 argument-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
 

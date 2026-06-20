@@ -2,9 +2,9 @@
 ArXiv dataset manager — compatible with HMCDatasetManager interface.
 
 Loads ArXiv JSONL, builds the label hierarchy from the loaded records,
-computes TF-IDF + TruncatedSVD text features, and exposes train/val/test
-splits as ArXivSplit objects that the local and global pipelines consume
-without modification.
+computes transformer text embeddings, and exposes train/val/test splits as
+ArXivSplit objects that the local and global pipelines consume without
+modification.
 """
 
 import hashlib
@@ -16,8 +16,6 @@ from typing import Optional, Tuple
 
 import networkx as nx
 import numpy as np
-from sklearn.decomposition import TruncatedSVD
-from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm import tqdm
 
 from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivSplit
@@ -25,11 +23,82 @@ from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivSplit
 logger = logging.getLogger(__name__)
 
 
+# Models that use CLS-token pooling instead of mean-pool.
+# SPECTER2 was trained with a contrastive objective where [CLS] carries the
+# document-level representation; mean-pool degrades its retrieval quality.
+_CLS_POOL_MODELS = ("specter",)
+
+
+def use_cls_pooling(model_name: str) -> bool:
+    """Return True if *model_name* should use CLS-pool rather than mean-pool."""
+    return any(k in model_name.lower() for k in _CLS_POOL_MODELS)
+
+
+def compute_transformer_embeddings(
+    texts: list,
+    model_name: str,
+    batch_size: int = 64,
+    max_length: int = 256,
+) -> np.ndarray:
+    """Extract transformer embeddings (CLS-pool for SPECTER*, mean-pool otherwise).
+
+    Args:
+        texts: List of input strings (title + abstract).
+        model_name: HuggingFace model identifier.
+        batch_size: Mini-batch size for forward passes.
+        max_length: Max token length for tokenizer.
+
+    Returns:
+        (N, hidden_dim) float32 numpy array.
+    """
+    import torch  # pylint: disable=import-outside-toplevel
+    from transformers import (  # pylint: disable=import-outside-toplevel
+        AutoModel,
+        AutoTokenizer,
+    )
+
+    cls_pool = use_cls_pooling(model_name)
+    pool_mode = "CLS" if cls_pool else "mean"
+    logger.info("Loading %s for embeddings (pooling=%s) …", model_name, pool_mode)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
+    model.eval()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    all_embeddings: list = []
+
+    for i in tqdm(range(0, len(texts), batch_size), desc="Encoding"):
+        batch = texts[i : i + batch_size]
+        encoded = tokenizer(
+            batch,
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+            return_tensors="pt",
+        )
+        encoded = {k: v.to(device) for k, v in encoded.items()}
+        with torch.no_grad():
+            output = model(**encoded)
+        if cls_pool:
+            embeddings = output.last_hidden_state[:, 0, :]
+        else:
+            mask = encoded["attention_mask"].unsqueeze(-1).float()
+            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(
+                1
+            ).clamp(min=1e-9)
+        all_embeddings.append(embeddings.cpu().numpy())
+
+    X = np.concatenate(all_embeddings, axis=0).astype(np.float32)
+    logger.info("Embedding matrix shape: %s", X.shape)
+    return X
+
+
 class ArXivManager:
     """HMCDatasetManager-compatible manager for ArXiv hierarchical text data.
 
-    Text features are computed with TF-IDF (max 50 K terms) followed by
-    TruncatedSVD to a fixed ``n_components``-dimensional dense vector.
+    Text features are transformer embeddings extracted from title + abstract.
     Labels follow the two-level ArXiv taxonomy (e.g. cs → cs.AI); the root
     pseudo-node is excluded from training targets so the interface matches
     the ARFF datasets where level-0 is the first *meaningful* hierarchy level.
@@ -42,7 +111,7 @@ class ArXivManager:
         to_eval (list[bool]): Mask over all terms; False for root.
         nodes_idx (dict): term → global index (includes root).
         local_nodes_idx (dict): level → {term: local_index} (includes root).
-        input_dim (int): Actual SVD output dimension.
+        input_dim (int): Embedding dimension.
         output_dim (int): Total number of nodes in the hierarchy (incl. root).
         hierarchy_map (dict): Empty — used only by constrained models.
     """
@@ -50,24 +119,17 @@ class ArXivManager:
     def __init__(
         self,
         jsonl_path: str,
-        n_components: int = 256,
         max_records: Optional[int] = 50_000,
         category_prefix: Optional[str] = None,
-        train_ratio: float = 0.8,
-        valid_ratio: float = 0.1,
-        seed: int = 42,
-        feature_type: str = "tfidf",
         model_name: str = "allenai/specter2_base",
         cache_dir: Optional[str] = None,
+        load_features: bool = True,
     ) -> None:
-        self.n_components = n_components
-        self.feature_type = feature_type
         self.model_name = model_name
         self._jsonl_path = jsonl_path
         self._cache_dir = Path(cache_dir) if cache_dir else None
-        self._fit(
-            jsonl_path, max_records, category_prefix, train_ratio, valid_ratio, seed
-        )
+        self._load_features = load_features
+        self._fit(jsonl_path, max_records, category_prefix)
 
     # ------------------------------------------------------------------
     # Public API
@@ -86,18 +148,19 @@ class ArXivManager:
         jsonl_path: str,
         max_records: Optional[int],
         category_prefix: Optional[str],
-        train_ratio: float,
-        valid_ratio: float,
-        seed: int,
     ) -> None:
         texts, cats_list = self._load_records(jsonl_path, max_records, category_prefix)
 
         hierarchy = self._build_hierarchy(cats_list)
         self.hierarchy_manager = hierarchy  # exposed for E2E pipeline
-        X = self._compute_features(texts, seed)
+        X = (
+            self._compute_features(texts)
+            if self._load_features
+            else np.empty((len(texts), 0), dtype=np.float32)
+        )
         Y_global, Y_local_all = self._compute_labels(hierarchy, cats_list)
 
-        self._create_splits(X, Y_global, Y_local_all, train_ratio, valid_ratio, seed)
+        self._create_splits(X, Y_global, Y_local_all)
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Y_global.shape[1])
 
     def _load_records(
@@ -152,9 +215,7 @@ class ArXivManager:
                 self._jsonl_path,
                 str(stat.st_mtime),
                 str(stat.st_size),
-                self.feature_type,
                 self.model_name,
-                str(self.n_components),
                 str(n_records),
             ]
         )
@@ -167,87 +228,16 @@ class ArXivManager:
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{digest}.npy"
 
-    def _compute_features(self, texts: list, seed: int) -> np.ndarray:
+    def _compute_features(self, texts: list) -> np.ndarray:
         cache = self._cache_path(len(texts))
         if cache.exists():
             logger.info("Loading features from cache %s …", cache)
             return np.load(str(cache))
 
-        if self.feature_type == "embedding":
-            X = self._compute_features_embedding(texts)
-        else:
-            X = self._compute_features_tfidf(texts, seed)
+        X = compute_transformer_embeddings(texts, self.model_name)
 
         np.save(str(cache), X)
         logger.info("Features cached to %s", cache)
-        return X
-
-    def _compute_features_tfidf(self, texts: list, seed: int) -> np.ndarray:
-        logger.info("Computing TF-IDF features …")
-        tfidf = TfidfVectorizer(max_features=50_000, sublinear_tf=True, min_df=2)
-        X_tfidf = tfidf.fit_transform(texts)
-
-        n_comp = min(self.n_components, X_tfidf.shape[1] - 1, X_tfidf.shape[0] - 1)
-        logger.info("TruncatedSVD with %d components …", n_comp)
-        svd = TruncatedSVD(n_components=n_comp, random_state=seed)
-        X = svd.fit_transform(X_tfidf).astype(np.float32)
-        logger.info("Feature matrix shape: %s", X.shape)
-        return X
-
-    # Models that use CLS-token pooling instead of mean-pool.
-    # SPECTER2 was trained with a contrastive objective where [CLS] carries the
-    # document-level representation; mean-pool degrades its retrieval quality.
-    _CLS_POOL_MODELS = ("specter",)
-
-    def _use_cls_pooling(self) -> bool:
-        return any(k in self.model_name.lower() for k in self._CLS_POOL_MODELS)
-
-    def _compute_features_embedding(self, texts: list) -> np.ndarray:
-        """Extract transformer embeddings using CLS-pool (SPECTER*) or mean-pool."""
-        import torch  # pylint: disable=import-outside-toplevel
-        from transformers import (  # pylint: disable=import-outside-toplevel
-            AutoModel,
-            AutoTokenizer,
-        )
-
-        cls_pool = self._use_cls_pooling()
-        pool_mode = "CLS" if cls_pool else "mean"
-        logger.info(
-            "Loading %s for embeddings (pooling=%s) …", self.model_name, pool_mode
-        )
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        model = AutoModel.from_pretrained(self.model_name)
-        model.eval()
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
-
-        batch_size = 64
-        all_embeddings: list = []
-
-        for i in tqdm(range(0, len(texts), batch_size), desc="Encoding"):
-            batch = texts[i : i + batch_size]
-            encoded = tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                max_length=256,
-                return_tensors="pt",
-            )
-            encoded = {k: v.to(device) for k, v in encoded.items()}
-            with torch.no_grad():
-                output = model(**encoded)
-            if cls_pool:
-                embeddings = output.last_hidden_state[:, 0, :]
-            else:
-                mask = encoded["attention_mask"].unsqueeze(-1).float()
-                embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(
-                    1
-                ).clamp(min=1e-9)
-            all_embeddings.append(embeddings.cpu().numpy())
-
-        X = np.concatenate(all_embeddings, axis=0).astype(np.float32)
-        logger.info("Embedding matrix shape: %s", X.shape)
         return X
 
     def _compute_labels(
@@ -272,27 +262,40 @@ class ArXivManager:
         X: np.ndarray,
         Y_global: np.ndarray,
         Y_local_all: list,
-        train_ratio: float,
-        valid_ratio: float,
-        seed: int,
     ) -> None:
-        rng = np.random.RandomState(seed)
-        idx = rng.permutation(len(X))
-        train_end = int(train_ratio * len(X))
-        valid_end = train_end + int(valid_ratio * len(X))
+        """Create 64/16/20 splits using HPT methodology.
 
-        def _make(indices):
-            return ArXivSplit(
-                x=X[indices],
-                y=Y_global[indices],
-                y_local=[Y_local_all[i] for i in indices],
-            )
+        Uses np.random.seed(7) + sklearn train_test_split(random_state=0)
+        for deterministic, reproducible splits matching the HPT benchmark.
+        """
+        from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
+            train_test_split,
+        )
 
-        self._train = _make(idx[:train_end])
-        self._valid = _make(idx[train_end:valid_end])
-        self._test = _make(idx[valid_end:])
+        np.random.seed(7)
+        n = len(X)
+        idx = list(range(n))
+        np.random.shuffle(idx)
+
+        # Reorder by shuffled indices
+        X_shuf = X[idx]
+        Yg_shuf = Y_global[idx]
+        Yl_shuf = [Y_local_all[i] for i in idx]
+
+        # 80/20 split → test
+        X_train, X_test, Yg_train, Yg_test, Yl_train, Yl_test = train_test_split(
+            X_shuf, Yg_shuf, Yl_shuf, test_size=0.2, random_state=0
+        )
+        # 80/20 split of remainder → val → 64/16/20 overall
+        X_train, X_val, Yg_train, Yg_val, Yl_train, Yl_val = train_test_split(
+            X_train, Yg_train, Yl_train, test_size=0.2, random_state=0
+        )
+
+        self._train = ArXivSplit(x=X_train, y=Yg_train, y_local=Yl_train)
+        self._valid = ArXivSplit(x=X_val, y=Yg_val, y_local=Yl_val)
+        self._test = ArXivSplit(x=X_test, y=Yg_test, y_local=Yl_test)
         logger.info(
-            "Splits — train: %d  valid: %d  test: %d",
+            "Splits — train: %d  valid: %d  test: %d (HPT methodology)",
             len(self._train.x),
             len(self._valid.x),
             len(self._test.x),

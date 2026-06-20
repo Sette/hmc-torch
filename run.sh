@@ -16,7 +16,6 @@ OUTPUT_PATH="./results"
 METHOD="local"
 SEED=0
 DATASET_TYPE="arff"
-ARXIV_FEATURE_TYPE="tfidf"
 ARXIV_MODEL_NAME="allenai/specter2_base"
 HPO="false"
 N_TRIALS=30
@@ -84,7 +83,6 @@ while [ "$#" -gt 0 ]; do
         --dataset_path) DATASET_PATH="$2"; shift ;;
         --seed) SEED="$2"; shift ;;
         --dataset_type) DATASET_TYPE="$2"; shift ;;
-        --arxiv_feature_type) ARXIV_FEATURE_TYPE="$2"; shift ;;
         --arxiv_model_name) ARXIV_MODEL_NAME="$2"; shift ;;
         --batch_size) BATCH_SIZE="$2"; shift ;;
         --lr_values) LR_VALUES=($2); shift ;;
@@ -121,7 +119,6 @@ cmd="python -m hmc.main \
                 --save_torch_dataset $SAVE_TORCH_DATASET \
                 --batch_size $BATCH_SIZE \
                 --dataset_type $DATASET_TYPE \
-                --arxiv_feature_type $ARXIV_FEATURE_TYPE \
                 --arxiv_model_name "$ARXIV_MODEL_NAME" \
                 --non_lin $NON_LIN \
                 --device $DEVICE \
