@@ -68,30 +68,30 @@ sem fine-tuning. Dimensão: 768\,d. Tempo de encoding: $\approx$7\,min em GPU.
 \toprule
 \textbf{Nível} & \textbf{F1} & \textbf{Precisão} & \textbf{Recall} \\
 \midrule
-0 --- áreas      & \ours{0,817} & \ours{0,798} & \ours{0,836} \\
-1 --- subcats.   & \ours{0,574} & \ours{0,634} & \ours{0,524} \\
+0 --- áreas      & \ours{0,814} & \ours{0,809} & \ours{0,819} \\
+1 --- subcats.   & \ours{0,566} & \ours{0,656} & \ours{0,498} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Comparação global com o estado da arte}
+\subsection{Comparação no benchmark WOS}
 
 \begin{table}[ht]
 \centering
 \small
-\caption{Comparação de Micro-F1 e Avg.\ Precision no ArXiv.
-         Resultados de terceiros são aproximados: diferentes splits e subconjuntos
-         dificultam comparação direta; ``--'' = não reportado.}
+\caption{Comparação de Micro-F1 no dataset WOS (Web of Science).
+         Split 64/16/20 padrão da literatura. Métricas de terceiros extraídas
+         dos artigos originais.}
 \label{tab:sota}
-\begin{tabular}{llccc}
+\begin{tabular}{llcc}
 \toprule
-\textbf{Método} & \textbf{Encoder} & \textbf{Micro-F1} & \textbf{Avg.\ Prec.} & \textbf{Ref.} \\
+\textbf{Método} & \textbf{Encoder} & \textbf{Micro-F1} & \textbf{Ref.} \\
 \midrule
-\ours{Ours --- SPECTER2 frozen} & SPECTER2 (768\,d) & \ours{72,6\%} & \ours{81,0\%} & este trabalho \\
+\ours{C-HMCNN + SPECTER2 frozen} & SPECTER2 (768\,d) & \ours{74,1\%} & este trabalho \\
 \midrule
-HiAGM \cite{zhou2020hiagm}    & BERT (768\,d)   & 82--87\%       & --      & \cite{zhou2020hiagm} \\
-HGCLR \cite{wang2022hgclr}    & BERT (768\,d)   & 85--89\%       & --      & \cite{wang2022hgclr} \\
-HPT \cite{wang2022hpt}        & RoBERTa         & 87--91\%       & --      & \cite{wang2022hpt} \\
+HiAGM \cite{zhou2020hiagm}    & TextRCNN (Bi-GRU) & 85,8\%  & \cite{zhou2020hiagm} \\
+HGCLR \cite{wang2022hgclr}    & BERT (768\,d)     & 87,1\%  & \cite{wang2022hgclr} \\
+HPT \cite{wang2022hpt}        & RoBERTa (1024\,d) & 87,2\%  & \cite{wang2022hpt} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -101,10 +101,10 @@ HPT \cite{wang2022hpt}        & RoBERTa         & 87--91\%       & --      & \ci
 % -----------------------------------------------------------------------
 
 \paragraph{Posicionamento em relação ao estado da arte.}
-Com SPECTER2 frozen, o sistema alcança 72,6\% de Micro-F1 e 81,0\% de
-Avg.\ Precision. O resultado ainda fica $\approx$\textbf{15\,pp} abaixo do melhor
-método publicado (HPT, 87--91\%), principalmente porque os métodos SOTA ajustam o
-encoder à tarefa e usam sinais explícitos da hierarquia.
+Com SPECTER2 frozen, o sistema alcança 74,1\% de Micro-F1 no WOS ---
+aproximadamente \textbf{13\,pp} abaixo do melhor método publicado (HPT, 87,2\%),
+principalmente porque os métodos SOTA ajustam o encoder à tarefa (fine-tuning)
+e usam sinais explícitos da hierarquia (GNN + contrastivo).
 
 \paragraph{Por que o nível~1 é mais difícil.}
 As subcategorias (\texttt{cs.AI}, \texttt{cs.LG}, etc.) têm fronteiras semânticas
@@ -131,10 +131,13 @@ Três fatores explicam a diferença para o estado da arte:
 \section{Conclusão}
 % -----------------------------------------------------------------------
 
-O sistema atual com embeddings \textsc{SPECTER2} frozen alcança 72,6\% de Micro-F1
-e 81,0\% de Avg.\ Precision no split avaliado. O caminho mais direto para fechar o
-gap para o estado da arte é o fine-tuning end-to-end combinado com o label-graph GNN,
-ambos já disponíveis como caminhos de execução no repositório.
+O sistema atual com embeddings \textsc{SPECTER2} frozen alcança 74,1\% de Micro-F1
+e 80,8\% de Avg.\ Precision no WOS (72,1\% e 80,3\% respectivamente no ArXiv).
+Com fine-tuning end-to-end (\texttt{globalE2E}, 5 épocas), o WOS atinge 87,4\% ---
+empatando com o estado da arte (HPT 87,2\%, HGCLR 87,1\%). No ArXiv, o frozen
+mantém-se como melhor configuração (72,1\%), consistente com o pré-treino do
+SPECTER2 em artigos do ArXiv. O caminho para ganhos adicionais inclui mais épocas
+de fine-tuning, loss contrastiva e exploração de encoders alternativos.
 
 % -----------------------------------------------------------------------
 \bibliographystyle{plain}
