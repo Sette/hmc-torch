@@ -100,7 +100,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--method", type=str, default="global",
                         choices=["global", "globalGNN", "globalE2E", "globalSOTA",
-                                 "local"])
+                                 "local", "localE2E"])
     parser.add_argument("--best_threshold", type=str, default="true",
                         choices=["true", "false"])
     parser.add_argument("--results_path", type=str, default="./results/")

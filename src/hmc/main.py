@@ -19,7 +19,7 @@ from hmc.pipeline.global_classifier.main import (
     train_global_e2e,
     train_global_sota,
 )
-from hmc.pipeline.local_classifier.main import train_local
+from hmc.pipeline.local_classifier.main import train_local, train_local_e2e
 from hmc.utils.train.job import create_job_id_name
 
 logging.basicConfig(
@@ -70,12 +70,15 @@ def main() -> dict:
             logging.info("Global SOTA (transformer + label GCN)")
             train_global_sota(args.dataset.dataset_name, args)
         case "local":
-            logging.info("Local classifier (one MLP per level)")
+            logging.info("Local classifier (frozen, one MLP per level)")
             train_local(args.dataset.dataset_name, args)
+        case "localE2E":
+            logging.info("Local E2E (fine-tuned transformer + per-level MLPs)")
+            train_local_e2e(args.dataset.dataset_name, args)
         case _:
             print(
                 f"Unknown method '{args.method}'. "
-                "Valid: global, globalE2E, globalSOTA, local"
+                "Valid: global, globalE2E, globalSOTA, local, localE2E"
             )
 
     score: dict = args.score if isinstance(args.score, dict) else {}
