@@ -1,9 +1,7 @@
 """
-Main module for training and hyperparameter optimization of the HMC model.
+Main module for training HMC models on ArXiv and WOS datasets.
 
-This module orchestrates the entire training pipeline, handling argument parsing,
-configuration, dataset loading, model training, and evaluation. It serves as the
-entry point for running experiments with different methods and configurations.
+Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN).
 """
 
 import logging
@@ -21,29 +19,19 @@ from hmc.pipeline.global_classifier.main import (
     train_global_e2e,
     train_global_sota,
 )
-from hmc.pipeline.local_classifier.main import main_local
 from hmc.utils.train.job import create_job_id_name
 
-# Set a logger config
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
 def main() -> dict:
-    """
-    Main training function (entrypoint).
-
-    Returns:
-        dict: Score dictionary with keys such as ``"f1score"``, ``"precision"``,
-        ``"recall"``, and ``"avg_precision"``.
-    """
-    # Training settings
+    """Main training function (entrypoint)."""
     args = parse_args()
     print(f"Learning rates: {args.lr_values}")
     args.score = 0.0
@@ -56,7 +44,6 @@ def main() -> dict:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # Verifica quantas GPUs estão disponíveis
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
@@ -67,26 +54,23 @@ def main() -> dict:
     args.results_path = os.path.join(
         args.output_path,
         "train",
-        "local",
+        args.method,
         args.dataset.dataset_name,
         args.job_id,
     )
 
     match args.method:
-        case "local" | "local_tabat" | "local_hat" | "local_test":
-            logging.info("Local method selected")
-            main_local(args)
         case "global" | "global_baseline" | "globalGNN" | "globalLM":
-            logging.info("Global method selected")
+            logging.info("Global classifier (frozen embeddings)")
             train_global(args.dataset.dataset_name, args)
         case "globalE2E":
-            logging.info("Global E2E (fine-tuned transformer) method selected")
+            logging.info("Global E2E (fine-tuned transformer)")
             train_global_e2e(args.dataset.dataset_name, args)
         case "globalSOTA":
-            logging.info("Global SOTA (transformer + label GCN) method selected")
+            logging.info("Global SOTA (transformer + label GCN)")
             train_global_sota(args.dataset.dataset_name, args)
         case _:
-            print("Invalid option for method. Please select a valid method.")
+            print(f"Unknown method '{args.method}'. Valid: global, globalE2E, globalSOTA")
 
     score: dict = args.score if isinstance(args.score, dict) else {}
     return score

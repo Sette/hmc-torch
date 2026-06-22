@@ -1,25 +1,14 @@
-
-VERSION="0.0.8"
+VERSION="0.0.9"
 
 export PYTHONPATH=src
 
 # ── Datasets ────────────────────────────────────────────────────────
-# Download individual datasets
 
 download-arxiv:
 	python -m hmc.datasets.arxiv.download_arxiv --output_dir ./data
 
 download-wos:
 	python -m hmc.datasets.wos.download_wos --output_dir ./data/wos
-
-download-arff-fun:
-	python -m hmc.datasets.gofun.download_arff --output_dir ./data --subset FUN
-
-download-arff-go:
-	python -m hmc.datasets.gofun.download_arff --output_dir ./data --subset GO
-
-download-arff-others:
-	python -m hmc.datasets.gofun.download_arff --output_dir ./data --subset others
 
 download-all:
 	python -m hmc.datasets.download_all --continue-on-error
@@ -49,11 +38,8 @@ lint:
 	isort src/
 	pylint $$(git ls-files '*.py')
 
-dvc:
-	@dvc pull
-
 run:
-	./run.sh --device cuda --dataset_name seq_FUN --output_path output --method local --epochs_to_evaluate 10
+	./run.sh --device cuda --dataset_name wos --method global --output_path output
 
 test:
 	@echo "--> Running Test"

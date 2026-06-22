@@ -8,10 +8,6 @@ import os
 import networkx as nx
 import numpy as np
 import torch
-from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import EarlyStopping
-from sklearn import preprocessing
-from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
@@ -34,25 +30,18 @@ def train_global(dataset_name, args):
     logging.info("Experiment with %s dataset ", dataset_name)
 
     args.device = torch.device(args.device)
-    is_transformer_dataset = dataset_name in ("arxiv", "wos")
-
-    if is_transformer_dataset:
-        args.data = dataset_name
-        args.ontology = None
-        dataset_type = "arxiv"
-    else:
-        args.data, args.ontology = dataset_name.split("_")
-        dataset_type = "arff"
+    args.data = dataset_name
+    args.ontology = None
 
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type=dataset_type,
+        dataset_type="arxiv",
         is_global=True,
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
-        arxiv_cache_dir=args.output_path if is_transformer_dataset else None,
+        arxiv_cache_dir=args.output_path,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -66,36 +55,21 @@ def train_global(dataset_name, args):
         f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
     )
 
-    if is_transformer_dataset:
-        if dataset_name == "wos":
-            defaults = args.registry.wos_defaults
-        else:
-            defaults = args.registry.arxiv_defaults
-        args.hidden_dim = defaults["hidden_dim"]
-        args.lr = defaults["lr"]
-        args.epochs = defaults["epochs"]
-        args.weight_decay = defaults["weight_decay"]
-        args.batch_size = defaults["batch_size"]
-        args.num_layers = defaults["num_layers"]
-        args.dropout = defaults["dropout"]
-        args.non_lin = "relu"
-        args.input_dim = args.hmc_dataset.input_dim
-        args.output_dim = args.hmc_dataset.output_dim
-        args.num_to_skip = 1
-    else:
-        args.hidden_dim = args.registry.hidden_dims[args.ontology][args.data]
-        args.lr = args.registry.lrs[args.ontology][args.data]
-        args.epochs = args.registry.all_epochs[args.ontology][args.data]
-        args.weight_decay = 1e-5
-        args.batch_size = 4
-        args.num_layers = 3
-        args.dropout = 0.7
-        args.non_lin = "relu"
-        args.input_dim = args.registry.input_dims[args.data]
-        args.num_to_skip = 4 if "GO" in dataset_name else 1
-        args.output_dim = (
-            args.registry.output_dims[args.ontology][args.data] + args.num_to_skip
-        )
+    defaults = (
+        args.registry.wos_defaults if dataset_name == "wos"
+        else args.registry.arxiv_defaults
+    )
+    args.hidden_dim = defaults["hidden_dim"]
+    args.lr = defaults["lr"]
+    args.epochs = defaults["epochs"]
+    args.weight_decay = defaults["weight_decay"]
+    args.batch_size = defaults["batch_size"]
+    args.num_layers = defaults["num_layers"]
+    args.dropout = defaults["dropout"]
+    args.non_lin = "relu"
+    args.input_dim = args.hmc_dataset.input_dim
+    args.output_dim = args.hmc_dataset.output_dim
+    args.num_to_skip = 1
 
     args.hyperparams = {
         "batch_size": args.batch_size,
@@ -119,44 +93,23 @@ def train_global(dataset_name, args):
     args.r_matrix = args.r_matrix.unsqueeze(0).to(args.device)
 
     # Undirected edge_index for ConstrainedGNNModel label-hierarchy GCN.
-    # Both directions are included so GCN can propagate parent→child and child→parent.
     rows, cols = np.where(args.hmc_dataset.a > 0)
     fwd = torch.tensor([rows, cols], dtype=torch.long)
     rev = torch.tensor([cols, rows], dtype=torch.long)
     args.label_edge_index = torch.cat([fwd, rev], dim=1).to(args.device)
 
-    if is_transformer_dataset:
-        # Text features: convert directly to tensors without sklearn scaling.
-        for split in (args.train, args.valid, args.test):
-            split.samples.x = (
-                torch.tensor(split.x).clone().detach().float().to(args.device)
-            )
-            split.samples.y = (
-                torch.tensor(split.y).clone().detach().float().to(args.device)
-            )
-    else:
-        scaler = preprocessing.StandardScaler().fit(
-            np.concatenate((args.train.x, args.valid.x))
+    # Text features: convert directly to tensors without sklearn scaling.
+    for split in (args.train, args.valid, args.test):
+        split.samples.x = (
+            torch.tensor(split.x).clone().detach().float().to(args.device)
         )
-        imp_mean = SimpleImputer(missing_values=np.nan, strategy="mean").fit(
-            np.concatenate((args.train.x, args.valid.x, args.test.x))
+        split.samples.y = (
+            torch.tensor(split.y).clone().detach().float().to(args.device)
         )
-        for split in (args.train, args.valid, args.test):
-            split.samples.x = (
-                torch.tensor(scaler.transform(imp_mean.transform(split.x)))
-                .clone()
-                .detach()
-                .float()
-                .to(args.device)
-            )
-            split.samples.y = (
-                torch.tensor(split.y).clone().detach().float().to(args.device)
-            )
 
     args.train_dataset = list(zip(args.train.x, args.train.y))
-    if "others" not in dataset_name:
-        for x, y in zip(args.valid.x, args.valid.y):
-            args.train_dataset.append((x, y))
+    for x, y in zip(args.valid.x, args.valid.y):
+        args.train_dataset.append((x, y))
     args.test_dataset = list(zip(args.test.x, args.test.y))
 
     args.train_loader = DataLoader(
