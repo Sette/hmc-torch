@@ -265,15 +265,51 @@ fina (e.g., \texttt{cs.AI} vs.\ \texttt{cs.LG} vs.\ \texttt{cs.CL}).
 \toprule
 \textbf{Nível} & \textbf{F1} & \textbf{Precisão} & \textbf{Recall} \\
 \midrule
-0 --- áreas      & \ours{0,817} & \ours{0,798} & \ours{0,836} \\
-1 --- subcats.   & \ours{0,574} & \ours{0,634} & \ours{0,524} \\
+\multicolumn{4}{l}{\textit{Baseline (SPECTER2 frozen + MLP):}} \\
+0 --- áreas      & \ours{0,814} & \ours{0,809} & \ours{0,819} \\
+1 --- subcats.   & \ours{0,566} & \ours{0,656} & \ours{0,498} \\
+Global (micro)   & \ours{0,721} & --              & -- \\
 \midrule
+\multicolumn{4}{l}{\textit{E2E (SPECTER2 fine-tuned, 5 épocas):}} \\
+0 --- áreas      & 0,809 & 0,803 & 0,815 \\
+1 --- subcats.   & 0,564 & 0,609 & 0,525 \\
+Global (micro)   & 0,714 & --              & -- \\
+\midrule
+\multicolumn{4}{l}{\textit{SOTA (E2E + GCN label graph, 5 épocas):}} \\
+0 --- áreas      & 0,812 & 0,832 & 0,792 \\
+1 --- subcats.   & 0,560 & 0,570 & 0,550 \\
+Global (micro)   & 0,709 & --              & -- \\
+\midrule
+\multicolumn{4}{l}{\textit{SciBERT 100k (E2E, 10 épocas):}} \\
+0 --- áreas      & \ours{0,818} & \ours{0,822} & \ours{0,814} \\
+1 --- subcats.   & \ours{0,580} & \ours{0,659} & \ours{0,517} \\
 Global (micro)   & \ours{0,726} & --              & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{WOS: comparação com o estado da arte}
+
+A Tabela~\ref{tab:wos_levels} detalha o desempenho por nível hierárquico no WOS.
+Assim como no ArXiv, o nível~1 (subcategorias) é mais difícil que o nível~0 (áreas),
+com diferença de aproximadamente 22 pontos de F1.
+
+\begin{table}[htbp]
+\centering
+\caption{Resultados por nível no WOS (split 64/16/20, semente HPT).
+         Nível~0 = 7 áreas; Nível~1 = 134 subcategorias.}
+\label{tab:wos_levels}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Nível} & \textbf{F1} & \textbf{Precisão} & \textbf{Recall} \\
+\midrule
+0 --- áreas      & \ours{0,842} & \ours{0,825} & \ours{0,860} \\
+1 --- subcats.   & \ours{0,625} & \ours{0,709} & \ours{0,560} \\
+\midrule
+Global (micro)   & \ours{0,741} & --              & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 A Tabela~\ref{tab:wos_sota} posiciona nosso resultado no WOS frente aos métodos
 do estado da arte em HTC. Diferentemente do ArXiv --- que carece de benchmarks
@@ -282,7 +318,8 @@ o mesmo split (64/16/20) e reportam Micro-F1.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \caption{Comparação no dataset WOS (Web of Science). Split 64/16/20 padrão.
          Métricas de terceiros extraídas dos artigos originais.}
 \label{tab:wos_sota}
@@ -290,8 +327,10 @@ o mesmo split (64/16/20) e reportam Micro-F1.
 \toprule
 \textbf{Método} & \textbf{Encoder} & \textbf{Micro-F1} & \textbf{Ref.} \\
 \midrule
-\ours{C-HMCNN + SPECTER2} & SPECTER2 (768\,d, frozen)
-    & \ours{--} & este trabalho \\
+\ours{C-HMCNN + SPECTER2 (frozen)} & SPECTER2 (768\,d, frozen)
+    & \ours{74,07\%} & este trabalho \\
+\ours{C-HMCNN + SPECTER2 (E2E)}   & SPECTER2 (768\,d, fine-tuned)
+    & \ours{87,36\%} & este trabalho \\
 \midrule
 HiAGM                      & TextRCNN (Bi-GRU)
     & 85,82\%   & \cite{zhou2020hiagm} \\
@@ -312,17 +351,23 @@ base em resultados análogos no WOS.
 
 \begin{table}[htbp]
 \centering
-\caption{Configurações do \texttt{hmc-torch} para estudo de ablação no ArXiv.
-         Ganhos estimados com base na literatura de WOS.}
-\label{tab:arxiv_ablation}
-\begin{tabular}{llc}
+\caption{Ablação incremental no WOS e ArXiv (Micro-F1, split 64/16/20).}
+\label{tab:ablation}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Configuração} & \textbf{Método} & \textbf{Ganho est.\ (Micro-F1)} \\
+\textbf{Configuração} & \textbf{Micro-F1 (WOS)} & \textbf{Micro-F1 (ArXiv)} \\
 \midrule
-\ours{Baseline} & SPECTER2 frozen + MLP + R-matrix & referência \\
-+ Fine-tuning  & \texttt{globalE2E}                 & $\approx$\,+5\,pp \\
-+ Label GNN    & \texttt{globalSOTA}                 & $\approx$\,+4--6\,pp \\
-+ Contrastivo  & \texttt{--use\_contrastive\_loss}   & $\approx$\,+2--4\,pp \\
+\ours{Baseline (frozen, 50k)}      & \ours{74,07\%} & \ours{72,11\%} \\
+\ours{+ Fine-tuning (E2E, 5 ep)}   & \ours{87,36\%} & 71,38\% \\
+\ours{+ Fine-tuning (E2E, 10 ep)}  & 87,12\% & -- \\
+\ours{+ Label GNN (SOTA, 5 ep)}    & \ours{86,55\%} & 70,87\% \\
+\ours{+ SciBERT (100k, 10 ep)}     & --         & \ours{72,58\%} \\
+\bottomrule
+\midrule
+\multicolumn{3}{l}{\small\textbf{Referência (literatura, apenas WOS):}} \\
+HiAGM   & 85,82\% & -- \\
+HGCLR   & 87,11\% & -- \\
+HPT     & 87,16\% & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -344,8 +389,20 @@ de forma mais robusta que \textit{bag-of-words} ---, mas o encoder congelado nã
 
 \subsection{Decomposição do \textit{gap} no WOS}
 
-Com base na diferença entre nossa configuração \textit{baseline} e os resultados
-publicados no WOS, identificamos três fatores principais:
+No \textbf{WOS}, o encoder congelado atinge 74,1\% de Micro-F1 --- 13,1\,pp abaixo do
+melhor método publicado (HPT, 87,2\%). Com o fine-tuning end-to-end do SPECTER2
+(5 épocas), o sistema atinge \textbf{87,4\%}, virtualmente empatado com o estado da
+arte (HPT 87,2\%, HGCLR 87,1\%). O ganho de +13,3\,pp excede a estimativa da
+literatura (+5\,pp para BERT genérico), refletindo a sinergia entre o pré-treino
+científico do SPECTER2 e a tarefa de classificação de artigos científicos.
+
+No \textbf{ArXiv}, o fine-tuning não trouxe ganho (71,4\% com E2E, 70,9\% com SOTA
+vs.\ 72,1\% do baseline congelado). Isso é consistente com o fato de o SPECTER2 ter
+sido pré-treinado exatamente em artigos do ArXiv --- os embeddings congelados já
+capturam a semântica relevante, e 5 épocas de fine-tuning em apenas 32\,000 exemplos
+podem ser insuficientes ou causar sobreajuste. O label-graph GNN também não ajudou
+no ArXiv, assim como no WOS, sugerindo que a hierarquia de 2 níveis é simples demais
+para o GCN oferecer ganho significativo.
 
 \begin{description}[leftmargin=*, itemsep=4pt, font=\bfseries]
 
@@ -372,9 +429,6 @@ publicados no WOS, identificamos três fatores principais:
 \subsection{Limitações deste estudo}
 
 \begin{enumerate}[leftmargin=*, itemsep=2pt]
-  \item \textbf{WOS pendente.} Os resultados no WOS ainda precisam ser executados
-        (indicados como ``--'' na Tabela~\ref{tab:wos_sota}). O pipeline está
-        implementado e funcional.
   \item \textbf{Encoder único.} Avaliamos apenas o \textsc{SPECTER2-base}.
         Modelos como \textsc{SciBERT} \cite{beltagy2019scibert} ou
         \texttt{all-mpnet-base-v2} podem oferecer baselines complementares.
@@ -396,10 +450,11 @@ publicados no WOS, identificamos três fatores principais:
 Este trabalho apresentou uma avaliação do sistema \texttt{hmc-torch} em dois
 datasets de classificação hierárquica multi-rótulo. No \textbf{ArXiv}, o pipeline
 \textit{baseline} (SPECTER2 congelado + MLP + R-matrix) alcança
-\textbf{72,6\%} de Micro-F1 e \textbf{81,0\%} de Avg.\ Precision, com o
-nível~0 (áreas) em 81,7\% e o nível~1 (subcategorias) em 57,4\% de F1.
-No \textbf{WOS}, o mesmo pipeline está implementado e pronto para execução,
-permitindo comparação direta com HiAGM (85,8\%), HGCLR (87,1\%) e HPT (87,2\%).
+\textbf{72,1\%} de Micro-F1 e \textbf{80,3\%} de Avg.\ Precision, com o
+nível~0 (áreas) em 81,4\% e o nível~1 (subcategorias) em 56,6\% de F1.
+No \textbf{WOS}, o pipeline congelado atinge \textbf{74,1\%} de Micro-F1, e o
+fine-tuning end-to-end (\texttt{globalE2E}, 5 épocas) eleva esse valor para
+\textbf{87,4\%} --- empatando com o estado da arte (HPT 87,2\%, HGCLR 87,1\%).
 
 O caminho de melhoria incremental está mapeado e implementado no repositório:
 \textit{fine-tuning} end-to-end (\texttt{globalE2E}), integração de GNN no grafo
