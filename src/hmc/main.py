@@ -19,6 +19,7 @@ from hmc.pipeline.global_classifier.main import (
     train_global_e2e,
     train_global_sota,
 )
+from hmc.pipeline.local_classifier.main import train_local
 from hmc.utils.train.job import create_job_id_name
 
 logging.basicConfig(
@@ -33,7 +34,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 def main() -> dict:
     """Main training function (entrypoint)."""
     args = parse_args()
-    print(f"Learning rates: {args.lr_values}")
     args.score = 0.0
 
     # Set seed
@@ -69,8 +69,14 @@ def main() -> dict:
         case "globalSOTA":
             logging.info("Global SOTA (transformer + label GCN)")
             train_global_sota(args.dataset.dataset_name, args)
+        case "local":
+            logging.info("Local classifier (one MLP per level)")
+            train_local(args.dataset.dataset_name, args)
         case _:
-            print(f"Unknown method '{args.method}'. Valid: global, globalE2E, globalSOTA")
+            print(
+                f"Unknown method '{args.method}'. "
+                "Valid: global, globalE2E, globalSOTA, local"
+            )
 
     score: dict = args.score if isinstance(args.score, dict) else {}
     return score

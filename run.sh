@@ -17,7 +17,7 @@ ARXIV_MODEL_NAME="allenai/specter2_base"
 usage() {
     echo "Usage: $0 [options]"
     echo "  --dataset_name <arxiv|wos>  (default: $DATASET_NAME)"
-    echo "  --method <global|globalE2E|globalSOTA>  (default: $METHOD)"
+    echo "  --method <global|globalE2E|globalSOTA|local>  (default: $METHOD)"
     echo "  --device <cuda|cpu>         (default: $DEVICE)"
     echo "  --epochs <num>              (default: $EPOCHS)"
     echo "  --batch_size <num>          (default: $BATCH_SIZE)"

@@ -42,7 +42,8 @@ main.py → parse_args() → Args dataclass
             │
             ├── method=global       → train_global()       — frozen embeddings + MLP + R-matrix
             ├── method=globalE2E    → train_global_e2e()   — fine-tuned transformer + MLP + R-matrix
-            └── method=globalSOTA   → train_global_sota()  — fine-tuned transformer + GCN label graph + R-matrix
+            ├── method=globalSOTA   → train_global_sota()  — fine-tuned transformer + GCN label graph + R-matrix
+            └── method=local        → train_local()        — frozen embeddings, one MLP per level
 ```
 
 ### Datasets
@@ -62,6 +63,7 @@ Ambos usam embeddings de transformer (SPECTER2-base por padrão, configurável v
 | `ConstrainedGNNModel` | idem | MLP + R-matrix + GCN label graph |
 | `E2EConstrainedModel` | `models/global_classifier/e2e/model.py` | Transformer fine-tuned + MLP + R-matrix |
 | `E2EGNNModel` | idem | Transformer fine-tuned + GCN + R-matrix |
+| `LocalModel` | `models/local_classifier/model.py` | One MLP per level, frozen embeddings |
 
 **R-matrix**: matriz de ancestralidade (NetworkX). `r_matrix[i, j] = 1` se `j` é ancestral de `i`. Aplicada via `get_constr_out()`.
 
