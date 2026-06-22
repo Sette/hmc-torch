@@ -169,13 +169,40 @@ def train_global(dataset_name, args):
     return fit_trainer(args)
 
 
+def _get_transformer_dataset(dataset_name, args, tokenizer, model_name):
+    """Return (PyTorchDataset, jsonl_path_or_data_dir) for transformer datasets."""
+    if dataset_name == "arxiv":
+        from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
+            ArXivPyTorchDataset,
+        )
+        jsonl_path = os.path.join(
+            args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
+        )
+        max_records = args.dataset.arxiv_max_records or None
+        ds = ArXivPyTorchDataset(
+            jsonl_path=jsonl_path,
+            hierarchy_manager=args.hmc_dataset.hierarchy_manager,
+            tokenizer=tokenizer,
+            max_records=max_records,
+        )
+        return ds, max_records
+    # wos
+    from hmc.datasets.wos.dataset_wos import (  # pylint: disable=import-outside-toplevel
+        WOSPyTorchDataset,
+    )
+    data_dir = os.path.join(args.dataset.dataset_path, "wos")
+    ds = WOSPyTorchDataset(
+        data_dir=data_dir,
+        hierarchy_manager=args.hmc_dataset.hierarchy_manager,
+        tokenizer=tokenizer,
+    )
+    return ds, None
+
+
 def train_global_e2e(dataset_name, args):
     """End-to-end fine-tuning of a HuggingFace transformer for HMC (globalE2E)."""
     from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
 
-    from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
-        ArXivPyTorchDataset,
-    )
     from hmc.models.global_classifier.e2e.model import (  # pylint: disable=import-outside-toplevel
         E2EConstrainedModel,
     )
@@ -185,9 +212,8 @@ def train_global_e2e(dataset_name, args):
 
     args.device = torch.device(args.device)
     model_name = args.dataset.arxiv_model_name
-    max_records = args.dataset.arxiv_max_records or None
 
-    # 1. Load ArXivManager for hierarchy, to_eval, adjacency, nodes_idx
+    # 1. Load manager for hierarchy metadata (no pre-computed features)
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
@@ -199,21 +225,27 @@ def train_global_e2e(dataset_name, args):
         arxiv_load_features=False,
     )
 
-    # 2. Hierarchy-derived tensors (same logic as train_global)
-    args.data = "arxiv"
+    # 2. Hierarchy-derived tensors
+    args.data = dataset_name
     args.ontology = None
     args.to_eval = (
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
-    defaults = args.registry.arxiv_defaults
+    defaults = (
+        args.registry.wos_defaults if dataset_name == "wos"
+        else args.registry.arxiv_defaults
+    )
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
-    args.epochs = defaults["epochs"]
+    # Respect --epochs from CLI if explicitly set, otherwise use defaults
+    if args.epochs == defaults["epochs"] or args.epochs <= 0:
+        args.epochs = 10  # E2E converges faster
     args.weight_decay = defaults["weight_decay"]
-    args.batch_size = defaults["batch_size"]
+    args.batch_size = 4  # smaller batch for E2E (GPU memory)
     args.output_dim = args.hmc_dataset.output_dim
     args.num_to_skip = 1
 
+    # R-matrix for hierarchical constraint
     args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
     np.fill_diagonal(args.r_matrix, 1)
     g = nx.DiGraph(args.hmc_dataset.a)
@@ -225,20 +257,12 @@ def train_global_e2e(dataset_name, args):
         torch.tensor(args.r_matrix).transpose(1, 0).unsqueeze(0).to(args.device)
     )
 
-    # 3. Job ID and output path
-    args.job_id = create_job_id_name(prefix="e2e")
     args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
 
-    # 4. Build text dataset with tokenizer (shared test split with ArXivManager)
-    jsonl_path = os.path.join(
-        args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
-    )
+    # 4. Build text dataset
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    text_dataset = ArXivPyTorchDataset(
-        jsonl_path=jsonl_path,
-        hierarchy_manager=args.hmc_dataset.hierarchy_manager,
-        tokenizer=tokenizer,
-        max_records=max_records,
+    text_dataset, _ = _get_transformer_dataset(
+        dataset_name, args, tokenizer, model_name
     )
     train_set, _val_set, test_set = text_dataset.get_datasets()
 
@@ -266,17 +290,12 @@ def train_global_sota(dataset_name, args):
     """globalSOTA: fine-tuned transformer + label-hierarchy GCN for HMC.
 
     Combines globalE2E (end-to-end transformer fine-tuning) with the GCN label
-    encoder from globalGNN.  The model architecture follows HiAGM (Zhou et al.,
-    ACL 2020): a text encoder and a graph-aware label encoder whose embeddings
+    encoder.  The model architecture follows HiAGM (Zhou et al., ACL 2020):
+    a text encoder and a graph-aware label encoder whose embeddings
     are combined via dot-product scoring.
-
-    Requires the ArXiv dataset (JSONL) and torch-geometric.
     """
     from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
 
-    from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
-        ArXivPyTorchDataset,
-    )
     from hmc.models.global_classifier.e2e.model import (  # pylint: disable=import-outside-toplevel
         E2EGNNModel,
     )
@@ -286,9 +305,8 @@ def train_global_sota(dataset_name, args):
 
     args.device = torch.device(args.device)
     model_name = args.dataset.arxiv_model_name
-    max_records = args.dataset.arxiv_max_records or None
 
-    # 1. Load ArXivManager for hierarchy, to_eval, adjacency, nodes_idx
+    # 1. Load manager for hierarchy metadata
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
@@ -300,17 +318,22 @@ def train_global_sota(dataset_name, args):
         arxiv_load_features=False,
     )
 
-    args.data = "arxiv"
+    args.data = dataset_name
     args.ontology = None
     args.to_eval = (
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
-    defaults = args.registry.arxiv_defaults
+    defaults = (
+        args.registry.wos_defaults if dataset_name == "wos"
+        else args.registry.arxiv_defaults
+    )
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
-    args.epochs = defaults["epochs"]
+    # Respect --epochs from CLI if explicitly set
+    if args.epochs == defaults["epochs"] or args.epochs <= 0:
+        args.epochs = 10  # SOTA converges faster
     args.weight_decay = defaults["weight_decay"]
-    args.batch_size = defaults["batch_size"]
+    args.batch_size = 4  # smaller batch for fine-tuning
     args.output_dim = args.hmc_dataset.output_dim
     args.num_to_skip = 1
 
@@ -337,15 +360,9 @@ def train_global_sota(dataset_name, args):
     args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
 
     # 5. Text DataLoader (tokenized)
-    jsonl_path = os.path.join(
-        args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
-    )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    text_dataset = ArXivPyTorchDataset(
-        jsonl_path=jsonl_path,
-        hierarchy_manager=args.hmc_dataset.hierarchy_manager,
-        tokenizer=tokenizer,
-        max_records=max_records,
+    text_dataset, _ = _get_transformer_dataset(
+        dataset_name, args, tokenizer, model_name
     )
     train_set, _val_set, test_set = text_dataset.get_datasets()
 

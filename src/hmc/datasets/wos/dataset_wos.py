@@ -194,3 +194,108 @@ class WOSHierarchyManager:
             y_local[depth][self.local_nodes_idx[depth][category_name]] = 1.0
 
         return y_global, y_local
+
+
+class WOSPyTorchDataset:
+    """PyTorch Dataset for WOS text data and hierarchical labels.
+
+    Loads pre-split WOS JSONL files, tokenizes text with a HuggingFace
+    tokenizer, and returns (tokenizer_output, targets) pairs compatible
+    with the E2E and SOTA training pipelines.
+    """
+
+    def __init__(
+        self,
+        data_dir: str,
+        hierarchy_manager: "WOSHierarchyManager",
+        tokenizer,
+        max_length: int = 512,
+    ):
+        import json as _json  # pylint: disable=import-outside-toplevel,redefined-outer-name
+
+        self.hierarchy = hierarchy_manager
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.records: list = []
+
+        # Load all pre-split JSONL files (train + dev + test)
+        for split_name in (
+            "WebOfScience_train.json",
+            "WebOfScience_dev.json",
+            "WebOfScience_test.json",
+        ):
+            path = f"{data_dir}/{split_name}"
+            logger.info("Loading WOS records from %s …", path)
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    rec = _json.loads(line)
+                    child_id = rec["label"][1]
+                    child_name = self.hierarchy.value_dict[child_id]
+                    self.records.append(
+                        {"text": rec["token"], "category": child_name}
+                    )
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, idx: int):
+        import torch as _torch  # pylint: disable=import-outside-toplevel,redefined-outer-name
+
+        record = self.records[idx]
+
+        encoded = self.tokenizer(
+            record["text"],
+            max_length=self.max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
+        )
+        encoded = {k: v.squeeze(0) for k, v in encoded.items()}
+
+        y_global, y_local = self.hierarchy.get_labels(record["category"])
+
+        targets = {
+            "global": _torch.from_numpy(y_global),
+            "local": [_torch.from_numpy(yl) for yl in y_local],
+        }
+        return encoded, targets
+
+    @property
+    def levels_size(self) -> dict:
+        return self.hierarchy.levels_size
+
+    @property
+    def max_depth(self) -> int:
+        return self.hierarchy.max_depth
+
+    @property
+    def adjacency_matrix(self):
+        import torch as _torch  # pylint: disable=import-outside-toplevel
+
+        return _torch.from_numpy(self.hierarchy.a).float()
+
+    def get_datasets(self):
+        """64/16/20 split using HPT methodology, same as WOSManager."""
+        import numpy as _np  # pylint: disable=import-outside-toplevel
+        from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
+            train_test_split,
+        )
+        from torch.utils.data import Subset as _Subset  # pylint: disable=import-outside-toplevel
+
+        _np.random.seed(7)
+        n = len(self)
+        idx = list(range(n))
+        _np.random.shuffle(idx)
+
+        train_idx, test_idx = train_test_split(
+            idx, test_size=0.2, random_state=0
+        )
+        train_idx, val_idx = train_test_split(
+            train_idx, test_size=0.2, random_state=0
+        )
+
+        return (
+            _Subset(self, sorted(train_idx)),
+            _Subset(self, sorted(val_idx)),
+            _Subset(self, sorted(test_idx)),
+        )
