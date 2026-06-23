@@ -176,3 +176,8 @@ output/
 
 # Uv
 uv.lock
+
+#llm
+.llm_cache
+.llm_cache_smoke
+.aider*
