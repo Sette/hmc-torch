@@ -19,6 +19,7 @@ import numpy as np
 from tqdm import tqdm
 
 from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivSplit
+from hmc.utils.model_cache import ensure_transformer_model_cached
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def use_cls_pooling(model_name: str) -> bool:
 def compute_transformer_embeddings(
     texts: list,
     model_name: str,
+    model_cache_dir: str = "./models",
     batch_size: int = 64,
     max_length: int = 256,
 ) -> np.ndarray:
@@ -60,8 +62,9 @@ def compute_transformer_embeddings(
     cls_pool = use_cls_pooling(model_name)
     pool_mode = "CLS" if cls_pool else "mean"
     logger.info("Loading %s for embeddings (pooling=%s) …", model_name, pool_mode)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+    local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
+    model = AutoModel.from_pretrained(local_model_path, local_files_only=True)
     model.eval()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -124,8 +127,10 @@ class ArXivManager:
         model_name: str = "allenai/specter2_base",
         cache_dir: Optional[str] = None,
         load_features: bool = True,
+        model_cache_dir: str = "./models",
     ) -> None:
         self.model_name = model_name
+        self.model_cache_dir = model_cache_dir
         self._jsonl_path = jsonl_path
         self._cache_dir = Path(cache_dir) if cache_dir else None
         self._load_features = load_features
@@ -234,7 +239,11 @@ class ArXivManager:
             logger.info("Loading features from cache %s …", cache)
             return np.load(str(cache))
 
-        X = compute_transformer_embeddings(texts, self.model_name)
+        X = compute_transformer_embeddings(
+            texts,
+            self.model_name,
+            model_cache_dir=self.model_cache_dir,
+        )
 
         np.save(str(cache), X)
         logger.info("Features cached to %s", cache)

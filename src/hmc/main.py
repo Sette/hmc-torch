@@ -1,7 +1,8 @@
 """
 Main module for training HMC models on ArXiv and WOS datasets.
 
-Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN).
+Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN),
+and globalLLM/globalLLMLite (E2E + LLM reranking).
 """
 
 import logging
@@ -17,6 +18,8 @@ from hmc.arguments import parse_args
 from hmc.pipeline.global_classifier.main import (
     train_global,
     train_global_e2e,
+    train_global_llm,
+    train_global_llm_lite,
     train_global_sota,
 )
 from hmc.pipeline.local_classifier.main import train_local, train_local_e2e
@@ -69,6 +72,12 @@ def main() -> dict:
         case "globalSOTA":
             logging.info("Global SOTA (transformer + label GCN)")
             train_global_sota(args.dataset.dataset_name, args)
+        case "globalLLM":
+            logging.info("Global LLM reranker (E2E + LLM)")
+            train_global_llm(args.dataset.dataset_name, args)
+        case "globalLLMLite":
+            logging.info("Global LLM lite reranker (cheaper LLM gate)")
+            train_global_llm_lite(args.dataset.dataset_name, args)
         case "local":
             logging.info("Local classifier (frozen, one MLP per level)")
             train_local(args.dataset.dataset_name, args)
@@ -78,7 +87,7 @@ def main() -> dict:
         case _:
             print(
                 f"Unknown method '{args.method}'. "
-                "Valid: global, globalE2E, globalSOTA, local, localE2E"
+                "Valid: global, globalE2E, globalSOTA, globalLLM, globalLLMLite, local, localE2E"
             )
 
     score: dict = args.score if isinstance(args.score, dict) else {}

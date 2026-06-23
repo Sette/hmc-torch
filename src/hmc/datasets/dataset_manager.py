@@ -13,6 +13,7 @@ def initialize_dataset_experiments(
     arxiv_max_records: int = 50_000,
     arxiv_cache_dir: str = None,
     arxiv_load_features: bool = True,
+    model_cache_dir: str = "./models",
 ):
     """Initialize and return a dataset manager for the specified dataset.
 
@@ -34,6 +35,7 @@ def initialize_dataset_experiments(
             max_records=arxiv_max_records if arxiv_max_records > 0 else None,
             cache_dir=arxiv_cache_dir,
             load_features=arxiv_load_features,
+            model_cache_dir=model_cache_dir,
         )
 
     if name == "wos":
@@ -47,6 +49,7 @@ def initialize_dataset_experiments(
             model_name=arxiv_model_name,
             cache_dir=arxiv_cache_dir,
             load_features=arxiv_load_features,
+            model_cache_dir=model_cache_dir,
         )
 
     raise ValueError(

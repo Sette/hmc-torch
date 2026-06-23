@@ -47,8 +47,10 @@ class WOSManager:
         model_name: str = "allenai/specter2_base",
         cache_dir: Optional[str] = None,
         load_features: bool = True,
+        model_cache_dir: str = "./models",
     ) -> None:
         self.model_name = model_name
+        self.model_cache_dir = model_cache_dir
         self._data_dir = Path(data_dir)
         self._cache_dir = Path(cache_dir) if cache_dir else None
         self._load_features = load_features
@@ -162,7 +164,11 @@ class WOSManager:
             logger.info("Loading features from cache %s …", cache)
             return np.load(str(cache))
 
-        X = compute_transformer_embeddings(texts, self.model_name)
+        X = compute_transformer_embeddings(
+            texts,
+            self.model_name,
+            model_cache_dir=self.model_cache_dir,
+        )
 
         np.save(str(cache), X)
         logger.info("Features cached to %s", cache)
