@@ -53,7 +53,7 @@ def end_timer(start):
 def log_gpu_memory(device):
     """Log GPU memory information."""
     result = {}
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and str(device).startswith("cuda"):
         prop = torch.cuda.get_device_properties(device)
         total_mib = prop.total_memory / (1024**2)  # Total em MiB
 
@@ -78,7 +78,8 @@ def log_gpu_memory(device):
             }
         )
 
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return result
 
 
