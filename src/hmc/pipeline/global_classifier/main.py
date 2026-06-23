@@ -17,6 +17,7 @@ from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
 )
 from hmc.pipeline.global_classifier.core.train import train_step
+from hmc.utils.model_cache import ensure_transformer_model_cached
 from hmc.utils.train.job import (
     create_job_id_name,
 )
@@ -42,6 +43,7 @@ def train_global(dataset_name, args):
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
         arxiv_cache_dir=args.output_path,
+        model_cache_dir=args.dataset.model_cache_dir,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -176,6 +178,7 @@ def train_global_e2e(dataset_name, args):
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
         arxiv_load_features=False,
+        model_cache_dir=args.dataset.model_cache_dir,
     )
 
     # 2. Hierarchy-derived tensors
@@ -213,27 +216,32 @@ def train_global_e2e(dataset_name, args):
     args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
 
     # 4. Build text dataset
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    local_model_path = ensure_transformer_model_cached(
+        model_name,
+        args.dataset.model_cache_dir,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
     text_dataset, _ = _get_transformer_dataset(
-        dataset_name, args, tokenizer, model_name
+        dataset_name, args, tokenizer, local_model_path
     )
     train_set, _val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
-        train_set, batch_size=args.batch_size, shuffle=True, num_workers=2
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
     )
     args.test_loader = DataLoader(
-        test_set, batch_size=args.batch_size, shuffle=False, num_workers=2
+        test_set, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
     # 5. E2E model
     args.model = E2EConstrainedModel(
-        model_name=model_name,
+        model_name=local_model_path,
         output_dim=args.output_dim,
         r_matrix=args.r_matrix,
         hidden_dim=args.hidden_dim,
         num_layers=defaults["num_layers"],
         dropout=defaults["dropout"],
+        model_cache_dir=args.dataset.model_cache_dir,
     )
 
     return train_e2e_step(args)
@@ -269,6 +277,7 @@ def train_global_sota(dataset_name, args):
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
         arxiv_load_features=False,
+        model_cache_dir=args.dataset.model_cache_dir,
     )
 
     args.data = dataset_name
@@ -313,31 +322,54 @@ def train_global_sota(dataset_name, args):
     args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
 
     # 5. Text DataLoader (tokenized)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    local_model_path = ensure_transformer_model_cached(
+        model_name,
+        args.dataset.model_cache_dir,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
     text_dataset, _ = _get_transformer_dataset(
-        dataset_name, args, tokenizer, model_name
+        dataset_name, args, tokenizer, local_model_path
     )
     train_set, _val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
-        train_set, batch_size=args.batch_size, shuffle=True, num_workers=2
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
     )
     args.test_loader = DataLoader(
-        test_set, batch_size=args.batch_size, shuffle=False, num_workers=2
+        test_set, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
     # 6. E2E + GNN model
     args.model = E2EGNNModel(
-        model_name=model_name,
+        model_name=local_model_path,
         output_dim=args.output_dim,
         r_matrix=args.r_matrix,
         edge_index=label_edge_index,
         hidden_dim=args.hidden_dim,
         num_layers=defaults["num_layers"],
         dropout=defaults["dropout"],
+        model_cache_dir=args.dataset.model_cache_dir,
     )
 
     return train_e2e_step(args)
+
+
+def train_global_llm(dataset_name, args):
+    """Train E2E base model and rerank predictions using an LLM."""
+    from hmc.pipeline.global_classifier.llm_train import (  # pylint: disable=import-outside-toplevel
+        train_global_llm as _train_global_llm,
+    )
+
+    return _train_global_llm(dataset_name, args)
+
+
+def train_global_llm_lite(dataset_name, args):
+    """Train E2E base model with a cheaper LLM gate."""
+    from hmc.pipeline.global_classifier.llm_train import (  # pylint: disable=import-outside-toplevel
+        train_global_llm_lite as _train_global_llm_lite,
+    )
+
+    return _train_global_llm_lite(dataset_name, args)
 
 
 def fit_trainer(args):

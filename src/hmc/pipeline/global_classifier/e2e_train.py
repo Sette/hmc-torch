@@ -1,5 +1,4 @@
 """Training loop for end-to-end transformer fine-tuning (--method globalE2E)."""
-
 import logging
 import time
 
@@ -70,7 +69,7 @@ def _collect_e2e_test_outputs(model, args) -> tuple:
     return torch.cat(constr_parts, dim=0), torch.cat(y_parts, dim=0), to_eval
 
 
-def train_e2e_step(args):
+def train_e2e_step(args, postprocess_fn=None):
     """Train and evaluate the E2E model, saving test-scores.json to results_path."""
     model = args.model.to(args.device)
 
@@ -87,6 +86,9 @@ def train_e2e_step(args):
     logging.info("E2E training time: %.1f s", total_time)
 
     constr_test, y_test, to_eval = _collect_e2e_test_outputs(model, args)
+
+    if postprocess_fn is not None:
+        constr_test = postprocess_fn(constr_test, y_test, to_eval, args)
 
     best_threshold = 0.5
     if args.best_threshold:
@@ -113,6 +115,8 @@ def train_e2e_step(args):
         best_threshold,
         {"usage": usage, "total_time": total_time},
     )
+    if hasattr(args, "llm_rerank_stats"):
+        scores["llm"] = args.llm_rerank_stats
 
     create_dir(args.results_path)
     save_dict_to_json(scores, f"{args.results_path}/test-scores.json")

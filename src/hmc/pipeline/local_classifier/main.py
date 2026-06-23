@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.models.local_classifier.model import LocalModel
+from hmc.utils.model_cache import ensure_transformer_model_cached
 from hmc.utils.train.job import create_job_id_name
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ def train_local(dataset_name, args):
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
         arxiv_cache_dir=args.output_path,
+        model_cache_dir=args.dataset.model_cache_dir,
     )
     args.train, args.valid, args.test = args.hmc_dataset.get_datasets()
 
@@ -247,6 +249,7 @@ def train_local_e2e(dataset_name, args):
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
         arxiv_load_features=False,
+        model_cache_dir=args.dataset.model_cache_dir,
     )
 
     args.data = dataset_name
@@ -278,9 +281,13 @@ def train_local_e2e(dataset_name, args):
         _get_transformer_dataset,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    local_model_path = ensure_transformer_model_cached(
+        model_name,
+        args.dataset.model_cache_dir,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
     text_dataset, _ = _get_transformer_dataset(
-        dataset_name, args, tokenizer, model_name
+        dataset_name, args, tokenizer, local_model_path
     )
     train_set, _val_set, test_set = text_dataset.get_datasets()
 
@@ -289,11 +296,12 @@ def train_local_e2e(dataset_name, args):
 
     # 4. Model
     model = LocalE2EModel(
-        model_name=model_name,
+        model_name=local_model_path,
         levels_size=args.levels_size,
         hidden_dim=args.hidden_dim,
         num_layers=args.num_layers,
         dropout=args.dropout,
+        model_cache_dir=args.dataset.model_cache_dir,
     ).to(args.device)
 
     optimizer = torch.optim.AdamW([

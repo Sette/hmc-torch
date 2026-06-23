@@ -30,13 +30,19 @@ class LocalE2EModel(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.3,
         freeze_transformer: bool = False,
+        model_cache_dir: str = "./models",
     ):
         super().__init__()
         self.levels_size = levels_size
 
         from transformers import AutoModel  # pylint: disable=import-outside-toplevel
 
-        self.transformer = AutoModel.from_pretrained(model_name)
+        from hmc.utils.model_cache import (  # pylint: disable=import-outside-toplevel
+            ensure_transformer_model_cached,
+        )
+
+        local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
+        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
         if freeze_transformer:
             for p in self.transformer.parameters():
                 p.requires_grad_(False)

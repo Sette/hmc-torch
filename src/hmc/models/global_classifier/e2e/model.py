@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from transformers import AutoModel
 
 from hmc.models.global_classifier.constraint.utils import get_constr_out
+from hmc.utils.model_cache import ensure_transformer_model_cached
 
 # Models that encode document meaning in the [CLS] token rather than mean-pool.
 _CLS_POOL_MODELS = ("specter",)
@@ -31,9 +32,11 @@ class E2EConstrainedModel(nn.Module):
         num_layers: int = 3,
         dropout: float = 0.3,
         freeze_transformer: bool = False,
+        model_cache_dir: str = "./models",
     ) -> None:
         super().__init__()
-        self.transformer = AutoModel.from_pretrained(model_name)
+        local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
+        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
         if freeze_transformer:
             for param in self.transformer.parameters():
                 param.requires_grad_(False)
@@ -100,13 +103,15 @@ class E2EGNNModel(nn.Module):
         num_layers: int = 3,
         dropout: float = 0.3,
         freeze_transformer: bool = False,
+        model_cache_dir: str = "./models",
     ) -> None:
         super().__init__()
         from torch_geometric.nn import (  # pylint: disable=import-outside-toplevel
             GCNConv,
         )
 
-        self.transformer = AutoModel.from_pretrained(model_name)
+        local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
+        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
         if freeze_transformer:
             for param in self.transformer.parameters():
                 param.requires_grad_(False)
