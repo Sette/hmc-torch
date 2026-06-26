@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 from typing import Any
 
 import numpy as np
@@ -189,6 +190,39 @@ def _expand_selected_with_ancestors(
     return expanded, len(expanded) - len(selected)
 
 
+def _format_duration(seconds: float | None) -> str:
+    """Return a compact human-readable duration."""
+    if seconds is None:
+        return "unknown"
+    seconds = max(0, int(round(seconds)))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m{secs:02d}s"
+    if minutes:
+        return f"{minutes}m{secs:02d}s"
+    return f"{secs}s"
+
+
+def _estimate_remaining_llm_seconds(
+    *,
+    attempts: int,
+    processed_samples: int,
+    total_samples: int,
+    max_calls: int,
+    avg_call_seconds: float,
+) -> tuple[float, float]:
+    """Estimate remaining LLM calls and seconds from observed call density."""
+    if attempts <= 0 or processed_samples <= 0:
+        return 0.0, 0.0
+    observed_call_rate = attempts / processed_samples
+    estimated_total_calls = observed_call_rate * total_samples
+    if max_calls:
+        estimated_total_calls = min(float(max_calls), estimated_total_calls)
+    estimated_remaining_calls = max(0.0, estimated_total_calls - attempts)
+    return estimated_remaining_calls, estimated_remaining_calls * avg_call_seconds
+
+
 def _make_postprocessor(args):
     hierarchy = args.hmc_dataset.hierarchy_manager
     idx_to_node = {v: k for k, v in args.hmc_dataset.nodes_idx.items()}
@@ -223,6 +257,11 @@ def _make_postprocessor(args):
         "max_calls": max_calls,
         "llm_attempts": 0,
         "llm_successes": 0,
+        "llm_call_seconds_total": 0.0,
+        "llm_avg_call_seconds": 0.0,
+        "llm_eta_seconds": 0.0,
+        "llm_estimated_remaining_calls": 0.0,
+        "llm_elapsed_seconds": 0.0,
         "confident_skips": 0,
         "budget_skips": 0,
         "no_candidate_skips": 0,
@@ -240,6 +279,17 @@ def _make_postprocessor(args):
         probabilities = adjusted[:, to_eval]
         sample_count = min(len(test_texts), adjusted.shape[0])
         stats["samples"] = sample_count
+        llm_stage_start = time.monotonic()
+        last_progress_log = llm_stage_start
+        log.info(
+            "Ollama reranker started: samples=%s model=%s top_k=%s k_max=%s "
+            "max_calls=%s",
+            sample_count,
+            model,
+            top_k,
+            k_max,
+            max_calls or "unlimited",
+        )
 
         for i in range(sample_count):
             row = probabilities[i]
@@ -288,6 +338,7 @@ def _make_postprocessor(args):
                 continue
 
             stats["llm_attempts"] += 1
+            call_start = time.monotonic()
             response = rerank_document_labels(
                 document_text=test_texts[i],
                 candidate_labels=candidate_labels,
@@ -298,7 +349,44 @@ def _make_postprocessor(args):
                 max_tokens=max_tokens,
                 timeout=timeout,
             )
+            call_seconds = time.monotonic() - call_start
             stats["llm_successes"] += 1
+            stats["llm_call_seconds_total"] += call_seconds
+            stats["llm_avg_call_seconds"] = (
+                stats["llm_call_seconds_total"] / stats["llm_successes"]
+            )
+
+            now = time.monotonic()
+            processed_samples = i + 1
+            remaining_calls, eta_seconds = _estimate_remaining_llm_seconds(
+                attempts=stats["llm_attempts"],
+                processed_samples=processed_samples,
+                total_samples=sample_count,
+                max_calls=max_calls,
+                avg_call_seconds=stats["llm_avg_call_seconds"],
+            )
+            stats["llm_elapsed_seconds"] = now - llm_stage_start
+            stats["llm_eta_seconds"] = eta_seconds
+            stats["llm_estimated_remaining_calls"] = remaining_calls
+
+            should_log_progress = (
+                stats["llm_attempts"] == 1
+                or stats["llm_attempts"] % 10 == 0
+                or now - last_progress_log >= 60
+            )
+            if should_log_progress:
+                log.info(
+                    "Ollama reranker progress: sample=%s/%s attempts=%s "
+                    "avg_call=%s elapsed=%s eta=%s est_remaining_calls=%.1f",
+                    processed_samples,
+                    sample_count,
+                    stats["llm_attempts"],
+                    _format_duration(stats["llm_avg_call_seconds"]),
+                    _format_duration(stats["llm_elapsed_seconds"]),
+                    _format_duration(stats["llm_eta_seconds"]),
+                    stats["llm_estimated_remaining_calls"],
+                )
+                last_progress_log = now
 
             valid_labels = {cand["label"] for cand in candidate_labels}
             raw_selected = set(parse_selected_labels(response)).intersection(valid_labels)
@@ -329,14 +417,20 @@ def _make_postprocessor(args):
 
         if stats["candidate_true_total"]:
             stats["candidate_recall"] = stats["candidate_true_hits"] / stats["candidate_true_total"]
+        stats["llm_elapsed_seconds"] = time.monotonic() - llm_stage_start
+        stats["llm_eta_seconds"] = 0.0
+        stats["llm_estimated_remaining_calls"] = 0.0
 
         log.info(
-            "Ollama reranker (%s): attempts=%s successes=%s samples=%s "
-            "top_k=%s k_max=%s threshold=%.2f margin=%.2f candidate_recall=%.4f",
+            "Ollama reranker (%s): attempts=%s successes=%s samples=%s elapsed=%s "
+            "avg_call=%s top_k=%s k_max=%s threshold=%.2f margin=%.2f "
+            "candidate_recall=%.4f",
             model,
             stats["llm_attempts"],
             stats["llm_successes"],
             stats["samples"],
+            _format_duration(stats["llm_elapsed_seconds"]),
+            _format_duration(stats["llm_avg_call_seconds"]),
             top_k,
             k_max,
             threshold,

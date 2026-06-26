@@ -50,6 +50,7 @@ def _call_ollama_api(
         "messages": messages,
         "format": "json",
         "stream": False,
+        "think": False,
         "options": options,
     }
     req = request.Request(
@@ -75,6 +76,13 @@ def _call_ollama_api(
     message = payload.get("message", {})
     content = message.get("content")
     if not content:
+        if message.get("thinking"):
+            raise RuntimeError(
+                "Ollama returned reasoning tokens but no JSON content. "
+                "The request sets think=false and /no_think; if this persists, "
+                "increase --llm_max_tokens or update the Ollama model/runtime. "
+                f"Payload: {payload}"
+            )
         raise RuntimeError(f"Ollama API returned no message content: {payload}")
     return content
 
@@ -128,7 +136,7 @@ def rerank_document_labels(
     timeout: int = 120,
 ) -> dict[str, Any]:
     """Ask Ollama to rerank candidate labels and return parsed JSON."""
-    prompt = build_candidate_context(
+    prompt = "/no_think\n" + build_candidate_context(
         document_text=document_text,
         candidate_labels=candidate_labels,
         hierarchy_path=hierarchy_path,
