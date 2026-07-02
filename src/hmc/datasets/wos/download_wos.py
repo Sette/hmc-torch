@@ -17,11 +17,14 @@ Output files:
 """
 
 import argparse
+import io
 import json
 import logging
-import os
 import re
+import shutil
 import sys
+import xml.etree.ElementTree as ET
+import zipfile
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Tuple
@@ -154,10 +157,14 @@ _STATS = {
     },
 }
 
-_HDLTEX_URL = (
-    "https://raw.githubusercontent.com/kk7nc/HDLTex/master/"
-    "WebOfScience/Meta-data/Data.txt"
-)
+_MENDELEY_WOS_URL = "https://data.mendeley.com/public-api/zip/9rw3vkcfy4/download/6"
+_DOWNLOAD_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    ),
+    "Accept": "application/zip,application/octet-stream,*/*",
+}
 
 
 def clean_str(string: str) -> str:
@@ -173,8 +180,113 @@ def clean_str(string: str) -> str:
     return string.strip().lower()
 
 
+_XLSX_NS = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+
+def _cell_index(cell_ref: str) -> int:
+    index = 0
+    for char in cell_ref:
+        if not char.isalpha():
+            break
+        index = index * 26 + ord(char.upper()) - ord("A") + 1
+    return index - 1
+
+
+def _xlsx_value(cell: ET.Element, shared_strings: List[str]) -> str:
+    value = cell.find("x:v", _XLSX_NS)
+    if cell.get("t") == "s":
+        return shared_strings[int(value.text)] if value is not None and value.text else ""
+    if cell.get("t") == "inlineStr":
+        return "".join(text.text or "" for text in cell.findall(".//x:t", _XLSX_NS))
+    return value.text if value is not None and value.text else ""
+
+
+def _convert_xlsx_to_data_txt(xlsx_bytes: bytes, dest: Path) -> Path:
+    """Convert the Mendeley metadata workbook to the legacy Data.txt format."""
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes)) as workbook:
+        shared_strings = []
+        shared_root = ET.fromstring(workbook.read("xl/sharedStrings.xml"))
+        for item in shared_root.findall("x:si", _XLSX_NS):
+            shared_strings.append(
+                "".join(text.text or "" for text in item.findall(".//x:t", _XLSX_NS))
+            )
+
+        with workbook.open("xl/worksheets/sheet1.xml") as sheet, open(
+            dest, "w", encoding="utf-8"
+        ) as out:
+            for _, row in ET.iterparse(sheet, events=("end",)):
+                if not row.tag.endswith("}row"):
+                    continue
+
+                values = [""] * 7
+                for cell in row.findall("x:c", _XLSX_NS):
+                    index = _cell_index(cell.get("r", ""))
+                    if 0 <= index < len(values):
+                        values[index] = _xlsx_value(cell, shared_strings)
+
+                out.write("\t".join(values) + "\n")
+                row.clear()
+
+    return dest
+
+
+def _extract_from_archive(archive: zipfile.ZipFile, dest: Path, source: str) -> Path:
+    data_members = [
+        member
+        for member in archive.namelist()
+        if not member.endswith("/") and Path(member).name == "Data.txt"
+    ]
+    if data_members:
+        member = data_members[0]
+        logger.info("Extracting %s from %s", member, source)
+        with archive.open(member) as src, open(dest, "wb") as out:
+            shutil.copyfileobj(src, out)
+        return dest
+
+    xlsx_members = [
+        member
+        for member in archive.namelist()
+        if not member.endswith("/") and Path(member).name == "Data.xlsx"
+    ]
+    if xlsx_members:
+        member = xlsx_members[0]
+        logger.info("Converting %s from %s", member, source)
+        return _convert_xlsx_to_data_txt(archive.read(member), dest)
+
+    zip_members = [
+        member
+        for member in archive.namelist()
+        if not member.endswith("/") and Path(member).suffix.lower() == ".zip"
+    ]
+    for member in zip_members:
+        logger.info("Searching nested archive %s from %s", member, source)
+        with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
+            try:
+                return _extract_from_archive(nested, dest, member)
+            except FileNotFoundError:
+                continue
+
+    raise FileNotFoundError(f"Data.txt or Data.xlsx not found inside {source}")
+
+
+def _extract_data_txt(zip_path: Path, dest: Path) -> Path:
+    """Extract or build Data.txt from a downloaded WOS archive."""
+    with zipfile.ZipFile(zip_path) as archive:
+        return _extract_from_archive(archive, dest, str(zip_path))
+
+
+def _download_file(url: str, dest: Path) -> Path:
+    """Download a file with browser-like headers."""
+    import urllib.request
+
+    request = urllib.request.Request(url, headers=_DOWNLOAD_HEADERS)
+    with urllib.request.urlopen(request) as response, open(dest, "wb") as out:
+        shutil.copyfileobj(response, out)
+    return dest
+
+
 def _download_raw(output_dir: Path) -> Path:
-    """Download the raw WOS Data.txt from HDLTex or use a local copy."""
+    """Download the raw WOS archive from Mendeley or use a local Data.txt copy."""
     dest = output_dir / "Data.txt"
     if dest.exists():
         logger.info("Raw data already at %s", dest)
@@ -187,14 +299,15 @@ def _download_raw(output_dir: Path) -> Path:
         return hpt_data
 
     try:
-        import urllib.request
-
-        logger.info("Downloading from %s …", _HDLTEX_URL)
-        urllib.request.urlretrieve(_HDLTEX_URL, str(dest))
-        logger.info("Downloaded to %s", dest)
+        archive_path = output_dir / "wos-mendeley.zip"
+        logger.info("Downloading from %s …", _MENDELEY_WOS_URL)
+        _download_file(_MENDELEY_WOS_URL, archive_path)
+        logger.info("Downloaded archive to %s", archive_path)
+        _extract_data_txt(archive_path, dest)
+        logger.info("Extracted raw data to %s", dest)
     except Exception as exc:
         logger.error(
-            "Failed to download. Please place Data.txt from the HDLTex repo "
+            "Failed to download. Please place Data.txt from the WOS dataset "
             "at %s or at %s. Error: %s",
             dest,
             hpt_data,
