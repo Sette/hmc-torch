@@ -7,7 +7,6 @@ def initialize_dataset_experiments(
     name: str,
     device: str = "cpu",
     dataset_path: str = "data/",
-    dataset_type: str = "arxiv",
     is_global: bool = False,
     arxiv_model_name: str = "allenai/specter2_base",
     arxiv_max_records: int = 50_000,

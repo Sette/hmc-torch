@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
-from hmc.llm.ollama_agent import parse_selected_labels, rerank_document_labels
+from hmc.llm.ollama_agent import parse_selected_labels, rerank_document_labels_result
 from hmc.models.global_classifier.e2e.model import E2EConstrainedModel
 from hmc.pipeline.global_classifier.e2e_train import train_e2e_step
 from hmc.pipeline.global_classifier.main import _get_transformer_dataset
@@ -30,6 +30,11 @@ _GLOBAL_LLM_DEFAULTS = {
     "llm_k_max": 0,
     "llm_expand_hierarchy": False,
     "llm_max_calls": 0,
+    "llm_cache": True,
+    "llm_cache_dir": "",
+    "llm_fallback_on_error": True,
+    "llm_preserve_scores": True,
+    "llm_max_document_chars": 6000,
 }
 
 _LITE_DEFAULTS = {
@@ -41,6 +46,11 @@ _LITE_DEFAULTS = {
     "llm_k_max": 20,
     "llm_expand_hierarchy": True,
     "llm_max_calls": 0,
+    "llm_cache": True,
+    "llm_cache_dir": "",
+    "llm_fallback_on_error": True,
+    "llm_preserve_scores": True,
+    "llm_max_document_chars": 3000,
 }
 
 
@@ -204,6 +214,20 @@ def _format_duration(seconds: float | None) -> str:
     return f"{secs}s"
 
 
+def _truncate_document_text(text: str, max_chars: int) -> tuple[str, bool]:
+    """Keep prompt size bounded while preserving the beginning and end of the document."""
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text, False
+    head_chars = max(1, int(max_chars * 0.7))
+    tail_chars = max(1, max_chars - head_chars)
+    truncated = (
+        text[:head_chars].rstrip()
+        + "\n...[truncated]...\n"
+        + text[-tail_chars:].lstrip()
+    )
+    return truncated, True
+
+
 def _estimate_remaining_llm_seconds(
     *,
     attempts: int,
@@ -241,6 +265,16 @@ def _make_postprocessor(args):
     expand_hierarchy = bool(getattr(args, "llm_expand_hierarchy", False))
     max_calls = max(0, int(getattr(args, "llm_max_calls", 0) or 0))
     timeout = max(1, int(getattr(args, "llm_timeout", 120)))
+    cache_enabled = bool(getattr(args, "llm_cache", True))
+    cache_dir_arg = str(getattr(args, "llm_cache_dir", "") or "").strip()
+    cache_dir = (
+        cache_dir_arg
+        if cache_dir_arg
+        else os.path.join(args.results_path, "llm-cache")
+    )
+    fallback_on_error = bool(getattr(args, "llm_fallback_on_error", True))
+    preserve_scores = bool(getattr(args, "llm_preserve_scores", True))
+    max_document_chars = max(0, int(getattr(args, "llm_max_document_chars", 6000)))
     test_texts = _subset_texts(args.text_dataset, args.test_subset)
 
     stats: dict[str, Any] = {
@@ -255,8 +289,18 @@ def _make_postprocessor(args):
         "num_ctx": num_ctx,
         "expand_hierarchy": expand_hierarchy,
         "max_calls": max_calls,
+        "cache_enabled": cache_enabled,
+        "cache_dir": cache_dir if cache_enabled else "",
+        "fallback_on_error": fallback_on_error,
+        "preserve_scores": preserve_scores,
+        "max_document_chars": max_document_chars,
         "llm_attempts": 0,
         "llm_successes": 0,
+        "llm_errors": 0,
+        "llm_fallbacks": 0,
+        "llm_cache_hits": 0,
+        "llm_cache_misses": 0,
+        "llm_api_calls": 0,
         "llm_call_seconds_total": 0.0,
         "llm_avg_call_seconds": 0.0,
         "llm_eta_seconds": 0.0,
@@ -269,6 +313,9 @@ def _make_postprocessor(args):
         "selected_labels": 0,
         "rejected_labels": 0,
         "hierarchy_closure_added": 0,
+        "document_chars_original_total": 0,
+        "document_chars_sent_total": 0,
+        "document_truncations": 0,
         "candidate_true_hits": 0,
         "candidate_true_total": 0,
         "candidate_recall": 0.0,
@@ -339,16 +386,45 @@ def _make_postprocessor(args):
 
             stats["llm_attempts"] += 1
             call_start = time.monotonic()
-            response = rerank_document_labels(
-                document_text=test_texts[i],
-                candidate_labels=candidate_labels,
-                model=model,
-                base_url=base_url,
-                num_ctx=num_ctx,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=timeout,
+            document_text, was_truncated = _truncate_document_text(
+                test_texts[i],
+                max_document_chars,
             )
+            stats["document_chars_original_total"] += len(test_texts[i])
+            stats["document_chars_sent_total"] += len(document_text)
+            if was_truncated:
+                stats["document_truncations"] += 1
+
+            try:
+                result = rerank_document_labels_result(
+                    document_text=document_text,
+                    candidate_labels=candidate_labels,
+                    model=model,
+                    base_url=base_url,
+                    num_ctx=num_ctx,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                    cache_dir=cache_dir if cache_enabled else None,
+                )
+                response = result.payload
+            except Exception as exc:  # pragma: no cover - network/runtime dependent
+                stats["llm_errors"] += 1
+                if fallback_on_error:
+                    stats["llm_fallbacks"] += 1
+                    log.warning(
+                        "Ollama reranker failed for sample %s; keeping base prediction: %s",
+                        i,
+                        exc,
+                    )
+                    continue
+                raise
+
+            if result.cache_hit:
+                stats["llm_cache_hits"] += 1
+            else:
+                stats["llm_cache_misses"] += 1
+                stats["llm_api_calls"] += 1
             call_seconds = time.monotonic() - call_start
             stats["llm_successes"] += 1
             stats["llm_call_seconds_total"] += call_seconds
@@ -408,10 +484,15 @@ def _make_postprocessor(args):
 
             for cand in candidate_labels:
                 global_idx = args.hmc_dataset.nodes_idx[cand["label"]]
-                adjusted[i, global_idx] = 1.0 if cand["label"] in selected else 0.0
+                adjusted[i, global_idx] = (
+                    float(cand["score"]) if preserve_scores and cand["label"] in selected
+                    else 1.0 if cand["label"] in selected
+                    else 0.0
+                )
             for label in selected.difference(valid_labels):
                 global_idx = args.hmc_dataset.nodes_idx[label]
-                adjusted[i, global_idx] = 1.0
+                if not preserve_scores:
+                    adjusted[i, global_idx] = 1.0
             stats["selected_labels"] += len(selected)
             stats["rejected_labels"] += len(candidate_labels) - len(raw_selected)
 
@@ -422,12 +503,15 @@ def _make_postprocessor(args):
         stats["llm_estimated_remaining_calls"] = 0.0
 
         log.info(
-            "Ollama reranker (%s): attempts=%s successes=%s samples=%s elapsed=%s "
-            "avg_call=%s top_k=%s k_max=%s threshold=%.2f margin=%.2f "
-            "candidate_recall=%.4f",
+            "Ollama reranker (%s): attempts=%s api_calls=%s cache_hits=%s "
+            "errors=%s fallbacks=%s samples=%s elapsed=%s avg_call=%s "
+            "top_k=%s k_max=%s threshold=%.2f margin=%.2f candidate_recall=%.4f",
             model,
             stats["llm_attempts"],
-            stats["llm_successes"],
+            stats["llm_api_calls"],
+            stats["llm_cache_hits"],
+            stats["llm_errors"],
+            stats["llm_fallbacks"],
             stats["samples"],
             _format_duration(stats["llm_elapsed_seconds"]),
             _format_duration(stats["llm_avg_call_seconds"]),
@@ -454,7 +538,6 @@ def train_global_llm(dataset_name, args):
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arxiv",
         is_global=True,
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,

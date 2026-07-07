@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable
 from urllib import error, request
 
 _OLLAMA_BASE_URL = "http://localhost:11434"
+log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RerankResult:
+    """Parsed LLM response and cache metadata."""
+
+    payload: dict[str, Any]
+    cache_hit: bool = False
+    cache_path: str | None = None
 
 
 class OllamaAPIError(RuntimeError):
@@ -28,6 +42,69 @@ def _normalize_ollama_chat_url(base_url: str | None) -> str:
     return f"{raw}/api/chat"
 
 
+def _build_ollama_body(
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    temperature: float,
+    max_tokens: int,
+    num_ctx: int = 4096,
+) -> dict[str, Any]:
+    options: dict[str, Any] = {
+        "temperature": temperature,
+        "num_predict": max_tokens,
+    }
+    if num_ctx > 0:
+        options["num_ctx"] = num_ctx
+
+    return {
+        "model": model,
+        "messages": messages,
+        "format": "json",
+        "stream": False,
+        "think": False,
+        "options": options,
+    }
+
+
+def _cache_key(body: dict[str, Any]) -> str:
+    serialized = json.dumps(
+        body,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _cache_file(cache_dir: str | Path | None, body: dict[str, Any]) -> Path | None:
+    if not cache_dir:
+        return None
+    return Path(cache_dir).expanduser() / f"{_cache_key(body)}.json"
+
+
+def _read_cached_content(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        content = payload.get("content")
+        return content if isinstance(content, str) else None
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("Ignoring unreadable LLM cache file %s: %s", path, exc)
+        return None
+
+
+def _write_cached_content(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(".tmp")
+    tmp_path.write_text(
+        json.dumps({"content": content}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    tmp_path.replace(path)
+
+
 def _call_ollama_api(
     *,
     model: str,
@@ -38,21 +115,13 @@ def _call_ollama_api(
     num_ctx: int = 4096,
     timeout: int = 120,
 ) -> str:
-    options: dict[str, Any] = {
-        "temperature": temperature,
-        "num_predict": max_tokens,
-    }
-    if num_ctx > 0:
-        options["num_ctx"] = num_ctx
-
-    body = {
-        "model": model,
-        "messages": messages,
-        "format": "json",
-        "stream": False,
-        "think": False,
-        "options": options,
-    }
+    body = _build_ollama_body(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        num_ctx=num_ctx,
+    )
     req = request.Request(
         _normalize_ollama_chat_url(base_url),
         data=json.dumps(body).encode("utf-8"),
@@ -134,8 +203,37 @@ def rerank_document_labels(
     max_tokens: int = 256,
     hierarchy_path: list[str] | None = None,
     timeout: int = 120,
+    cache_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Ask Ollama to rerank candidate labels and return parsed JSON."""
+    return rerank_document_labels_result(
+        document_text=document_text,
+        candidate_labels=candidate_labels,
+        model=model,
+        base_url=base_url,
+        num_ctx=num_ctx,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        hierarchy_path=hierarchy_path,
+        timeout=timeout,
+        cache_dir=cache_dir,
+    ).payload
+
+
+def rerank_document_labels_result(
+    *,
+    document_text: str,
+    candidate_labels: list[dict[str, Any]],
+    model: str,
+    base_url: str | None = None,
+    num_ctx: int = 4096,
+    temperature: float = 0.0,
+    max_tokens: int = 256,
+    hierarchy_path: list[str] | None = None,
+    timeout: int = 120,
+    cache_dir: str | Path | None = None,
+) -> RerankResult:
+    """Ask Ollama to rerank candidate labels and return parsed JSON plus cache metadata."""
     prompt = "/no_think\n" + build_candidate_context(
         document_text=document_text,
         candidate_labels=candidate_labels,
@@ -152,16 +250,43 @@ def rerank_document_labels(
         },
         {"role": "user", "content": prompt},
     ]
-    content = _call_ollama_api(
+    body = _build_ollama_body(
         model=model,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        base_url=base_url,
         num_ctx=num_ctx,
-        timeout=timeout,
     )
-    return _json_from_text(content)
+    cache_path = _cache_file(cache_dir, body)
+    cache_hit = False
+    content = None
+    if cache_path is not None:
+        content = _read_cached_content(cache_path)
+        cache_hit = content is not None
+
+    if content is None:
+        content = _call_ollama_api(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            base_url=base_url,
+            num_ctx=num_ctx,
+            timeout=timeout,
+        )
+
+    payload = _json_from_text(content)
+    if cache_path is not None and not cache_hit:
+        try:
+            _write_cached_content(cache_path, content)
+        except OSError as exc:
+            log.warning("Could not write LLM cache file %s: %s", cache_path, exc)
+
+    return RerankResult(
+        payload=payload,
+        cache_hit=cache_hit,
+        cache_path=str(cache_path) if cache_path is not None else None,
+    )
 
 
 def parse_selected_labels(response: dict[str, Any]) -> list[str]:

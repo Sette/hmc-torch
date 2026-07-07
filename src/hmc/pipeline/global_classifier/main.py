@@ -8,6 +8,8 @@ import os
 import networkx as nx
 import numpy as np
 import torch
+from lightning import Trainer
+from lightning.pytorch.callbacks import EarlyStopping
 from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
@@ -38,7 +40,6 @@ def train_global(dataset_name, args):
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arxiv",
         is_global=True,
         arxiv_model_name=args.dataset.arxiv_model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
@@ -173,7 +174,6 @@ def train_global_e2e(dataset_name, args):
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arxiv",
         is_global=True,
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,
@@ -272,7 +272,6 @@ def train_global_sota(dataset_name, args):
         dataset_name,
         device=args.device,
         dataset_path=args.dataset.dataset_path,
-        dataset_type="arxiv",
         is_global=True,
         arxiv_model_name=model_name,
         arxiv_max_records=args.dataset.arxiv_max_records,

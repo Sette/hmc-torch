@@ -27,6 +27,45 @@ python -m hmc.main --dataset_name arxiv --method globalSOTA --device cuda \
   --dataset_path ./data --epochs 5 --batch_size 4 --output_path ./output
 ```
 
+## Local LLM reranking
+
+Install ollama:
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Run Ollama locally in one terminal:
+
+```bash
+ollama serve
+```
+
+Pull the default reranker model once:
+
+```bash
+ollama pull qwen3:14b
+```
+
+Train with the optimized LLM reranker:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m hmc.main \
+  --dataset_name arxiv \
+  --method globalLLMLite \
+  --device cuda \
+  --dataset_path ./data \
+  --output_path ./output \
+  --epochs 5 \
+  --batch_size 4 \
+  --llm_model qwen3:14b \
+  --llm_cache true \
+  --llm_fallback_on_error true \
+  --llm_preserve_scores true \
+  --llm_max_document_chars 3000
+```
+
+Use `--dataset_name wos` for WOS. The reranker uses `http://localhost:11434` by default.
+
 ## Methods
 
 | Method | Description |
@@ -34,6 +73,8 @@ python -m hmc.main --dataset_name arxiv --method globalSOTA --device cuda \
 | `global` | Frozen SPECTER2 embeddings + MLP + R-matrix constraint |
 | `globalE2E` | End-to-end fine-tuned transformer + MLP + R-matrix |
 | `globalSOTA` | E2E + GCN label-graph encoder (HiAGM-style) |
+| `globalLLM` | E2E + Ollama reranking over candidate labels |
+| `globalLLMLite` | E2E + cheaper uncertainty-gated Ollama reranking with cache/fallback |
 
 ## Results (WOS, 64/16/20 HPT split, 5 epochs)
 

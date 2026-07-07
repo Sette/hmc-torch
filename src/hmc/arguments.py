@@ -12,7 +12,6 @@ class DatasetConfig:
     """Dataset-specific configuration."""
     dataset_path: str
     dataset_name: Optional[str] = None
-    dataset_type: str = "arxiv"
     arxiv_model_name: str = "allenai/specter2_base"
     arxiv_max_records: int = 50_000
     model_cache_dir: str = "./models"
@@ -43,6 +42,11 @@ class TrainingConfig:
     llm_expand_hierarchy: bool = False
     llm_max_calls: int = 0
     llm_timeout: int = 120
+    llm_cache: bool = True
+    llm_cache_dir: str = ""
+    llm_fallback_on_error: bool = True
+    llm_preserve_scores: bool = True
+    llm_max_document_chars: int = 6000
 
 
 @dataclass
@@ -99,7 +103,6 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset_path", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--dataset_type", type=str, choices=["arxiv", "wos"], default="arxiv")
     parser.add_argument("--arxiv_model_name", type=str, default="allenai/specter2_base")
     parser.add_argument("--arxiv_max_records", type=int, default=50_000)
     parser.add_argument("--model_cache_dir", type=str, default="./models")
@@ -122,6 +125,14 @@ def get_parser() -> argparse.ArgumentParser:
                         choices=["true", "false"])
     parser.add_argument("--llm_max_calls", type=int, default=0)
     parser.add_argument("--llm_timeout", type=int, default=120)
+    parser.add_argument("--llm_cache", type=str, default="true",
+                        choices=["true", "false"])
+    parser.add_argument("--llm_cache_dir", type=str, default="")
+    parser.add_argument("--llm_fallback_on_error", type=str, default="true",
+                        choices=["true", "false"])
+    parser.add_argument("--llm_preserve_scores", type=str, default="true",
+                        choices=["true", "false"])
+    parser.add_argument("--llm_max_document_chars", type=int, default=6000)
     parser.add_argument("--non_lin", type=str, default="relu",
                         choices=["relu", "tanh", "sigmoid"])
     parser.add_argument("--device", type=str, default="cuda",
@@ -142,7 +153,6 @@ def parse_args() -> Args:
     dataset = DatasetConfig(
         dataset_path=ns.dataset_path,
         dataset_name=ns.dataset_name,
-        dataset_type=ns.dataset_type,
         arxiv_model_name=ns.arxiv_model_name,
         arxiv_max_records=ns.arxiv_max_records,
         model_cache_dir=ns.model_cache_dir,
@@ -170,6 +180,11 @@ def parse_args() -> Args:
         llm_expand_hierarchy=_str_to_bool(ns.llm_expand_hierarchy),
         llm_max_calls=ns.llm_max_calls,
         llm_timeout=ns.llm_timeout,
+        llm_cache=_str_to_bool(ns.llm_cache),
+        llm_cache_dir=ns.llm_cache_dir,
+        llm_fallback_on_error=_str_to_bool(ns.llm_fallback_on_error),
+        llm_preserve_scores=_str_to_bool(ns.llm_preserve_scores),
+        llm_max_document_chars=ns.llm_max_document_chars,
     )
     return Args(
         dataset=dataset,

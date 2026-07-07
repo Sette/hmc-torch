@@ -57,7 +57,8 @@ def main():
 
     success = fail = 0
     for g in groups:
-        ok = _run_module(AVAILABLE[g]["module"], args.output_dir)
+        group_output_dir = str(Path(args.output_dir) / g)
+        ok = _run_module(AVAILABLE[g]["module"], group_output_dir)
         if ok:
             success += 1
         else:

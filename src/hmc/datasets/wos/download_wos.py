@@ -167,6 +167,19 @@ _DOWNLOAD_HEADERS = {
 }
 
 
+def _resolve_output_dir(output_dir: str) -> Path:
+    """Return the WOS-specific output directory.
+
+    Historically some commands passed ``--output_dir ./data``.  Keep that
+    command usable, but write WOS artifacts below ``data/wos`` so loaders and
+    dataset layout remain consistent.
+    """
+    path = Path(output_dir)
+    if path.name != "wos":
+        path = path / "wos"
+    return path
+
+
 def clean_str(string: str) -> str:
     """Tokenization/string cleaning (same as HPT preprocess_wos.py)."""
     string = string.strip().strip('"')
@@ -441,7 +454,7 @@ def main():
     )
     args = parser.parse_args()
 
-    output_dir = Path(args.output_dir)
+    output_dir = _resolve_output_dir(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Get raw data

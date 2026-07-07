@@ -23,6 +23,16 @@ make download-wos              # apenas WOS
 ./run.sh                       # wos, global, cuda
 ./run.sh --dataset_name arxiv --method globalE2E --epochs 5 --batch_size 4
 
+# Ollama local para globalLLMLite
+ollama serve                   # terminal separado; endpoint padrão localhost:11434
+ollama pull qwen3:14b          # baixar modelo padrão uma vez
+
+# Treino com reranking LLM otimizado
+python -m hmc.main --dataset_name arxiv --method globalLLMLite --device cuda \
+  --dataset_path ./data --output_path ./output --epochs 5 --batch_size 4 \
+  --llm_model qwen3:14b --llm_cache true --llm_fallback_on_error true \
+  --llm_preserve_scores true --llm_max_document_chars 3000
+
 # Python direto
 python -m hmc.main --dataset_name wos --method global --device cuda \
   --dataset_path ./data --output_path ./output --epochs 50 --batch_size 32
@@ -43,6 +53,8 @@ main.py → parse_args() → Args dataclass
             ├── method=global       → train_global()       — frozen embeddings + MLP + R-matrix
             ├── method=globalE2E    → train_global_e2e()   — fine-tuned transformer + MLP + R-matrix
             ├── method=globalSOTA   → train_global_sota()  — fine-tuned transformer + GCN label graph + R-matrix
+            ├── method=globalLLM    → train_global_llm()   — E2E + Ollama reranking
+            ├── method=globalLLMLite→ train_global_llm_lite() — uncertainty gate + cache/fallback
             └── method=local        → train_local()        — frozen embeddings, one MLP per level
 ```
 
