@@ -186,8 +186,9 @@ for use_r in [True, False]:
 # FunCat ablation (cellcycle_FUN + seq_FUN)
 for ds_name in ["cellcycle_FUN", "seq_FUN"]:
     print(f"\n{ds_name} ablation:")
-    mgr_f = initialize_dataset_experiments(ds_name, device="cpu", dataset_path="./data",
-                                            dataset_type="arff", is_global=False)
+    from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments as init_gofun
+    mgr_f = init_gofun(ds_name, device="cpu", dataset_path="./data",
+                        dataset_type="arff", is_global=False)
     tr_f, va_f, te_f = mgr_f.get_datasets()
     Xf_tr = np.concatenate([tr_f.x, va_f.x]).astype(np.float32)
     yf_tr = np.concatenate([tr_f.y, va_f.y]).astype(np.float32)
@@ -218,8 +219,6 @@ for ds_name in ["cellcycle_FUN", "seq_FUN"]:
 # ===================================================================
 # Save everything
 # ===================================================================
-from sklearn.impute import SimpleImputer
-
 os.makedirs("./output/phase1", exist_ok=True)
 results = {
     "arxiv_3seeds": {str(k): v for k, v in arxiv_seeds.items()},
