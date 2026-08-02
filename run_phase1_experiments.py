@@ -16,6 +16,7 @@ import networkx as nx
 sys.path.insert(0, "src")
 
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import average_precision_score
 from torch.utils.data import DataLoader, TensorDataset
 
