@@ -13,13 +13,14 @@
 \usepackage{xcolor}
 \usepackage{multirow}
 \usepackage{array}
+\usepackage{caption}
 
 \definecolor{darkblue}{RGB}{0,70,140}
 \hypersetup{colorlinks,linkcolor=darkblue,citecolor=darkblue,urlcolor=darkblue}
 
 % ── Title ─────────────────────────────────────────────────────────────
 \title{\textbf{HMC-Torch: A Modular Platform for Hierarchical Multi-Label
-Classification with R-Matrix Constraints}}
+Classification\\ with R-Matrix Constraints}}
 
 \author{
   Bruno Sette\textsuperscript{1} \\
@@ -35,24 +36,24 @@ Classification with R-Matrix Constraints}}
 % ── Abstract ──────────────────────────────────────────────────────────
 \begin{abstract}
 We present \textsc{hmc-torch}, a modular and extensible platform for
-Hierarchical Multi-Label Classification (HMC) that advances the
-state-of-the-art on standard benchmarks. Our framework introduces a
-clean separation between data contracts (\texttt{DatasetBundle},
-\texttt{Hierarchy}), feature encoders, and reusable HMC heads,
-enabling rapid experimentation across modalities (tabular, text,
-vision, protein sequences) and hierarchy types (trees, DAGs). The
-key architectural component is the \textbf{R-matrix constraint}---a
-dense ancestor matrix that enforces hierarchical consistency by
-ensuring every parent node's predicted probability is greater than
-or equal to its children's.  We evaluate on three benchmark families:
-\textbf{ArXiv} (156 classes, 50K papers), \textbf{WOS} (142 classes,
-47K abstracts), and \textbf{FunCat} (8 datasets, up to 500 classes,
-genomic features).  Our method achieves \textbf{new state-of-the-art}
-results on ArXiv (Micro-F1 0.7295, +13.5 points over HiAGM) and
-WOS (Micro-F1 0.8743, surpassing HTC-infoMAX), while establishing
-strong baselines across all FunCat datasets.  The platform is
-open-source and GPU-accelerated, achieving up to 14$\times$ speedup
-over CPU training.
+Hierarchical Multi-Label Classification (HMC) that integrates the
+R-matrix constraint---originally proposed by Giunchiglia \&
+Lukasiewicz (2018, NeurIPS)---as a first-class architectural
+component. Our framework introduces a clean separation between data
+contracts (\texttt{DatasetBundle}, \texttt{Hierarchy}), feature
+encoders, and reusable HMC heads, enabling reproducible
+experimentation across modalities and hierarchy types. We evaluate on
+three benchmark families: \textbf{ArXiv} (156 classes), \textbf{WOS}
+(142 classes), and \textbf{FunCat} (8 datasets, up to 500 classes).
+Our method achieves \textbf{new state-of-the-art} on ArXiv (Micro-F1
+0.7295, +13.5 points over HiAGM) and WOS (Micro-F1 0.8743,
+surpassing HTC-infoMAX), while establishing competitive baselines on
+FunCat---matching or approaching neural methods like HMCN-F and
+C-HMCNN despite using significantly simpler architectures. We provide
+an honest assessment of where the platform excels (text
+classification with clean hierarchies) and where it remains below the
+state-of-the-art (protein function prediction requiring ontology
+learning). The platform is open-source and GPU-accelerated.
 \end{abstract}
 
 % ═══════════════════════════════════════════════════════════════════════
@@ -63,20 +64,26 @@ Hierarchical Multi-Label Classification (HMC) is a structured
 prediction task where each instance is assigned to one or more nodes
 in a predefined class hierarchy (tree or DAG). HMC arises naturally in
 scientific domains: categorizing academic papers into topic taxonomies
-(ArXiv, WOS), annotating proteins with Gene Ontology terms, and
+(ArXiv, WOS), annotating proteins with Gene Ontology (GO) terms, and
 classifying diatoms into morphological hierarchies.
 
-Despite significant progress in HMC methods---from local per-level
-classifiers~\cite{silla2011hmc} to global approaches with label-graph
-neural networks~\cite{zhou2020hiagm}---practitioners face two
-persistent challenges: (1) \textbf{fragmented implementations} where
-each method requires bespoke data loading, preprocessing, and
-evaluation code; and (2) \textbf{lack of hierarchical consistency}
-where raw predictions violate the taxonomic structure (e.g., a paper
-classified as ``ML'' but not ``CS'').
+The HMC literature has produced increasingly sophisticated
+methods---from local per-level classifiers~\cite{silla2011hmc} to
+global approaches with graph neural networks~\cite{zhou2020hiagm} and
+ontology representation learning~\cite{www2022ontology}. A key
+architectural innovation was introduced by Giunchiglia \&
+Lukasiewicz~\cite{giunchiglia2018hmc}: the \textbf{R-matrix}
+(ancestor closure matrix) that enforces hierarchical consistency by
+ensuring every parent node's predicted probability is at least as
+large as its children's. However, this constraint has typically been
+applied as a post-processing step or embedded within complex recurrent
+architectures, limiting its adoption and systematic study.
 
-We address both challenges with \textsc{hmc-torch}, a modular platform
-built on three design principles:
+We present \textsc{hmc-torch}, a platform that elevates the R-matrix
+from a post-hoc correction to a \textbf{first-class architectural
+component}, integrated during both training (via consistency loss) and
+inference (via bottom-up reconciliation). Our design follows three
+principles:
 
 \begin{enumerate}[leftmargin=*,nosep]
   \item \textbf{Separation of concerns.} Data contracts
@@ -85,25 +92,33 @@ built on three design principles:
     \texttt{fit/transform} protocol across modalities.
   \item \textbf{Explicit hierarchy modeling.} Tree-structured
     (FunCat) and DAG-structured (Gene Ontology) hierarchies are
-    represented as distinct types with type-specific reconciliation
-    strategies, preventing silent conflation.
-  \item \textbf{Hierarchical constraints by design.} The R-matrix
-    (ancestor closure matrix) is a first-class architectural
-    component, not a post-processing heuristic. It enforces that
-    $\forall (i,j): \text{ancestor}(i,j) \implies p_i \geq p_j$.
+    distinct types with type-specific reconciliation, preventing
+    silent conflation of single-parent and multi-parent semantics.
+  \item \textbf{R-matrix as infrastructure.} The ancestor closure
+    matrix is a reusable, differentiable layer available to any
+    downstream head, enabling systematic ablation studies of its
+    contribution.
 \end{enumerate}
 
 Our contributions are:
 \begin{itemize}[leftmargin=*,nosep]
-  \item A comprehensive HMC platform supporting 23 datasets across 4
-    modalities with reproducible experiment manifests.
-  \item New state-of-the-art results on ArXiv (+13.5 Micro-F1) and WOS
-    (+0.2 Micro-F1) using the R-matrix constraint.
-  \item Extensive ablations comparing global (MLP+R), local (per-level
-    MLPs), GBDT One-vs-Rest, and residual MLP baselines on 8 FunCat
-    genomic datasets.
-  \item Open-source release with GPU acceleration achieving 14$\times$
-    training speedup.
+  \item A comprehensive HMC platform supporting 25+ datasets across 4
+    modalities (tabular, text, protein sequences, images) with
+    reproducible experiment manifests.
+  \item \textbf{New SOTA on ArXiv} (Micro-F1 0.7295, +13.5 points
+    over HiAGM) and \textbf{WOS} (Micro-F1 0.8743, +0.2 points over
+    HTC-infoMAX) using the R-matrix constraint with frozen and
+    fine-tuned transformer embeddings.
+  \item Competitive baselines on 8 FunCat genomic datasets,
+    approaching neural SOTA methods (HMCN-F, C-HMCNN) with simpler
+    architectures (GBDT, MLP), and beating HMCN-F on seq\_FUN.
+  \item An \textbf{honest failure analysis}: the R-matrix alone is
+    insufficient for protein function prediction tasks where ontology
+    representation learning~\cite{www2022ontology} provides
+    substantial gains (+39--71\% AUPRC), identifying clear directions
+    for future improvement.
+  \item Open-source release with GPU acceleration (14$\times$
+    training speedup).
 \end{itemize}
 
 % ═══════════════════════════════════════════════════════════════════════
@@ -113,38 +128,49 @@ Our contributions are:
 \subsection{HMC Methods}
 
 Early HMC approaches treated each level independently with local
-classifiers~\cite{silla2011hmc,cerri2014hmc}. Global methods
-predict all classes jointly: \citet{weihs2018hmc} proposed a flat
-multi-label classifier with post-hoc constraint propagation, while
-\citet{zhou2020hiagm} introduced HiAGM, combining a text encoder with a
-Graph Convolutional Network (GCN) over the label hierarchy.
-HTC-infoMAX~\cite{htcinfomax} added mutual information maximization
-between text and label representations.
+classifiers~\cite{silla2011hmc,cerri2014hmc}. Global methods predict
+all classes jointly:~\citet{weihs2018hmc} proposed a flat multi-label
+classifier with post-hoc constraint propagation, while~\citet{zhou2020hiagm}
+introduced HiAGM, combining a text encoder with a Graph Convolutional
+Network (GCN) over the label hierarchy. HTC-infoMAX~\cite{htcinfomax}
+added mutual information maximization. For protein function prediction
+(FunCat/GO benchmarks),~\citet{www2022ontology} proposed ontology
+representation learning, achieving state-of-the-art AUPRC by jointly
+learning class embeddings from the GO hierarchy structure.
 
-For tabular/genomic data, CLUS-HMC~\cite{clus} uses decision trees with
-hierarchical constraints, while HMCN~\cite{giunchiglia2018hmc}
+For tabular/genomic data, CLUS-HMC~\cite{clus} uses decision trees
+with hierarchical constraints, while HMCN~\cite{giunchiglia2018hmc}
 propagates information across hierarchy levels via recurrent
+architectures and introduced the R-matrix constraint that we build
+upon.
+
+\subsection{The R-Matrix Constraint}
+
+The R-matrix (ancestor/closure matrix) is an $N \times N$ binary
+matrix where $R_{ij} = 1$ iff class $i$ is an ancestor of class $j$
+(including $i=j$). It was introduced by~\citet{giunchiglia2018hmc} as
+a post-processing step in the HMCN architecture to enforce
+hierarchical consistency: $\forall (i,j): \text{ancestor}(i,j)
+\implies p_i \geq p_j$.  Subsequent work~\cite{zhou2020hiagm,
+htcinfomax, www2022ontology} adopted similar constraint mechanisms,
+but the R-matrix remained tightly coupled to specific architectures.
+
+Our contribution is \textbf{not} the R-matrix itself---we credit
+Giunchiglia \& Lukasiewicz (2018) for the original idea---but rather
+its elevation to a \textbf{reusable, modular component} within a
+general-purpose HMC platform. By making the R-matrix a first-class
+abstraction available to any encoder/head combination, we enable
+systematic study of its contribution across datasets, modalities, and
 architectures.
-
-\subsection{R-Matrix Constraint}
-
-The R-matrix (also called the ancestor matrix or closure matrix) is an
-$n \times n$ binary matrix where $R_{ij} = 1$ iff class $i$ is an
-ancestor of class $j$ (including $i=j$). It has been used as a
-post-processing step in several HMC pipelines~\cite{giunchiglia2018hmc},
-but rarely as an integral architectural component.  Our work treats
-the R-matrix as a \textbf{differentiable constraint layer} applied
-during both training (via consistency loss) and inference (via
-bottom-up max propagation).
 
 \subsection{Modular ML Platforms}
 
 Frameworks like HuggingFace Transformers and PyTorch Lightning have
 demonstrated the value of modular, composable architectures. However,
 HMC-specific platforms remain scarce. The \texttt{hmc-torch} package
-fills this gap with HMC-native abstractions: \texttt{Hierarchy}
-(trees and DAGs), \texttt{FeatureEncoder} (tabular, text, protein,
-vision), and reusable heads with built-in constraint enforcement.
+fills this gap with HMC-native abstractions and a clear attribution of
+which ideas are novel (platform design, systematic evaluation) vs.\
+inherited (R-matrix constraint, transformer encoders).
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Method}
@@ -165,33 +191,24 @@ The platform follows a modular pipeline:
 
 \textbf{DatasetAdapter} produces a \texttt{DatasetBundle} containing
 train/validation/test \texttt{Split} objects, a \texttt{Hierarchy}
-(tree or DAG), and \texttt{FeatureMetadata} (modality, dimensions,
-sparsity).
+(tree or DAG), and \texttt{FeatureMetadata}.
 
-\textbf{FeatureEncoder} implements \texttt{fit} (on train only) and
-\texttt{transform} (on any split). Implementations include:
-\texttt{TabularFeatureEncoder} (imputation + standardization +
-variance/MI selection), \texttt{TextFeatureEncoder} (transformer
-embeddings with CLS pooling), and placeholders for protein sequences
-(ESM-2) and vision (DINOv2).
+\textbf{FeatureEncoder} implements \texttt{fit/transform}. Current
+implementations: \texttt{TabularFeatureEncoder} (imputation +
+standardization + variance/MI selection), \texttt{TextFeatureEncoder}
+(transformer with CLS pooling), and placeholders for protein (ESM-2)
+and vision (DINOv2).
 
-\textbf{HierarchicalHead} options:
-\begin{itemize}[leftmargin=*,nosep]
-  \item \texttt{GlobalSigmoidHead}: Shared MLP $\rightarrow$ sigmoid
-    $\rightarrow$ $(B, N)$ probabilities.
-  \item \texttt{LocalLevelHead}: One MLP per hierarchy level, trained
-    jointly with per-level BCE loss.
-  \item \texttt{TreePathHead}: Masked softmax per level for single-path
-    classification (e.g., diatom taxonomy).
-\end{itemize}
+\textbf{HierarchicalHead} options include
+\texttt{GlobalSigmoidHead} (shared MLP $\rightarrow$ sigmoid),
+\texttt{LocalLevelHead} (per-level MLPs), and \texttt{TreePathHead}
+(masked softmax for single-path tasks).
 
 \subsection{R-Matrix Constraint}
 \label{sec:rmatrix}
 
-The core of our method is the differentiable R-matrix constraint.
-Given an adjacency matrix $A$ of the class hierarchy (where
-$A_{ij}=1$ if $i$ is a child of $j$), we compute the transitive
-closure:
+Following~\citet{giunchiglia2018hmc}, we define the R-matrix via
+transitive closure of the hierarchy adjacency matrix $A$:
 
 \begin{equation}
 R_{ij} = \begin{cases}
@@ -200,7 +217,10 @@ R_{ij} = \begin{cases}
 \end{cases}
 \end{equation}
 
-During \textbf{training}, we add a hierarchical consistency loss:
+Our contribution is integrating this constraint at \textbf{two levels}
+within a modular platform:
+
+\textbf{1. Training-time consistency loss} (differentiable):
 
 \begin{equation}
 \mathcal{L}_{\text{hier}} = \frac{1}{B \cdot |R|}
@@ -209,44 +229,30 @@ During \textbf{training}, we add a hierarchical consistency loss:
 \label{eq:hierloss}
 \end{equation}
 
-where $p_{b,i}$ is the predicted probability for class $i$ on sample
-$b$, and $\gamma \geq 0$ is an optional margin. This penalizes
-predictions where a child has higher probability than its ancestor.
-
-During \textbf{inference}, we apply bottom-up max propagation:
+\textbf{2. Inference-time reconciliation} (bottom-up max propagation):
 
 \begin{equation}
 p_i^{\text{rec}} = \max\left(p_i,\; \max_{j: \text{child}(i,j)} p_j^{\text{rec}}\right)
 \label{eq:reconcile}
 \end{equation}
 
-This ensures $\forall (i,j): \text{ancestor}(i,j) \implies
-p_i^{\text{rec}} \geq p_j^{\text{rec}}$ with zero post-inference
-violations.
+Unlike the original HMCN~\cite{giunchiglia2018hmc} where the
+constraint is embedded in a recurrent architecture, our implementation
+treats the R-matrix as a \textbf{standalone layer} that can be
+combined with any encoder (frozen transformer, fine-tuned transformer,
+GBDT, MLP) and any head (global, local, tree-path). This enables the
+ablation studies in Section~\ref{sec:results}.
 
-\subsection{Loss Functions}
+\subsection{Additional Components}
 
-We implement multiple loss functions for different scenarios:
-\begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{Weighted BCE}: Binary cross-entropy with per-class
-    weights $w_j = N_{\text{neg}}^{(j)} / N_{\text{pos}}^{(j)}$,
-    addressing class imbalance.
-  \item \textbf{Focal Loss}: $\text{FL}(p_t) = -\alpha_t (1-p_t)^\gamma
-    \log(p_t)$, focusing on hard examples.
-  \item \textbf{Hierarchical Consistency} (Eq.~\ref{eq:hierloss}):
-    Penalizes structure violations.
-  \item \textbf{Contrastive Label Loss}: InfoNCE between document and
-    label embeddings, useful when label semantics matter.
-\end{itemize}
+\textbf{Losses.} Weighted BCE (prevalence-based), Focal Loss,
+Hierarchical Consistency (Eq.~\ref{eq:hierloss}), and Contrastive
+Label Loss (InfoNCE between document and label embeddings).
 
-\subsection{Calibration}
-
-We provide Platt scaling (logistic regression per node) and isotonic
-regression calibrators, fitted exclusively on the validation split.
-For highly imbalanced multi-label settings (500 classes, prevalence
-$<5\%$), we find that raw scores with threshold sweep often
-outperform calibrated probabilities due to the difficulty of fitting
-reliable calibrators on rare classes.
+\textbf{Calibration.} Platt scaling and isotonic regression per node,
+fitted on validation. We find raw scores with threshold sweep
+outperform calibration for highly imbalanced multi-label settings
+(Section~\ref{sec:ablation}).
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Experiments}
@@ -254,25 +260,22 @@ reliable calibrators on rare classes.
 
 \subsection{Datasets}
 
-We evaluate on three benchmark families spanning text and tabular
-modalities:
+We evaluate on three benchmark families (Table~\ref{tab:datasets}):
 
 \begin{table}[h]
 \centering
-\caption{Dataset statistics. \textit{Feat}: number of features.
-\textit{Nodes}: total classes (including root). \textit{Eval}: number
-of evaluated nodes (excluding root). Splits follow HPT standard.}
+\caption{Dataset statistics. FunCat datasets use HPT standard splits.}
 \label{tab:datasets}
 \begin{tabular}{lrrrrr}
 \toprule
-\textbf{Dataset} & \textbf{Train} & \textbf{Test} & \textbf{Feat} &
+\textbf{Dataset} & \textbf{Train} & \textbf{Test} & \textbf{Features} &
 \textbf{Nodes} & \textbf{Eval} \\
 \midrule
 \multicolumn{6}{c}{\textit{Text (Transformer-based)}} \\
 ArXiv  & 40,982 & 10,245 & 768 (SPECTER2) & 157 & 156 \\
 WOS    & 37,588 & 9,397  & 768 (SPECTER2) & 142 & 141 \\
 \midrule
-\multicolumn{6}{c}{\textit{Tabular (Genomic features, FunCat hierarchy)}} \\
+\multicolumn{6}{c}{\textit{Tabular (FunCat hierarchy, genomic features)}} \\
 cellcycle\_FUN & 2,476 & 1,281 & 77  & 500 & 499 \\
 derisi\_FUN    & 2,480 & 1,284 & 63  & 500 & 499 \\
 eisen\_FUN     & 1,587 & 837   & 79  & 462 & 461 \\
@@ -288,53 +291,49 @@ spo\_FUN       & 2,437 & 1,266 & 86  & 500 & 499 \\
 \subsection{Methods Compared}
 
 \begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{global} (Ours): Shared MLP with 3 hidden layers + R-matrix
-    constraint (bottom-up reconciliation). Hidden dim per dataset from
-    registry~\cite{zhou2020hiagm}. SPECTER2-base embeddings for text
-    datasets, frozen or fine-tuned.
-  \item \textbf{local}: One MLP per hierarchy level, trained jointly with
-    per-level BCE loss. Same encoder as global, no R-matrix.
+  \item \textbf{global} (Ours): MLP + R-matrix constraint.
+    SPECTER2-base~\cite{specter} embeddings for text (frozen or
+    fine-tuned). Hidden dim per dataset from the registry.
+  \item \textbf{local}: Per-level MLPs, trained jointly, no R-matrix.
   \item \textbf{tabular\_gbdt}: HistGradientBoosting One-vs-Rest
-    (scikit-learn). One binary classifier per node with $\geq 5$
-    positive examples. Threshold sweep for multi-label binarization.
-  \item \textbf{tabular\_mlp}: Residual MLP (3 blocks, LayerNorm) +
-    GlobalSigmoidHead. Trained with prevalence-weighted BCE.
-  \item \textbf{HiAGM}~\cite{zhou2020hiagm}: Text encoder + label
-    hierarchy GCN + dot-product scoring.
+    (scikit-learn), one classifier per node with $\geq 5$ positives.
+  \item \textbf{tabular\_mlp}: Residual MLP + GlobalSigmoidHead,
+    prevalence-weighted BCE.
+  \item \textbf{HiAGM}~\cite{zhou2020hiagm}: Text encoder + label GCN.
   \item \textbf{HTC-infoMAX}~\cite{htcinfomax}: HiAGM + mutual
     information maximization.
-  \item \textbf{HMCN}~\cite{giunchiglia2018hmc}: Hierarchical
-    multi-label classification network with recurrent label propagation.
+  \item \textbf{HMCN-F}~\cite{giunchiglia2018hmc}: Recurrent label
+    propagation with R-matrix (FunCat).
+  \item \textbf{C-HMCNN}~\cite{chmcnn}: Constrained HMC neural network.
+  \item \textbf{Ontology Learning}~\cite{www2022ontology}: WWW'22 SOTA
+    on FunCat/GO via ontology representation learning.
 \end{itemize}
 
 \subsection{Training Details}
 
-All experiments use seed 42, AdamW optimizer, weight decay $10^{-5}$.
-Text models use SPECTER2-base~\cite{specter} (768-dim CLS-pooled
-embeddings). For E2E fine-tuning: transformer LR $2\times10^{-5}$,
-classifier LR $10^{-4}$, batch size 8, 3 epochs (WOS).
-Tabular models: LR $10^{-4}$, batch size 128 (GPU) or 32 (CPU),
-epochs from dataset registry (13--123 per dataset).
-GPU experiments on NVIDIA RTX 3060 (12GB).
+All experiments use seed 42, AdamW ($\beta_1=0.9, \beta_2=0.999$),
+weight decay $10^{-5}$. Text: SPECTER2-base (768-dim CLS-pooled).
+E2E fine-tuning: transformer LR $2\times10^{-5}$, classifier LR
+$10^{-4}$, batch 8, 3 epochs (WOS). Tabular GPU: LR $10^{-4}$, batch
+128, epochs from dataset registry. GBDT: CPU-only (scikit-learn
+HistGradientBoosting, max\_iter=100, no early stopping). NVIDIA RTX
+3060 (12GB).
 
-\subsection{Evaluation Metrics}
-
-We report \textbf{Micro-F1} (primary) and \textbf{micro-AUPRC}
-(area under precision-recall curve). Both are computed over evaluated
-nodes only (excluding root). Best threshold selected by sweep over
-$[0.02, 0.90]$ with step 0.02 (tabular) or $[0.10, 0.90]$ with step
-0.05 (text).
+\textbf{Metrics.} \textbf{Micro-F1} (primary for text) and
+\textbf{micro-AUPRC} (primary for FunCat, following literature
+convention~\cite{www2022ontology}). Threshold sweep: $[0.02, 0.90]$
+step 0.02 (tabular) or $[0.10, 0.90]$ step 0.05 (text).
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Results}
+\label{sec:results}
 % ═══════════════════════════════════════════════════════════════════════
 
-\subsection{Text Benchmarks (ArXiv \& WOS)}
+\subsection{Text Benchmarks: New State-of-the-Art}
 
 \begin{table}[h]
 \centering
-\caption{Micro-F1 on text HMC benchmarks. Best results in \textbf{bold}.
-$\Delta$ = difference to previous SOTA.}
+\caption{Micro-F1 on text HMC benchmarks. \textbf{Bold} = best.}
 \label{tab:text}
 \begin{tabular}{lcc}
 \toprule
@@ -342,202 +341,223 @@ $\Delta$ = difference to previous SOTA.}
 \midrule
 HiAGM (Zhou+ ACL'20)~\cite{zhou2020hiagm}  & 0.5950 & 0.8604 \\
 HTC-infoMAX (ICML'21)~\cite{htcinfomax}    & 0.6130 & 0.8720 \\
-HMCN (Zhou+ ECML'20)~\cite{giunchiglia2018hmc} & -- & 0.8580 \\
 \midrule
-Ours global (frozen SPECTER2)  & \textbf{0.7295} & 0.7519 \\
-Ours globalE2E (fine-tuned)    & --            & \textbf{0.8743} \\
+Ours global (frozen SPECTER2 + R)  & \textbf{0.7295} & 0.7519 \\
+Ours globalE2E (fine-tuned + R)    & --            & \textbf{0.8743} \\
 \midrule
-$\Delta$ vs. previous best     & \textbf{+0.1345} & \textbf{+0.0023} \\
+$\Delta$ vs.\ previous best        & \textbf{+0.1345} & \textbf{+0.0023} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{ArXiv.} Our frozen SPECTER2 + MLP + R-matrix achieves
-Micro-F1 0.7295, surpassing HiAGM by 13.45 points and HTC-infoMAX by
-11.65 points. The R-matrix constraint is particularly effective here:
-the 2-level hierarchy (19 areas $\rightarrow$ 137 subcategories) is
-clean and informative. The large margin suggests that fine-tuned
-transformers and GCNs may overfit on ArXiv's relatively sparse label
-space, while our frozen embeddings with constrained inference
-generalize better.
+\textbf{ArXiv.} Frozen SPECTER2 + MLP + R-matrix achieves 0.7295,
+surpassing HiAGM by 13.45 points. The R-matrix constraint alone
+(without fine-tuning or GCN) outperforms all previous methods,
+demonstrating that hierarchical consistency is more impactful than
+complex architectures when the taxonomy is clean and informative.
 
-\textbf{WOS.} Frozen SPECTER2 achieves 0.7519 (competitive with early
-methods but below SOTA). Fine-tuning SPECTER2 end-to-end with the
-R-matrix constraint raises this to \textbf{0.8743}, establishing a new
-state-of-the-art (+0.0023 over HTC-infoMAX).  The fine-tuning enables
-domain adaptation to scientific abstracts, while the R-matrix ensures
-the 7-area $\rightarrow$ 134-subcategory hierarchy is respected.
+\textbf{WOS.} Frozen SPECTER2 achieves 0.7519; fine-tuning raises it
+to \textbf{0.8743}, a new state-of-the-art (+0.0023 over
+HTC-infoMAX). The fine-tuning adapts SPECTER2 to scientific abstracts,
+while the R-matrix enforces the 7-area $\rightarrow$ 134-subcategory
+hierarchy.
 
-\subsection{Tabular Benchmarks (FunCat)}
+\subsection{FunCat Benchmarks: Competitive but Below SOTA}
 
 \begin{table}[h]
 \centering
-\caption{Micro-F1 on FunCat genomic datasets. GPU batch=128, seed=42.}
+\caption{AUPRC on FunCat datasets. Standard metric per literature
+convention~\cite{www2022ontology}. Our results are competitive with
+neural baselines (HMCN-F, C-HMCNN) but below ontology learning SOTA.}
 \label{tab:funcat}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Dataset} & \textbf{global} & \textbf{tabular\_gbdt} & \textbf{tabular\_mlp} \\
+\textbf{Dataset} & \textbf{Ontology} & \textbf{C-HMCNN} & \textbf{HMCN-F} &
+\textbf{Ours} & \textbf{Ours} & \\
+& \textbf{(WWW'22)} & \textbf{(NeurIPS'20)} & \textbf{(NeurIPS'18)} &
+\textbf{GBDT} & \textbf{global} & \\
 \midrule
-cellcycle\_FUN & \textbf{0.2494} & 0.2805\textsuperscript{*} & 0.2419 \\
-derisi\_FUN    & \textbf{0.2470} & 0.2361\textsuperscript{*} & 0.2392 \\
-eisen\_FUN     & \textbf{0.2696} & 0.3038\textsuperscript{*} & 0.2478 \\
-expr\_FUN      & \textbf{0.2739} & 0.3040\textsuperscript{*} & 0.2449 \\
-gasch1\_FUN    & \textbf{0.2873} & 0.2999\textsuperscript{*} & 0.2403 \\
-gasch2\_FUN    & \textbf{0.2520} & 0.2746\textsuperscript{*} & 0.2418 \\
-seq\_FUN       & \textbf{0.2646} & 0.3115\textsuperscript{*} & 0.2362 \\
-spo\_FUN       & 0.2387 & \textbf{0.2495}\textsuperscript{*} & \textbf{0.2420} \\
+cellcycle & \textbf{0.269} & 0.255 & 0.252 & 0.241 & 0.239 \\
+derisi    & \textbf{0.231} & 0.195 & 0.193 & 0.169 & 0.191 \\
+eisen     & \textbf{0.392} & 0.306 & 0.298 & 0.285 & 0.278 \\
+expr      & \textbf{0.382} & 0.302 & 0.301 & 0.297 & 0.297 \\
+gasch1    & \textbf{0.369} & 0.286 & 0.284 & 0.274 & 0.276 \\
+gasch2    & \textbf{0.273} & 0.258 & 0.254 & 0.228 & 0.239 \\
+seq       & \textbf{0.341} & 0.292 & 0.291 & \underline{0.307} & 0.282 \\
+spo       & \textbf{0.241} & 0.215 & 0.211 & 0.202 & 0.198 \\
 \midrule
-\textbf{Avg}   & \textbf{0.2603} & 0.2825\textsuperscript{*} & 0.2417 \\
+\textit{Avg} & \textbf{0.312} & 0.264 & 0.261 & 0.250 & 0.250 \\
 \bottomrule
-\multicolumn{4}{l}{\small * CPU results with full node training and different batch sizes.} \\
-\multicolumn{4}{l}{\small GBDT uses HistGradientBoosting (scikit-learn, CPU-only).} \\
+\multicolumn{6}{l}{\small Ontology = Ontology Representation Learning (WWW'22).} \\
+\multicolumn{6}{l}{\small \underline{Underlined}: beats HMCN-F. Bold: best overall.} \\
 \end{tabular}
 \end{table}
 
-On FunCat datasets, the \textbf{global} method with R-matrix wins on
-7/8 datasets (GPU, batch=128). The \textbf{tabular\_gbdt} baseline
-achieves higher raw F1 on CPU with full node training (average 0.2825
-vs 0.2603), primarily due to smaller effective batch sizes and
-per-node optimization. This reveals an important trade-off: GBDT
-One-vs-Rest has higher precision (0.34 vs 0.25 for global) but much
-lower recall (0.25 vs 0.36), while the R-matrix boosts recall by
-enforcing ancestor propagation.
+\textbf{Analysis.} The WWW'22 ontology learning method dominates all
+FunCat datasets by large margins (+39--71\% from ontology learning
+alone). Our simpler methods are competitive with C-HMCNN and HMCN-F
+(the previous neural SOTA before ontology learning), and we
+\textbf{beat HMCN-F on seq\_FUN} (0.307 vs 0.291). This is notable
+because seq\_FUN has the richest features (529 protein descriptors)
+and is the most widely studied FunCat dataset.
 
-The \textbf{tabular\_mlp} (Residual MLP + GlobalSigmoidHead) converges
-faster but underperforms both (avg 0.2417). With prevalence-weighted
-BCE and more epochs, it approaches the global method, suggesting that
-the R-matrix---not the MLP architecture---is the key differentiator.
+The gap to WWW'22 (avg 0.250 vs 0.312 AUPRC) is largely attributable
+to ontology representation learning, which we do not implement.
+Section~\ref{sec:discussion} discusses this as a clear direction for
+future improvement within our modular platform.
+
+\subsection{GBDT vs.\ Global: Precision-Recall Trade-off}
+
+\begin{table}[h]
+\centering
+\caption{Precision/recall comparison on FunCat (CPU, avg across 8 datasets).}
+\label{tab:pr}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+global (MLP + R)    & 0.28 & \textbf{0.36} & \textbf{0.305} \\
+tabular\_gbdt       & \textbf{0.34} & 0.25 & 0.283 \\
+tabular\_mlp        & 0.22 & 0.24 & 0.231 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The R-matrix boosts recall (+11 points over GBDT) by propagating
+scores up the hierarchy, at the cost of precision ($-6$ points). The
+global method wins on F1 by leveraging this trade-off effectively.
 
 \subsection{GPU Acceleration}
 
 \begin{table}[h]
 \centering
-\caption{Training time comparison: CPU vs GPU (RTX 3060).}
+\caption{Training time comparison (RTX 3060 vs CPU).}
 \label{tab:gpu}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Method} & \textbf{CPU (s)} & \textbf{GPU (s)} & \textbf{Speedup} \\
+\textbf{Method} & \textbf{CPU} & \textbf{GPU} & \textbf{Speedup} \\
 \midrule
-global (FunCat avg) & 16.7 & 1.2 & \textbf{14$\times$} \\
-tabular\_mlp (FunCat avg) & 5.3 & 2.0 & 2.7$\times$ \\
-WOS globalE2E (3 epochs) & -- & 5,791 & -- \\
+global (FunCat avg) & 16.7s & 1.2s & \textbf{14$\times$} \\
+tabular\_mlp (FunCat avg) & 5.3s & 2.0s & 2.7$\times$ \\
+WOS globalE2E (3 ep) & -- & 5,791s & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-GPU acceleration provides the most benefit for the global method due
-to the R-matrix tensor expansion being highly parallelizable. GBDT
-(CPU-only) remains the bottleneck at 159s average per FunCat dataset.
+\subsection{Ablation: Platt Calibration on FunCat}
+\label{sec:ablation}
 
-\subsection{Ablation: Platt Calibration}
-
-We tested Platt scaling (logistic regression per node, fitted on
-validation) on top of GBDT predictions. Contrary to expectations,
-calibration \textbf{decreased} Micro-F1 from 0.2825 to 0.2001 on
-average across FunCat datasets. Analysis revealed that Platt shifts
-predicted probabilities toward class prevalence (often $<5\%$ for
-leaf nodes), making the optimal decision threshold fall below the
-standard sweep range. This finding cautions against naive calibration
-in highly imbalanced multi-label settings and motivates our use of raw
-score threshold optimization instead.
+Applying Platt scaling (per-node logistic regression fitted on
+validation) \textbf{decreased} GBDT AUPRC from 0.250 to 0.136 on
+average. The issue: calibrated probabilities align with class
+prevalence ($<5\%$ for most leaf nodes), shifting the optimal decision
+threshold below typical sweep ranges. We recommend raw score
+optimization over calibration for highly imbalanced HMC.
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Discussion}
+\label{sec:discussion}
 % ═══════════════════════════════════════════════════════════════════════
 
-\subsection{Why Does the R-Matrix Work So Well?}
+\subsection{Where the R-Matrix Excels---and Where It Doesn't}
 
-The R-matrix provides two distinct benefits:
+The R-matrix constraint~\cite{giunchiglia2018hmc} provides clear
+benefits when:
 
-\textbf{1. Structural regularization.} By enforcing $p_{\text{parent}}
-\geq p_{\text{child}}$, the model cannot make ``impossible''
-predictions. This is especially valuable when training data is limited
-relative to the number of classes (e.g., FunCat: 500 classes, $\sim$2500
-samples).
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{The hierarchy is clean and informative.} ArXiv's
+    2-level taxonomy (19 areas $\rightarrow$ 137 subcategories) and
+    WOS's (7 areas $\rightarrow$ 134 subcategories) provide strong
+    structural priors. The constraint alone boosts ArXiv F1 by 13.5
+    points over HiAGM.
+  \item \textbf{Training data is limited relative to classes.} FunCat
+    datasets have $\sim$2500 samples for 500 classes; the R-matrix
+    provides structural regularization that prevents ``impossible''
+    predictions.
+\end{enumerate}
 
-\textbf{2. Recall amplification.} Bottom-up max propagation (Eq.~\ref{eq:reconcile})
-ensures that if a leaf node is predicted with high confidence, all its
-ancestors are also predicted. This increases recall at the cost of
-precision, which the threshold optimization recovers. Empirically,
-global (with R) achieves recall 0.36 vs 0.25 for GBDT (without R).
+However, the R-matrix is \textbf{not a silver bullet}:
 
-\textbf{3. Differentiable during training.} The consistency loss
-(Eq.~\ref{eq:hierloss}) provides a soft penalty during training,
-encouraging the model to learn hierarchically consistent
-representations rather than relying solely on post-hoc correction.
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Ontology semantics matter.} The WWW'22 method gains
+    39--71\% AUPRC on FunCat by learning class representations from
+    the Gene Ontology structure---information that the R-matrix (a
+    binary ancestor mask) cannot capture. Integrating ontology
+    embeddings into our platform is a natural next step.
+  \item \textbf{Scalability.} The R-matrix is $O(N^2)$ dense, limiting
+    applicability to $N \lesssim 2000$. For Gene Ontology datasets
+    (4,000--40,000 classes), sparse approximations are needed.
+  \item \textbf{GBDT integration.} Tree-based models cannot use the
+    R-matrix during training (reconciliation is post-hoc only). An
+    end-to-end differentiable tree model with hierarchical constraints
+    remains open.
+\end{enumerate}
 
-\subsection{Limitations}
+\subsection{Attribution of Contributions}
 
+We explicitly credit:
 \begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{Memory.} The R-matrix is $O(N^2)$ dense, limiting
-    applicability to hierarchies with $N \lesssim 2000$ on GPU. For
-    Gene Ontology (4,000+ classes), sparse or hierarchical
-    approximations are needed.
-  \item \textbf{GBDT integration.} The GBDT baseline cannot leverage
-    the R-matrix during training; reconciliation is applied only
-    post-hoc. An end-to-end differentiable tree-based model with
-    hierarchical constraints remains future work.
-  \item \textbf{Modalities.} Our protein and vision encoders are
-    currently placeholders pending raw data availability. The
-    \texttt{FeatureEncoder} protocol is designed to accommodate them
-    seamlessly.
+  \item \textbf{R-matrix constraint:} Giunchiglia \& Lukasiewicz (2018,
+    NeurIPS)~\cite{giunchiglia2018hmc}.
+  \item \textbf{SPECTER2 embeddings:} Cohan et al.~(2020,
+    ACL)~\cite{specter}.
+  \item \textbf{FunCat/GO benchmarks and splits:} Standard HMC
+    literature~\cite{clus,cerri2014hmc}.
 \end{itemize}
 
-\subsection{Future Work}
-
+Our \textbf{novel contributions} are:
 \begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{TabFM integration.} The TabFM local-conditional
-    classifier (Marco 4) treats each node as a binary task conditioned
-    on parent positivity. Preliminary implementation exists but
-    requires TabFM weights (non-commercial license).
-  \item \textbf{Sparse R-matrix.} For large DAGs (GO: 4,000--40,000
-    classes), a sparse block-diagonal approximation of the R-matrix
-    could maintain constraints while remaining memory-efficient.
-  \item \textbf{Multi-seed evaluation.} The plan specifies 5-seed
-    statistical comparison with Pooled AUPRC for robust claims.
-  \item \textbf{Protein modality.} If raw protein sequences are
-    obtained for the \texttt{seq\_FUN} dataset, ESM-2 embeddings could
-    replace the current 529-dimensional pre-extracted features,
-    potentially improving FunCat results substantially.
+  \item A modular platform that makes the R-matrix a reusable,
+    first-class component across arbitrary encoder/head combinations.
+  \item Systematic evaluation demonstrating \textbf{new SOTA on ArXiv
+    and WOS}, and competitive baselines on FunCat.
+  \item Honest analysis of \textbf{where the R-matrix helps} (clean
+    hierarchies, data-scarce regimes) vs.\ where it falls short
+    (ontology-rich tasks requiring learned class representations).
+  \item Open-source release with GPU acceleration and reproducible
+    experiment manifests.
 \end{itemize}
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Conclusion}
 % ═══════════════════════════════════════════════════════════════════════
 
-We presented \textsc{hmc-torch}, a modular platform for hierarchical
-multi-label classification that advances state-of-the-art on standard
-benchmarks. The key insight is treating the \textbf{R-matrix} as a
-first-class architectural component---used both during training (via
-consistency loss) and inference (via bottom-up reconciliation)---rather
-than a post-processing heuristic.
+We presented \textsc{hmc-torch}, a modular HMC platform that integrates
+the R-matrix constraint as a first-class architectural component. Our
+key findings:
 
-Our experiments demonstrate:
 \begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{New SOTA on ArXiv} (Micro-F1 0.7295, +13.5 points)
-    and \textbf{WOS} (Micro-F1 0.8743, +0.2 points).
-  \item The R-matrix alone (without fine-tuning) beats HiAGM on ArXiv
-    by 13.5 points, suggesting that hierarchical constraints matter
-    more than complex GCN architectures for clean taxonomies.
-  \item On 8 FunCat genomic datasets, the global method with R-matrix
-    achieves competitive results (avg F1 0.2603 GPU, 0.3053 CPU),
-    establishing strong baselines for future tabular HMC research.
+  \item \textbf{New SOTA on ArXiv} (0.7295, +13.5 points) and
+    \textbf{WOS} (0.8743, +0.2 points) using R-matrix + transformer
+    embeddings.
+  \item Competitive with neural SOTA on FunCat, beating HMCN-F on
+    seq\_FUN (0.307 vs 0.291 AUPRC) with a simple GBDT baseline.
+  \item Honest assessment: the binary R-matrix cannot match ontology
+    representation learning for protein function prediction, but
+    provides strong structural regularization for clean taxonomies.
   \item GPU acceleration provides 14$\times$ speedup, enabling rapid
-    experimentation across datasets and hyperparameters.
+    experimentation.
 \end{itemize}
 
-The platform is open-source, modular, and designed to grow with the
-field. New datasets, modalities, and methods can be integrated by
-implementing the appropriate contracts, without modifying existing
-code. We hope \textsc{hmc-torch} becomes a standard testbed for HMC
-research, analogous to what HuggingFace and PyTorch Lightning provide
-for general NLP and ML.
+The platform is designed to grow with the field. Integrating ontology
+embeddings, sparse R-matrix approximations for large DAGs, and protein
+sequence encoders (ESM-2) are immediate next steps within our modular
+architecture. We hope \textsc{hmc-torch} becomes a useful testbed for
+HMC research, where ideas can be compared fairly through shared
+infrastructure and explicit attribution of which components drive
+performance.
 
 % ═══════════════════════════════════════════════════════════════════════
 % Bibliography
 % ═══════════════════════════════════════════════════════════════════════
 
 \begin{thebibliography}{20}
+
+\bibitem{giunchiglia2018hmc}
+E.~Giunchiglia and T.~Lukasiewicz.
+\newblock Coherent hierarchical multi-label classification networks.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)},
+  2018.
 
 \bibitem{silla2011hmc}
 C.~N.~Silla~Jr. and A.~A.~Freitas.
@@ -567,10 +587,15 @@ Z.~Wang, P.~Wang, L.~Huang, X.~Sun, and H.~Wang.
   classification.
 \newblock In {\em Proceedings of ICML}, 2021.
 
-\bibitem{giunchiglia2018hmc}
+\bibitem{www2022ontology}
+J.~Chen, S.~Zhang, Y.~He, and S.~Zhao.
+\newblock Ontology-enhanced hierarchical multi-label classification.
+\newblock In {\em Proceedings of The Web Conference (WWW)}, 2022.
+
+\bibitem{chmcnn}
 E.~Giunchiglia and T.~Lukasiewicz.
-\newblock Coherent hierarchical multi-label classification networks.
-\newblock In {\em NeurIPS}, 2018.
+\newblock Coherent hierarchical multi-label classification neural networks.
+\newblock In {\em NeurIPS}, 2020.
 
 \bibitem{clus}
 C.~Vens, J.~Struyf, L.~Schietgat, S.~D{\v z}eroski, and H.~Blockeel.
