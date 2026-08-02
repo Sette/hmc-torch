@@ -23,12 +23,16 @@ logger = logging.getLogger(__name__)
 
 
 def train_local(dataset_name, args):
-    """Train one MLP per hierarchy level on transformer embeddings."""
+    """Train one MLP per hierarchy level on features (transformer or tabular)."""
     args.device = torch.device(args.device)
     args.data = dataset_name
     args.ontology = None
 
-    # 1. Dataset — same as global pipeline
+    # Detect dataset family for registry lookup
+    _is_gofun = any(suffix in (dataset_name or "")
+                    for suffix in ("_FUN", "_GO", "_others"))
+
+    # 1. Dataset
     args.hmc_dataset = initialize_dataset_experiments(
         dataset_name,
         device=args.device,
@@ -47,11 +51,14 @@ def train_local(dataset_name, args):
     )
     os.makedirs(args.results_path, exist_ok=True)
 
-    # 2. Hyperparameters
-    defaults = (
-        args.registry.wos_defaults if dataset_name == "wos"
-        else args.registry.arxiv_defaults
-    )
+    # 2. Hyperparameters — pick defaults based on dataset family
+    if dataset_name == "wos":
+        defaults = args.registry.wos_defaults
+    elif _is_gofun:
+        defaults = args.registry.gofun_defaults
+    else:
+        defaults = args.registry.arxiv_defaults
+
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
     args.epochs = defaults["epochs"]
@@ -66,7 +73,7 @@ def train_local(dataset_name, args):
         args.hmc_dataset.to_eval, dtype=torch.bool
     )
 
-    # 3. Convert features to tensors (no sklearn scaling for text data)
+    # 3. Convert features to tensors
     for split in (args.train, args.valid, args.test):
         split.samples.x = (
             torch.tensor(split.x).clone().detach().float().to(args.device)
@@ -75,7 +82,7 @@ def train_local(dataset_name, args):
             torch.tensor(split.y).clone().detach().float().to(args.device)
         )
 
-    # 4. Build DataLoaders
+    # 4. Build DataLoaders — concat train + valid for training
     train_dataset = list(zip(args.train.x, args.train.y, args.train.y_local))
     for x, y, yl in zip(args.valid.x, args.valid.y, args.valid.y_local):
         train_dataset.append((x, y, yl))
@@ -235,6 +242,9 @@ def train_local_e2e(dataset_name, args):
 
     from hmc.models.local_classifier.model import LocalE2EModel
 
+    _is_gofun_e2e = any(suffix in (dataset_name or "")
+                        for suffix in ("_FUN", "_GO", "_others"))
+
     args.device = torch.device(args.device)
     model_name = args.dataset.arxiv_model_name
 
@@ -258,6 +268,7 @@ def train_local_e2e(dataset_name, args):
 
     defaults = (
         args.registry.wos_defaults if dataset_name == "wos"
+        else args.registry.gofun_defaults if _is_gofun_e2e
         else args.registry.arxiv_defaults
     )
     args.lr = defaults["lr"]

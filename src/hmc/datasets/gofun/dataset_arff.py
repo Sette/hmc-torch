@@ -260,12 +260,23 @@ class HMCDatasetArff:
                 if label != "root":
                     level = nx.shortest_path_length(g_t, "root").get(label) - 1
                     levels[level].append(label)
+        else:
+            # Non-GO (FunCat): assign every node (including root and
+            # intermediate nodes) to its correct depth level.
+            for label in nodes:
+                level = len(label.split(".")) - 1
+                levels[level].append(label)
 
         levels_size = {key: len(set(value)) for key, value in levels.items()}
         max_depth = len(levels_size)
+        # Deduplicate level nodes before indexing so that local_nodes_idx
+        # maps each node to a valid 0..n-1 index within its level.
+        levels_unique = {
+            key: sorted(set(value)) for key, value in levels.items()
+        }
         local_nodes_idx = {
-            idx: dict(zip(level_nodes, range(len(level_nodes))))
-            for idx, level_nodes in levels.items()
+            idx: {node: i for i, node in enumerate(level_nodes)}
+            for idx, level_nodes in levels_unique.items()
         }
 
         self.hierarchy.terms = nodes

@@ -39,3 +39,15 @@ class DatasetRegistry:
             "dropout": 0.3,
         }
     )
+
+    gofun_defaults: dict = field(
+        default_factory=lambda: {
+            "hidden_dim": 512,
+            "lr": 1e-4,
+            "epochs": 100,
+            "weight_decay": 1e-5,
+            "batch_size": 32,
+            "num_layers": 3,
+            "dropout": 0.3,
+        }
+    )

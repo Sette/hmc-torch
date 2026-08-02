@@ -62,6 +62,10 @@ def main() -> dict:
         args.job_id,
     )
 
+    # GoFun ARFF datasets only support local classifier for now
+    _is_gofun = any(suffix in (args.dataset.dataset_name or "")
+                    for suffix in ("_FUN", "_GO", "_others"))
+
     match args.method:
         case "global" | "global_baseline" | "globalGNN" | "globalLM":
             logging.info("Global classifier (frozen embeddings)")
@@ -84,6 +88,14 @@ def main() -> dict:
         case "localE2E":
             logging.info("Local E2E (fine-tuned transformer + per-level MLPs)")
             train_local_e2e(args.dataset.dataset_name, args)
+        case "tabular_gbdt":
+            logging.info("Tabular GBDT One-vs-Rest baseline")
+            from hmc.pipeline.tabular.main import train_gbdt
+            train_gbdt(args.dataset.dataset_name, args)
+        case "tabular_mlp":
+            logging.info("Tabular Residual MLP baseline")
+            from hmc.pipeline.tabular.main import train_tabular_mlp
+            train_tabular_mlp(args.dataset.dataset_name, args)
         case _:
             print(
                 f"Unknown method '{args.method}'. "

@@ -86,12 +86,27 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
         self.hierarchy_map = {}
 
         if kwargs["dataset_type"] == "arff":
-            (
-                self.dataset_values["is_go"],
-                self.dataset_values["train_file"],
-                self.dataset_values["valid_file"],
-                self.dataset_values["test_file"],
-            ) = kwargs["dataset"]
+            ds = kwargs["dataset"]
+            n = len(ds)
+            if n == 3:
+                # No validation split (e.g. enron_others, diatoms_others)
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+                self.dataset_values["valid_file"] = self.dataset_values["test_file"]
+            elif n == 4:
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["valid_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+            else:
+                raise ValueError(
+                    f"Expected dataset tuple of length 3 or 4, got {n}"
+                )
             self.load_arff_data()
 
     def load_structure_from_json(self, labels_json):
@@ -246,22 +261,33 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
     def load_arff_data(self):
         """
         Load features and labels from ARFF, and optionally a hierarchy graph from JSON.
-        Args:
-            arff_file (str): Path to the ARFF file.
-            is_go (bool): Whether the ARFF file contains Gene Ontology data.
         """
         logging.info("Loading dataset from %s", self.dataset_values["train_file"])
         self.dataset_values["train"] = HMCDatasetArff(
             self.dataset_values["train_file"], is_go=self.dataset_values["is_go"]
         )
-        logging.info("Loading dataset from %s", self.dataset_values["valid_file"])
-        self.dataset_values["valid"] = HMCDatasetArff(
-            self.dataset_values["valid_file"], is_go=self.dataset_values["is_go"]
-        )
-        logging.info("Loading dataset from %s", self.dataset_values["test_file"])
+
+        valid_file = self.dataset_values["valid_file"]
+        test_file = self.dataset_values["test_file"]
+
+        if valid_file and valid_file != test_file:
+            logging.info("Loading dataset from %s", valid_file)
+            self.dataset_values["valid"] = HMCDatasetArff(
+                valid_file, is_go=self.dataset_values["is_go"]
+            )
+        else:
+            # No separate validation split: reuse test as validation placeholder
+            logging.info("No separate validation split; reusing test as validation")
+            self.dataset_values["valid"] = None  # will be handled downstream
+
+        logging.info("Loading dataset from %s", test_file)
         self.dataset_values["test"] = HMCDatasetArff(
-            self.dataset_values["test_file"], is_go=self.dataset_values["is_go"]
+            test_file, is_go=self.dataset_values["is_go"]
         )
+
+        # When valid is None, use test as validation for training
+        if self.dataset_values["valid"] is None:
+            self.dataset_values["valid"] = self.dataset_values["test"]
         self.a = self.dataset_values["train"].a
         self.edge_index = self.dataset_values["train"].edge_index
         # self.r_matrix = self.compute_r_matrix(self.a)
@@ -295,6 +321,16 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
             if children:
                 self.dataset_values["hierarchy_map"][parent] = children
         self.hierarchy_map = self.dataset_values["hierarchy_map"]  # already in __init__
+
+    @property
+    def input_dim(self) -> int:
+        """int: Number of input features (columns in the ARFF feature matrix)."""
+        return self.dataset_values["train"].x.shape[1]
+
+    @property
+    def output_dim(self) -> int:
+        """int: Total number of output nodes (classes) in the hierarchy."""
+        return len(self.dataset_values["train"].terms)
 
     def get_datasets(self):
         """

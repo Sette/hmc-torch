@@ -25,6 +25,16 @@ from hmc.utils.train.job import (
 )
 
 
+def _get_defaults(registry, dataset_name: str) -> dict:
+    """Pick default hyperparams based on dataset family."""
+    if dataset_name == "wos":
+        return registry.wos_defaults
+    if any(suffix in (dataset_name or "")
+           for suffix in ("_FUN", "_GO", "_others")):
+        return registry.gofun_defaults
+    return registry.arxiv_defaults
+
+
 def train_global(dataset_name, args):
     """
     Train a global classifier
@@ -58,10 +68,7 @@ def train_global(dataset_name, args):
         f"output/train/{args.method}-{args.dataset.dataset_name}/{args.job_id}"
     )
 
-    defaults = (
-        args.registry.wos_defaults if dataset_name == "wos"
-        else args.registry.arxiv_defaults
-    )
+    defaults = _get_defaults(args.registry, dataset_name)
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
     args.epochs = defaults["epochs"]
@@ -187,10 +194,7 @@ def train_global_e2e(dataset_name, args):
     args.to_eval = (
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
-    defaults = (
-        args.registry.wos_defaults if dataset_name == "wos"
-        else args.registry.arxiv_defaults
-    )
+    defaults = _get_defaults(args.registry, dataset_name)
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
     # Respect --epochs from CLI if explicitly set, otherwise use defaults
@@ -284,10 +288,7 @@ def train_global_sota(dataset_name, args):
     args.to_eval = (
         torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
     )
-    defaults = (
-        args.registry.wos_defaults if dataset_name == "wos"
-        else args.registry.arxiv_defaults
-    )
+    defaults = _get_defaults(args.registry, dataset_name)
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
     # Respect --epochs from CLI if explicitly set

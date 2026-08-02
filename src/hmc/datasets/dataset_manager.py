@@ -1,6 +1,35 @@
-"""Dataset manager — entry point for loading ArXiv and WOS HMC datasets."""
+"""Dataset manager — entry point for loading all supported HMC datasets.
+
+Supported families:
+  - ``arxiv``, ``wos`` — text transformer-based (SPECTER2)
+  - ``seq_FUN``, ``cellcycle_FUN``, ..., ``spo_GO`` — ARFF tabular (GoFun)
+"""
 
 import os
+
+
+def _load_gofun_dataset(name: str, device: str, dataset_path: str,
+                        is_global: bool):
+    """Load a GoFun ARFF dataset using HMCDatasetManager."""
+    from hmc.datasets.gofun.manager import HMCDatasetManager
+    from hmc.utils.datasets.paths import get_dataset_paths
+
+    datasets = get_dataset_paths(dataset_path=dataset_path)
+
+    if name not in datasets:
+        raise ValueError(
+            f"Dataset '{name}' not found in GoFun paths. "
+            f"Available: {[k for k in datasets if '_FUN' in k or '_GO' in k or '_others' in k]}"
+        )
+
+    kwargs = {
+        "dataset": datasets[name],
+        "dataset_type": "arff",
+        "device": device,
+        "is_global": is_global,
+    }
+
+    return HMCDatasetManager(**kwargs)
 
 
 def initialize_dataset_experiments(
@@ -16,9 +45,10 @@ def initialize_dataset_experiments(
 ):
     """Initialize and return a dataset manager for the specified dataset.
 
-    Supported datasets: ``"arxiv"``, ``"wos"``.
+    Supported datasets: ``"arxiv"``, ``"wos"``, and all GoFun ARFF datasets
+    (e.g. ``"seq_FUN"``, ``"cellcycle_FUN"``, ``"eisen_GO"``, ``"enron_others"``).
 
-    Returns an ``ArXivManager`` or ``WOSManager`` instance.
+    Returns an ``ArXivManager``, ``WOSManager``, or ``HMCDatasetManager`` instance.
     """
     if name == "arxiv":
         from hmc.datasets.arxiv.manager import (  # pylint: disable=import-outside-toplevel
@@ -51,6 +81,7 @@ def initialize_dataset_experiments(
             model_cache_dir=model_cache_dir,
         )
 
-    raise ValueError(
-        f"Dataset '{name}' not supported. Available: arxiv, wos"
+    # GoFun ARFF datasets: seq_FUN, cellcycle_FUN, eisen_GO, enron_others, etc.
+    return _load_gofun_dataset(
+        name, device=device, dataset_path=dataset_path, is_global=is_global,
     )

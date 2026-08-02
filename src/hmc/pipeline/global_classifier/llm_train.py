@@ -549,8 +549,11 @@ def train_global_llm(dataset_name, args):
     args.ontology = None
     args.to_eval = torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool).clone().detach()
 
+    _is_gofun_llm = any(suffix in (dataset_name or "")
+                         for suffix in ("_FUN", "_GO", "_others"))
     defaults = (
         args.registry.wos_defaults if dataset_name == "wos"
+        else args.registry.gofun_defaults if _is_gofun_llm
         else args.registry.arxiv_defaults
     )
     args.hidden_dim = defaults["hidden_dim"]
