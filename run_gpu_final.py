@@ -29,7 +29,7 @@ def compute_metrics(y_true, y_pred, eval_mask):
     y_p = torch.tensor(y_pred).cuda()
     e_m = torch.tensor(eval_mask).cuda()
     best = (0.0, 0.5, 0.0, 0.0)
-    for thr in np.arange(0.1, 0.90, 0.05):
+    for thr in np.arange(0.02, 0.90, 0.02):
         y_bin = (y_p >= thr).float()
         tp = (y_bin[:, e_m] * y_t[:, e_m]).sum()
         fp = (y_bin[:, e_m] * (1 - y_t[:, e_m])).sum()
@@ -132,8 +132,13 @@ for ds_name in DATASETS:
             print(f"  [global] ep {ep+1}/{epochs_g}")
 
     model_g.eval()
+    # Batched inference to avoid OOM from R-matrix expansion
+    s_g_list = []
+    te_ldr_g = DataLoader(TensorDataset(torch.tensor(X_te)), batch_size=64, shuffle=False)
     with torch.no_grad():
-        s_g = model_g(Xt_te.to(DEVICE)).cpu().numpy()
+        for (bx,) in te_ldr_g:
+            s_g_list.append(model_g(bx.to(DEVICE)).cpu().numpy())
+    s_g = np.concatenate(s_g_list, axis=0)
     f1_g, au_g, p_g, r_g, th_g = compute_metrics(y_te, s_g, eval_mask)
     dur_g = time.time() - t0
     all_results.append({"method": "global", "dataset": ds_name,
