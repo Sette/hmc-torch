@@ -18,8 +18,6 @@ from hmc.arguments import parse_args
 from hmc.pipeline.global_classifier.main import (
     train_global,
     train_global_e2e,
-    train_global_llm,
-    train_global_llm_lite,
     train_global_sota,
 )
 from hmc.pipeline.local_classifier.main import train_local, train_local_e2e
@@ -34,9 +32,18 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
-def main() -> dict:
-    """Main training function (entrypoint)."""
-    args = parse_args()
+def main(args: "Args | None" = None) -> dict:
+    """Main training function (entrypoint).
+
+    Args:
+        args: Pre-built :class:`Args` object.  If ``None``, args are
+            parsed from the command line via :func:`parse_args`.
+
+    Returns:
+        Dictionary with training metrics.
+    """
+    if args is None:
+        args = parse_args()
     args.score = 0.0
 
     # Set seed
@@ -76,12 +83,6 @@ def main() -> dict:
         case "globalSOTA":
             logging.info("Global SOTA (transformer + label GCN)")
             train_global_sota(args.dataset.dataset_name, args)
-        case "globalLLM":
-            logging.info("Global LLM reranker (E2E + LLM)")
-            train_global_llm(args.dataset.dataset_name, args)
-        case "globalLLMLite":
-            logging.info("Global LLM lite reranker (cheaper LLM gate)")
-            train_global_llm_lite(args.dataset.dataset_name, args)
         case "local":
             logging.info("Local classifier (frozen, one MLP per level)")
             train_local(args.dataset.dataset_name, args)

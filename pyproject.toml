@@ -6,10 +6,36 @@ build-backend = "hatchling.build"
 name = "hmc-torch"
 version = "0.0.9"
 
-description = "Hierarchical Multi-Label Classification Network in Pytorch"
-authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
+description = "A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints"
+authors = [{ name = "Bruno Sette", email = "brunosilvasette@gmail.com" }]
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
+license = { text = "MIT" }
+keywords = [
+    "hierarchical-multi-label-classification",
+    "hmc",
+    "deep-learning",
+    "pytorch",
+    "r-matrix",
+    "hierarchical-classification",
+    "multi-label",
+    "gene-ontology",
+    "text-classification",
+    "genomics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Text Processing",
+]
 dependencies = [
     "tqdm==4.67.3",
     "numpy==2.4.3",
@@ -34,6 +60,17 @@ tabfm = ["tabfm[pytorch]"]
 vision = ["timm", "opencv-python-headless"]
 protein = ["fair-esm"]
 expression = ["scipy"]
+
+[project.urls]
+Homepage = "https://github.com/Sette/hmc-torch"
+Repository = "https://github.com/Sette/hmc-torch"
+Documentation = "https://github.com/Sette/hmc-torch#readme"
+"Issues" = "https://github.com/Sette/hmc-torch/issues"
+
+[project.entry-points."hmc_torch.datasets"]
+# Built-in datasets are auto-registered on import.
+# External packages can register custom datasets here:
+# my_dataset = "my_package.my_module:create_manager"
 
 [dependency-groups]
 dev = [
