@@ -81,6 +81,51 @@ def initialize_dataset_experiments(
             model_cache_dir=model_cache_dir,
         )
 
+    if name == "aapd":
+        from hmc.datasets.aapd.manager import (  # pylint: disable=import-outside-toplevel
+            AAPDManager,
+        )
+
+        data_dir = os.path.join(dataset_path, "aapd")
+        return AAPDManager(
+            data_dir=data_dir,
+            model_name=arxiv_model_name,
+            max_records=arxiv_max_records if arxiv_max_records > 0 else None,
+            cache_dir=arxiv_cache_dir,
+            load_features=arxiv_load_features,
+            model_cache_dir=model_cache_dir,
+        )
+
+    if name == "rcv1":
+        from hmc.datasets.rcv1.manager import (  # pylint: disable=import-outside-toplevel
+            RCV1Manager,
+        )
+
+        data_dir = os.path.join(dataset_path, "rcv1")
+        return RCV1Manager(
+            data_dir=data_dir,
+            model_name=arxiv_model_name,
+            max_records=arxiv_max_records if arxiv_max_records > 0 else None,
+            cache_dir=arxiv_cache_dir,
+            load_features=arxiv_load_features,
+            model_cache_dir=model_cache_dir,
+        )
+
+    if name == "eurlex":
+        from hmc.datasets.eurlex.manager import (  # pylint: disable=import-outside-toplevel
+            EURLexManager,
+        )
+
+        data_dir = os.path.join(dataset_path, "eurlex")
+        return EURLexManager(
+            data_dir=data_dir,
+            model_name=arxiv_model_name,
+            max_records=arxiv_max_records if arxiv_max_records > 0 else None,
+            cache_dir=arxiv_cache_dir,
+            load_features=arxiv_load_features,
+            model_cache_dir=model_cache_dir,
+        )
+
     # GoFun ARFF datasets: seq_FUN, cellcycle_FUN, eisen_GO, enron_others, etc.
     return _load_gofun_dataset(
         name, device=device, dataset_path=dataset_path, is_global=is_global,

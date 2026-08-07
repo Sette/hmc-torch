@@ -27,6 +27,21 @@ AVAILABLE = {
         "description": "Web of Science abstracts (HTC benchmark)",
         "size": "~50 MB",
     },
+    "aapd": {
+        "module": "hmc.datasets.aapd.download_aapd",
+        "description": "arXiv Academic Paper Dataset (HuggingFace/Kaggle)",
+        "size": "~150 MB",
+    },
+    "rcv1": {
+        "module": "hmc.datasets.rcv1.download_rcv1",
+        "description": "Reuters Corpus Volume 1 v2 (HTC benchmark)",
+        "size": "~200 MB",
+    },
+    "eurlex": {
+        "module": "hmc.datasets.eurlex.download_eurlex",
+        "description": "EU legislation with EUROVOC hierarchy (~4K labels)",
+        "size": "~300 MB",
+    },
 }
 
 

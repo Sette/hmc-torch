@@ -13,6 +13,7 @@ class DatasetRegistry:
         default_factory=lambda: {
             "arxiv": 768,
             "wos": 768,
+            "aapd": 768, "rcv1": 768, "eurlex": 768,
             "diatoms": 371, "enron": 1001,
             "imclef07a": 80, "imclef07d": 80,
             "cellcycle": 77, "church": 31, "derisi": 63,
@@ -41,6 +42,42 @@ class DatasetRegistry:
             "weight_decay": 1e-5,
             "batch_size": 32,
             "num_layers": 3,
+            "dropout": 0.3,
+        }
+    )
+
+    aapd_defaults: dict = field(
+        default_factory=lambda: {
+            "hidden_dim": 512,
+            "lr": 1e-4,
+            "epochs": 50,
+            "weight_decay": 1e-5,
+            "batch_size": 32,
+            "num_layers": 3,
+            "dropout": 0.3,
+        }
+    )
+
+    rcv1_defaults: dict = field(
+        default_factory=lambda: {
+            "hidden_dim": 512,
+            "lr": 1e-4,
+            "epochs": 50,
+            "weight_decay": 1e-5,
+            "batch_size": 32,
+            "num_layers": 3,
+            "dropout": 0.3,
+        }
+    )
+
+    eurlex_defaults: dict = field(
+        default_factory=lambda: {
+            "hidden_dim": 512,
+            "lr": 1e-4,
+            "epochs": 30,
+            "weight_decay": 1e-5,
+            "batch_size": 16,  # smaller batch for ~4K output nodes
+            "num_layers": 2,
             "dropout": 0.3,
         }
     )

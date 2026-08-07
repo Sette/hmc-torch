@@ -10,6 +10,15 @@ download-arxiv:
 download-wos:
 	python -m hmc.datasets.wos.download_wos --output_dir ./data/wos
 
+download-aapd:
+	python -m hmc.datasets.aapd.download_aapd --output_dir ./data/aapd
+
+download-rcv1:
+	python -m hmc.datasets.rcv1.download_rcv1 --output_dir ./data/rcv1
+
+download-eurlex:
+	python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
+
 download-all:
 	python -m hmc.datasets.download_all --continue-on-error
 
