@@ -354,24 +354,6 @@ def train_global_sota(dataset_name, args):
     return train_e2e_step(args)
 
 
-def train_global_llm(dataset_name, args):
-    """Train E2E base model and rerank predictions using an LLM."""
-    from hmc.pipeline.global_classifier.llm_train import (  # pylint: disable=import-outside-toplevel
-        train_global_llm as _train_global_llm,
-    )
-
-    return _train_global_llm(dataset_name, args)
-
-
-def train_global_llm_lite(dataset_name, args):
-    """Train E2E base model with a cheaper LLM gate."""
-    from hmc.pipeline.global_classifier.llm_train import (  # pylint: disable=import-outside-toplevel
-        train_global_llm_lite as _train_global_llm_lite,
-    )
-
-    return _train_global_llm_lite(dataset_name, args)
-
-
 def fit_trainer(args):
     """
     Fit the trainer

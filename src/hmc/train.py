@@ -51,8 +51,7 @@ def train(
     Args:
         dataset_name: Dataset identifier (e.g. ``"wos"``, ``"seq_FUN"``).
         method: One of ``"global"``, ``"globalE2E"``, ``"globalSOTA"``,
-            ``"globalLLM"``, ``"globalLLMLite"``, ``"local"``,
-            ``"localE2E"``, ``"tabular_gbdt"``, ``"tabular_mlp"``.
+            ``"local"``, ``"localE2E"``, ``"tabular_gbdt"``, ``"tabular_mlp"``.
         device: ``"cpu"`` or ``"cuda"``.
         epochs: Number of training epochs.
         batch_size: Mini-batch size.
@@ -60,7 +59,7 @@ def train(
         output_path: Directory for outputs (models, metrics, manifests).
         seed: Random seed for reproducibility.
         **kwargs: Additional arguments forwarded to :class:`TrainingConfig`
-            (e.g. ``hidden_dim``, ``lr``, ``dropout``, ``llm_model``,
+            (e.g. ``hidden_dim``, ``lr``, ``dropout``,
             ``arxiv_model_name``, ``non_lin``, etc.).
 
     Returns:

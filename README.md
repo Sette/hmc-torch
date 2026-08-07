@@ -70,11 +70,8 @@ import hmc
 # Train a global classifier with R-matrix constraint
 results = hmc.train("wos", method="globalE2E", device="cuda", epochs=5)
 
-# Train with LLM reranking
-results = hmc.train(
-    "arxiv", method="globalLLMLite", device="cuda",
-    llm_model="qwen3:14b", llm_cache=True
-)
+# Train a tabular baseline
+results = hmc.train("cellcycle_FUN", method="tabular_mlp", device="cuda", epochs=100)
 ```
 
 ### CLI
@@ -142,8 +139,6 @@ DatasetRegistry.register("my_data", lambda **kw: MyDataset(**kw))
 | `global` | Frozen embeddings + MLP + R-matrix constraint |
 | `globalE2E` | End-to-end fine-tuned transformer + MLP + R-matrix |
 | `globalSOTA` | E2E + GCN label-graph encoder (HiAGM-style) |
-| `globalLLM` | E2E + Ollama reranking over candidate labels |
-| `globalLLMLite` | E2E + cheaper uncertainty-gated Ollama reranking with cache/fallback |
 | `local` | Frozen embeddings, one MLP per hierarchy level |
 | `localE2E` | Fine-tuned transformer + per-level MLPs |
 | `tabular_gbdt` | Gradient Boosting One-vs-Rest baseline |
@@ -212,23 +207,6 @@ Our sparse approximation uses graph traversal ($O(N+E)$ memory) with zero hierar
 
 ---
 
-## 🔬 LLM Reranking
-
-Use local LLMs to refine predictions:
-
-```bash
-# Terminal 1: Start Ollama
-ollama serve
-
-# Terminal 2: Pull model & train
-ollama pull qwen3:14b
-python -m hmc.main --dataset_name arxiv --method globalLLMLite --device cuda \
-  --dataset_path ./data --output_path ./output \
-  --llm_model qwen3:14b --llm_cache true --llm_fallback_on_error true
-```
-
----
-
 ## 📁 Project Structure
 
 ```
@@ -248,7 +226,6 @@ src/hmc/
 │   ├── hierarchical/       # Sparse R-matrix, label GCN
 │   └── tabular/            # GBDT + MLP baselines
 ├── pipeline/          # Training pipelines
-├── llm/               # Ollama LLM agent
 └── utils/             # Metrics, manifests, caching
 ```
 

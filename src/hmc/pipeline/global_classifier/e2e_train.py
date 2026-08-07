@@ -115,9 +115,6 @@ def train_e2e_step(args, postprocess_fn=None):
         best_threshold,
         {"usage": usage, "total_time": total_time},
     )
-    if hasattr(args, "llm_rerank_stats"):
-        scores["llm"] = args.llm_rerank_stats
-
     create_dir(args.results_path)
     save_dict_to_json(scores, f"{args.results_path}/test-scores.json")
     args.score = scores["global"]

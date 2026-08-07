@@ -1,8 +1,8 @@
 """
-Main module for training HMC models on ArXiv and WOS datasets.
+Main module for training HMC models.
 
 Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN),
-and globalLLM/globalLLMLite (E2E + LLM reranking).
+local, localE2E, tabular_gbdt, tabular_mlp.
 """
 
 import logging
@@ -100,7 +100,7 @@ def main(args: "Args | None" = None) -> dict:
         case _:
             print(
                 f"Unknown method '{args.method}'. "
-                "Valid: global, globalE2E, globalSOTA, globalLLM, globalLLMLite, local, localE2E"
+                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp"
             )
 
     score: dict = args.score if isinstance(args.score, dict) else {}
