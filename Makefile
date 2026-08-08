@@ -29,7 +29,6 @@ lint-check:
 	uv run flake8 src/
 	uv run ruff format --check src/
 	uv run ruff check src/
-	uv run isort -c src/
 	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/' | grep -v '^notebooks/')
 
 pre-commit:
@@ -41,7 +40,6 @@ lint:
 	uv run flake8 src/
 	uv run ruff format src/
 	uv run ruff check src/ --fix
-	uv run isort src/
 	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/')
 
 run:
