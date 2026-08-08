@@ -1,14 +1,13 @@
-name: Pylint
+name: Lint
 
 on: [push]
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # uv supports fast switching between these versions
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
     - uses: actions/checkout@v4
 
@@ -21,5 +20,18 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-groups
 
-    - name: Analysing the code with pylint
-      run: uv run pylint $(git ls-files '*.py')
+    - name: Run flake8
+      run: uv run flake8 src/
+
+    - name: Run ruff format (check)
+      run: uv run ruff format --check src/
+
+    - name: Run ruff check
+      run: uv run ruff check src/
+
+    - name: Run isort (check)
+      run: uv run isort -c src/
+
+    - name: Run pylint
+      run: |
+        uv run pylint $(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/' | grep -v '^notebooks/')

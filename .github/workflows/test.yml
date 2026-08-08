@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -30,28 +30,7 @@ jobs:
       - name: Run tests
         run: |
           export PYTHONPATH=src
-          uv run pytest tests/ -v --tb=short --ignore=tests/test_llm_optimizations.py
+          uv run pytest tests/ -v --tb=short
 
-      - name: Run lint
-        run: |
-          uv run ruff check src/
-
-  # Heavy-model tests run in a separate manual workflow to avoid
-  # downloading large models (TabFM, ESM, Transformers) on every push.
-  integration:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install with optional deps
-        run: |
-          pip install uv
-          uv sync --all-groups
-      - name: Run integration tests
-        run: |
-          export PYTHONPATH=src
-          uv run pytest tests/test_llm_optimizations.py -v --tb=short
+      - name: Run ruff check
+        run: uv run ruff check src/
