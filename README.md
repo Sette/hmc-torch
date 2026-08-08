@@ -46,7 +46,6 @@ For optional features:
 pip install "hmc-torch[vision]"      # Image models (timm)
 pip install "hmc-torch[protein]"     # Protein models (fair-esm)
 pip install "hmc-torch[expression]"  # Expression autoencoders
-pip install "hmc-torch[tabfm]"       # TabFM foundation model
 ```
 
 ### From source
