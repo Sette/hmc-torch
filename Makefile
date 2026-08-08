@@ -39,8 +39,8 @@ lint:
 	@echo "--> Running linter"
 	uv run flake8 src/
 	uv run ruff format src/
-	uv run ruff check src/ --fix
-	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/')
+	uv run ruff check src/
+	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/'| grep -v '^notebooks/')
 
 run:
 	./run.sh --device cuda --dataset_name wos --method global --output_path output
