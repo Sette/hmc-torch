@@ -158,4 +158,5 @@ ignore = [
     "BLE001",  # blind except: acceptable in download/fallback code
     "S110",    # try-except-pass: acceptable in optional dependency handling
     "PLW1510", # subprocess.run without explicit check (handled via git wrappers)
+    "I001",    # isort ordering: ruff format already handles import sorting
 ]
