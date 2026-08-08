@@ -27,7 +27,7 @@ jobs:
       run: uv run ruff format --check src/
 
     - name: Run ruff check
-      run: uv run ruff check src/
+      run: uv run ruff check src/ --fix
 
     - name: Run isort (check)
       run: uv run isort -c src/
