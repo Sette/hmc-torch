@@ -59,7 +59,7 @@ class TextFeatureEncoder(FeatureEncoder):
         if self._model is not None:
             return
         try:
-            from transformers import AutoModel, AutoTokenizer
+            from transformers import AutoModel, AutoTokenizer  # pylint: disable=import-outside-toplevel
         except ImportError:
             logger.warning("Transformers not installed; text encoder will passthrough")
             return
@@ -95,7 +95,7 @@ class TextFeatureEncoder(FeatureEncoder):
         if self._model is None:
             return split
 
-        import torch
+        import torch  # pylint: disable=import-outside-toplevel
 
         # Split.features is expected to be a list of text strings
         texts = split.features

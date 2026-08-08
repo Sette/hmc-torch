@@ -129,7 +129,7 @@ argument-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
 [tool.pylint.design]
 max-args = 10
 max-positional-arguments = 10
-max-locals = 20
+max-locals = 36
 max-attributes = 20
 max-statements = 70
 min-public-methods = 0
@@ -139,13 +139,6 @@ disable = [
     "E1101",   # no-member: numpy/torch dynamic attributes cause false positives
     "W0201",   # attribute-defined-outside-init: intentional lazy initialization pattern
     "R0801",   # duplicate-code: expected across dataset managers with shared patterns
-    "C0415",   # import-outside-toplevel: intentional lazy imports to avoid circular deps
-    "R0914",   # too-many-locals: training functions naturally have many config vars
-    "C0116",   # missing-function-docstring: not enforced project-wide
-    "W0613",   # unused-argument: common in method signatures for API consistency
-    "W0718",   # broad-exception-caught: acceptable in download/fallback code
-    "W0404",   # reimport: pre-existing pattern in legacy dataset code
-    "R0912",   # too-many-branches: pre-existing in dataset URL resolution
 ]
 
 [tool.ruff]

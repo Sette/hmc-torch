@@ -81,13 +81,14 @@ def train_local(dataset_name, args):
     train_dataset = list(zip(args.train.x, args.train.y, args.train.y_local))
     for x, y, yl in zip(args.valid.x, args.valid.y, args.valid.y_local):
         train_dataset.append((x, y, yl))
-    test_dataset = list(zip(args.test.x, args.test.y, args.test.y_local))
 
     args.train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True
     )
     args.test_loader = DataLoader(
-        test_dataset, batch_size=args.batch_size, shuffle=False
+        list(zip(args.test.x, args.test.y, args.test.y_local)),
+        batch_size=args.batch_size,
+        shuffle=False,
     )
 
     # 5. Model
@@ -140,7 +141,7 @@ def train_local(dataset_name, args):
                 args.score = scores
 
     # 7. Save results
-    import json
+    import json  # pylint: disable=import-outside-toplevel
 
     with open(f"{args.results_path}/test-scores.json", "w", encoding="utf-8") as f:
         json.dump(args.score, f, indent=4)
@@ -259,7 +260,7 @@ def train_local_e2e(dataset_name, args):
     """Fine-tune a transformer with per-level MLP heads (no R-matrix)."""
     from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
 
-    from hmc.models.local_classifier.model import LocalE2EModel
+    from hmc.models.local_classifier.model import LocalE2EModel  # pylint: disable=import-outside-toplevel
 
     _is_gofun_e2e = any(
         suffix in (dataset_name or "") for suffix in ("_FUN", "_GO", "_others")
@@ -382,7 +383,7 @@ def train_local_e2e(dataset_name, args):
             args.score = scores
 
     # 6. Save
-    import json
+    import json  # pylint: disable=import-outside-toplevel
 
     with open(f"{args.results_path}/test-scores.json", "w", encoding="utf-8") as f:
         json.dump(args.score, f, indent=4)

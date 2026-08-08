@@ -127,7 +127,7 @@ def train_global(dataset_name, args):
     return fit_trainer(args)
 
 
-def _get_transformer_dataset(dataset_name, args, tokenizer, model_name):  # pylint: disable=unused-argument
+def _get_transformer_dataset(dataset_name, args, tokenizer, _model_name):
     """Return (PyTorchDataset, jsonl_path_or_data_dir) for transformer datasets."""
     if dataset_name == "arxiv":
         from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel

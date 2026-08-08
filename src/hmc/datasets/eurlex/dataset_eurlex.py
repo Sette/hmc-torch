@@ -128,15 +128,15 @@ class EURLexHierarchyManager:
         )
         return mgr
 
-    def _load_concept_file(
-        self,
+    @staticmethod
+    def _parse_concept_jsonl(
         concept_path: str,
-        observed_labels: set[str],
-    ) -> None:
-        """Load EUROVOC concept hierarchy from JSONL file."""
-        # Map: concept_id → set of broader (parent) concept IDs
-        broader: dict[str, list[str]] = {}
+    ) -> dict[str, list[str]]:
+        """Parse a EUROVOC concept JSONL file into a broader-mapping dict.
 
+        Returns a dict mapping concept_id → list of parent (broader) concept IDs.
+        """
+        broader: dict[str, list[str]] = {}
         with open(concept_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -150,8 +150,14 @@ class EURLexHierarchyManager:
                 if isinstance(parents, str):
                     parents = [parents]
                 broader[cid] = [str(p) for p in parents]
+        return broader
 
-        # Collect all relevant concepts: observed + their ancestors
+    @staticmethod
+    def _collect_relevant_concepts(
+        observed_labels: set[str],
+        broader: dict[str, list[str]],
+    ) -> set[str]:
+        """Expand observed labels with their ancestors from the concept hierarchy."""
         relevant: set[str] = set(observed_labels)
         changed = True
         while changed:
@@ -161,6 +167,16 @@ class EURLexHierarchyManager:
                     if parent_id not in relevant:
                         relevant.add(parent_id)
                         changed = True
+        return relevant
+
+    def _load_concept_file(
+        self,
+        concept_path: str,
+        observed_labels: set[str],
+    ) -> None:
+        """Load EUROVOC concept hierarchy from JSONL file."""
+        broader = self._parse_concept_jsonl(concept_path)
+        relevant = self._collect_relevant_concepts(observed_labels, broader)
 
         # Build graph
         self.g.add_node("root")

@@ -123,7 +123,7 @@ class AAPDManager:
         The CSV is expected to have columns: title, abstract, labels
         (with labels as space-separated sub-field codes).
         """
-        import csv as _csv
+        import csv as _csv  # pylint: disable=import-outside-toplevel
 
         logger.info("Loading AAPD records from %s …", csv_path)
         texts, labels_list = [], []
@@ -150,7 +150,7 @@ class AAPDManager:
                 # Some versions have labels as JSON list string
                 if labels.startswith("["):
                     try:
-                        import json as _json
+                        import json as _json  # pylint: disable=import-outside-toplevel
 
                         parsed = _json.loads(labels)
                         labels = " ".join(parsed)
@@ -226,7 +226,7 @@ class AAPDManager:
         Y_local_all: list,
     ) -> None:
         """Create 64/16/20 splits using HPT methodology."""
-        from sklearn.model_selection import (
+        from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
             train_test_split,
         )
 

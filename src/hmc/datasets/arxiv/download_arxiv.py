@@ -86,6 +86,7 @@ def download_kaggle_api(data_dir: Path) -> Path:
 
 
 def main():
+    """CLI entry point for ArXiv dataset download."""
     parser = argparse.ArgumentParser(description="Download ArXiv dataset")
     parser.add_argument(
         "--output_dir",
@@ -116,14 +117,14 @@ def main():
         try:
             download_kagglehub(data_dir)
             return
-        except Exception as exc:
+        except (OSError, ImportError) as exc:
             logger.warning("kagglehub failed: %s", exc)
 
     if args.method in ("auto", "kaggle"):
         try:
             download_kaggle_api(data_dir)
             return
-        except Exception as exc:
+        except (OSError, ImportError) as exc:
             logger.warning("kaggle API failed: %s", exc)
 
     # Manual instructions

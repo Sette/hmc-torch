@@ -39,7 +39,7 @@ def _download_huggingface(output_dir: Path) -> None:
         logger.error("huggingface-datasets not installed. Run: pip install datasets")
         sys.exit(1)
 
-    import csv as _csv
+    import csv as _csv  # pylint: disable=import-outside-toplevel
 
     logger.info("Downloading AAPD from HuggingFace datasets …")
     dataset = load_dataset("aapd", split="train")
@@ -64,7 +64,7 @@ def _download_huggingface(output_dir: Path) -> None:
 
 def _copy_csv(src_dir: str, output_dir: Path) -> None:
     """Copy CSV from a downloaded directory to the target output dir."""
-    import shutil
+    import shutil  # pylint: disable=import-outside-toplevel
 
     output_dir.mkdir(parents=True, exist_ok=True)
     src_path = Path(src_dir)
@@ -83,6 +83,7 @@ def _copy_csv(src_dir: str, output_dir: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point for AAPD dataset download."""
     parser = argparse.ArgumentParser(description="Download AAPD dataset")
     parser.add_argument(
         "--output_dir",
@@ -117,13 +118,13 @@ def main() -> None:
         try:
             _download_huggingface(output_dir)
             return
-        except Exception as exc:
+        except (OSError, ImportError) as exc:
             logger.warning("HuggingFace download failed: %s", exc)
         # Fallback to Kaggle
         try:
             _download_kaggle(output_dir)
             return
-        except Exception as exc:
+        except (OSError, ImportError) as exc:
             logger.error("Kaggle download also failed: %s", exc)
             _print_manual_instructions(output_dir)
             sys.exit(1)

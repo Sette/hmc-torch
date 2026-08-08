@@ -46,7 +46,7 @@ AVAILABLE = {
 
 
 def _run_module(module_name: str, output_dir: str) -> bool:
-    import subprocess
+    import subprocess  # pylint: disable=import-outside-toplevel
 
     cmd = [sys.executable, "-m", module_name, "--output_dir", output_dir]
     logger.info("Running: %s", " ".join(cmd))
@@ -55,6 +55,7 @@ def _run_module(module_name: str, output_dir: str) -> bool:
 
 
 def main():
+    """CLI entry point for downloading all hmc-torch datasets."""
     parser = argparse.ArgumentParser(description="Download hmc-torch datasets")
     parser.add_argument("--output_dir", default="./data")
     parser.add_argument("--groups", default="all")

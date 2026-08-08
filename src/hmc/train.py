@@ -42,8 +42,8 @@ def _build_configs(
     **kwargs: Any,
 ) -> tuple:
     """Build DatasetConfig, TrainingConfig, and Args from kwargs."""
-    from dataclasses import (
-        fields as dc_fields,  # pylint: disable=import-outside-toplevel
+    from dataclasses import (  # pylint: disable=import-outside-toplevel
+        fields as dc_fields,
     )
 
     from hmc.arguments import (  # pylint: disable=import-outside-toplevel

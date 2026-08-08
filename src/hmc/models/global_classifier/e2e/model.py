@@ -65,14 +65,16 @@ class E2EConstrainedModel(nn.Module):
         )
 
     def head_parameters(self):
+        """Return classifier parameters for grouped optimization."""
         return self.classifier.parameters()
 
     def forward(
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        **kwargs,
+        **_,
     ) -> torch.Tensor:
+        """Forward pass with R-matrix constraint applied on eval."""
         out = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
         emb = self._pool(out, attention_mask)
         scores = self.classifier(emb)
@@ -160,6 +162,7 @@ class E2EGNNModel(nn.Module):
         return x  # (N, hidden_dim)
 
     def head_parameters(self):
+        """Return head parameters for grouped optimization."""
         import itertools  # pylint: disable=import-outside-toplevel
 
         return itertools.chain(
@@ -173,8 +176,9 @@ class E2EGNNModel(nn.Module):
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        **kwargs,
+        **_,
     ) -> torch.Tensor:
+        """Forward pass with GCN label graph and R-matrix constraint."""
         out = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
         doc_emb = self.doc_proj(self._pool(out, attention_mask))  # (B, hidden_dim)
         label_emb = self._label_representations()  # (N, hidden_dim)

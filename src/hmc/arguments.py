@@ -87,6 +87,7 @@ def _str_to_bool(v: str) -> bool:
 
 
 def get_parser() -> argparse.ArgumentParser:
+    """Build and return the argument parser for HMC training."""
     parser = argparse.ArgumentParser(description="Train an HMC model.")
 
     parser.add_argument("--job_id", type=str, default="none")
@@ -130,6 +131,7 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 def parse_args() -> Args:
+    """Parse CLI arguments and return an Args dataclass."""
     ns = get_parser().parse_args()
     dataset = DatasetConfig(
         dataset_path=ns.dataset_path,

@@ -184,8 +184,8 @@ def _load_gofun_dataset(
     **_: Any,
 ) -> Any:
     """Load a GoFun ARFF dataset using HMCDatasetManager."""
-    from hmc.datasets.gofun.manager import HMCDatasetManager
-    from hmc.utils.datasets.paths import get_dataset_paths
+    from hmc.datasets.gofun.manager import HMCDatasetManager  # pylint: disable=import-outside-toplevel
+    from hmc.utils.datasets.paths import get_dataset_paths  # pylint: disable=import-outside-toplevel
 
     datasets = get_dataset_paths(dataset_path=dataset_path)
 

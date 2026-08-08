@@ -273,18 +273,17 @@ class EURLexManager:
         X_val = X[n_train : n_train + n_val]
         X_test = X[n_train + n_val :]
 
-        Yg_train, Yl_train = self._compute_labels(hierarchy, train_labels)
-        Yg_val, Yl_val = self._compute_labels(hierarchy, val_labels)
-        Yg_test, Yl_test = self._compute_labels(hierarchy, test_labels)
-
         # Build a DiGraph for sparse R reconciliation
         train_g = self._build_label_digraph(hierarchy)
 
-        self._train = EURLexSplit(x=X_train, y=Yg_train, y_local=Yl_train, g=train_g)
-        self._valid = EURLexSplit(x=X_val, y=Yg_val, y_local=Yl_val, g=train_g)
-        self._test = EURLexSplit(x=X_test, y=Yg_test, y_local=Yl_test, g=train_g)
+        labels = self._compute_all_split_labels(
+            hierarchy, train_labels, val_labels, test_labels
+        )
+        self._train = EURLexSplit(x=X_train, y=labels[0], y_local=labels[1], g=train_g)
+        self._valid = EURLexSplit(x=X_val, y=labels[2], y_local=labels[3], g=train_g)
+        self._test = EURLexSplit(x=X_test, y=labels[4], y_local=labels[5], g=train_g)
 
-        self._expose_hierarchy_attrs(hierarchy, X.shape[1], Yg_train.shape[1])
+        self._expose_hierarchy_attrs(hierarchy, X.shape[1], labels[0].shape[1])
 
         logger.info(
             "EUR-Lex splits — train: %d  val: %d  test: %d  nodes: %d",
@@ -299,6 +298,19 @@ class EURLexManager:
                 "for inference-time reconciliation.",
                 self.output_dim,
             )
+
+    @staticmethod
+    def _compute_all_split_labels(
+        hierarchy,
+        train_labels: list,
+        val_labels: list,
+        test_labels: list,
+    ):
+        """Compute global and local label matrices for all three splits."""
+        Yg_train, Yl_train = EURLexManager._compute_labels(hierarchy, train_labels)
+        Yg_val, Yl_val = EURLexManager._compute_labels(hierarchy, val_labels)
+        Yg_test, Yl_test = EURLexManager._compute_labels(hierarchy, test_labels)
+        return Yg_train, Yl_train, Yg_val, Yl_val, Yg_test, Yl_test
 
     @staticmethod
     def _build_label_digraph(
@@ -317,7 +329,7 @@ class EURLexManager:
             try:
                 for parent in hierarchy.g.successors(node):
                     g.add_edge(node, parent)
-            except Exception:
+            except nx.NetworkXError:
                 pass
         return g
 

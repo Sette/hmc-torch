@@ -12,6 +12,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+import urllib.error
 from urllib.request import urlretrieve
 
 logging.basicConfig(
@@ -55,7 +56,7 @@ def _download_hiagm_format(output_dir: Path) -> None:
                 local_name,
                 output_path.stat().st_size,
             )
-        except Exception as exc:
+        except (urllib.error.URLError, OSError) as exc:
             logger.error("Failed to download %s: %s", local_name, exc)
             _print_manual_instructions(output_dir)
             sys.exit(1)
@@ -85,6 +86,7 @@ def _print_manual_instructions(output_dir: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point for RCV1-V2 dataset download."""
     parser = argparse.ArgumentParser(
         description="Download RCV1-V2 dataset (HiAGM format)"
     )

@@ -45,7 +45,7 @@ class VisionFeatureEncoder(FeatureEncoder):
         try:
             if self.backbone == "dinov2":
                 try:
-                    import importlib
+                    import importlib  # pylint: disable=import-outside-toplevel
 
                     importlib.import_module("dinov2")
                 except ImportError:

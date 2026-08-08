@@ -24,7 +24,7 @@ from hmc.data.hierarchy import Hierarchy
 logger = logging.getLogger(__name__)
 
 
-def _build_card(dataset_name: str, bundle: DatasetBundle, output_dir: str) -> dict:
+def _build_card(dataset_name: str, bundle: DatasetBundle, _output_dir: str) -> dict:
     """Produce a dataset-card dictionary from a :class:`DatasetBundle`."""
     h: Hierarchy = bundle.hierarchy
     train: Split = bundle.train
@@ -83,7 +83,7 @@ def run_audit(dataset_name: str, dataset_path: str, output_dir: str = "./audit")
 
     Returns the path to the written JSON file.
     """
-    from hmc.datasets.dataset_manager import initialize_dataset_experiments
+    from hmc.datasets.dataset_manager import initialize_dataset_experiments  # pylint: disable=import-outside-toplevel
 
     logger.info("Auditing dataset '%s' from %s", dataset_name, dataset_path)
 
@@ -97,8 +97,8 @@ def run_audit(dataset_name: str, dataset_path: str, output_dir: str = "./audit")
     train_legacy, valid_legacy, test_legacy = mgr.get_datasets()
 
     # Convert to Split objects
-    from hmc.data.base import Modality
-    from hmc.data.hierarchy import DagHierarchy, TreeHierarchy
+    from hmc.data.base import Modality  # pylint: disable=import-outside-toplevel
+    from hmc.data.hierarchy import DagHierarchy, TreeHierarchy  # pylint: disable=import-outside-toplevel
 
     hierarchy: Hierarchy
     if mgr.dataset_values.get("is_go", False):
@@ -122,7 +122,7 @@ def run_audit(dataset_name: str, dataset_path: str, output_dir: str = "./audit")
     )
 
     def _to_split(ds) -> Split:
-        from hmc.data.gofun.adapter import _build_local_labels
+        from hmc.data.gofun.adapter import _build_local_labels  # pylint: disable=import-outside-toplevel
 
         local = _build_local_labels(ds.y_local, hierarchy.level_sizes)
         return Split(
@@ -152,6 +152,7 @@ def run_audit(dataset_name: str, dataset_path: str, output_dir: str = "./audit")
 
 
 def main():
+    """CLI entry point for dataset audit."""
     parser = ArgumentParser(description="Audit HMC dataset and write dataset-card.json")
     parser.add_argument("--dataset_name", type=str, required=True)
     parser.add_argument("--dataset_path", type=str, default="./data")
@@ -165,7 +166,7 @@ def main():
     try:
         output_path = run_audit(args.dataset_name, args.dataset_path, args.output_dir)
         print(f"Card written to: {output_path}")
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         logger.exception("Audit failed")
         sys.exit(1)
 

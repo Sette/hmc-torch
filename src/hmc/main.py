@@ -87,12 +87,12 @@ def main(args=None) -> dict:
             train_local_e2e(args.dataset.dataset_name, args)
         case "tabular_gbdt":
             logging.info("Tabular GBDT One-vs-Rest baseline")
-            from hmc.pipeline.tabular.main import train_gbdt
+            from hmc.pipeline.tabular.main import train_gbdt  # pylint: disable=import-outside-toplevel
 
             train_gbdt(args.dataset.dataset_name, args)
         case "tabular_mlp":
             logging.info("Tabular Residual MLP baseline")
-            from hmc.pipeline.tabular.main import train_tabular_mlp
+            from hmc.pipeline.tabular.main import train_tabular_mlp  # pylint: disable=import-outside-toplevel
 
             train_tabular_mlp(args.dataset.dataset_name, args)
         case _:

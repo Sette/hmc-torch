@@ -20,23 +20,7 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-groups
 
-    - name: Run flake8
-      run: uv run flake8 src/
-      env:
-        PYTHONPATH: src
-
-    - name: Run ruff format (check)
-      run: uv run ruff format --check src/
-      env:
-        PYTHONPATH: src
-
-    - name: Run ruff check
-      run: uv run ruff check src/
-      env:
-        PYTHONPATH: src
-
-    - name: Run pylint
+    - name: Run lint
       run: |
-        uv run pylint $(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/' | grep -v '^notebooks/')
-      env:
-        PYTHONPATH: src
+        export PYTHONPATH=src
+        make lint-check

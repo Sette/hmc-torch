@@ -44,7 +44,7 @@ class ExpressionFeatureEncoder(FeatureEncoder):
         X = split.features.astype(np.float32).copy()
 
         if self.normalize:
-            from sklearn.preprocessing import StandardScaler
+            from sklearn.preprocessing import StandardScaler  # pylint: disable=import-outside-toplevel
 
             X = np.log1p(np.maximum(X, 0))
             self._scaler = StandardScaler()

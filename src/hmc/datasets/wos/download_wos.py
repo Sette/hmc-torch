@@ -23,6 +23,10 @@ import logging
 import re
 import shutil
 import sys
+
+import urllib.request  # pylint: disable=import-outside-toplevel
+import urllib.error
+
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
@@ -526,8 +530,6 @@ def _extract_data_txt(zip_path: Path, dest: Path) -> Path:
 
 def _download_file(url: str, dest: Path) -> Path:
     """Download a file with browser-like headers."""
-    import urllib.request
-
     request = urllib.request.Request(url, headers=_DOWNLOAD_HEADERS)
     with urllib.request.urlopen(request) as response, open(dest, "wb") as out:
         shutil.copyfileobj(response, out)
@@ -540,7 +542,6 @@ def _download_raw(output_dir: Path) -> Path:
     if dest.exists():
         logger.info("Raw data already at %s", dest)
         return dest
-
     # Check if HPT already has the data
     hpt_data = Path("docs/HPT/data/WebOfScience/Meta-data/Data.txt")
     if hpt_data.exists():
@@ -554,7 +555,7 @@ def _download_raw(output_dir: Path) -> Path:
         logger.info("Downloaded archive to %s", archive_path)
         _extract_data_txt(archive_path, dest)
         logger.info("Extracted raw data to %s", dest)
-    except Exception as exc:
+    except (urllib.error.URLError, OSError) as exc:
         logger.error(
             "Failed to download. Please place Data.txt from the WOS dataset "
             "at %s or at %s. Error: %s",
@@ -640,7 +641,7 @@ def _split_and_save(
     output_dir: Path,
 ) -> tuple[int, int, int]:
     """Split data 64/16/20 using HPT methodology and save JSONL files."""
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import train_test_split  # pylint: disable=import-outside-toplevel
 
     np.random.seed(7)
     n = len(data)
@@ -675,6 +676,7 @@ def _split_and_save(
 
 
 def main():
+    """CLI entry point for Web of Science dataset download."""
     parser = argparse.ArgumentParser(description="Download WOS dataset")
     parser.add_argument(
         "--output_dir",
@@ -706,7 +708,7 @@ def main():
     label_dict, value_dict, slot = _build_label_dict(data)
 
     # Save slot.pt and value_dict.pt
-    import torch
+    import torch  # pylint: disable=import-outside-toplevel
 
     torch.save(slot, str(output_dir / "slot.pt"))
     torch.save(value_dict, str(output_dir / "value_dict.pt"))

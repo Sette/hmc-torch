@@ -50,7 +50,9 @@ class TabularFeatureEncoder(FeatureEncoder):
 
     @property
     def n_features_out(self) -> int:
+        """Number of output features after preprocessing."""
         return self._pp.n_features_out
 
     def get_params(self) -> dict:
+        """Return preprocessing pipeline parameters."""
         return self._pp.get_params()

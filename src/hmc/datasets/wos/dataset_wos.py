@@ -237,7 +237,6 @@ class WOSPyTorchDataset:
         return len(self.records)
 
     def __getitem__(self, idx: int):
-        import torch as _torch  # pylint: disable=import-outside-toplevel,redefined-outer-name
 
         record = self.records[idx]
 
@@ -253,39 +252,39 @@ class WOSPyTorchDataset:
         y_global, y_local = self.hierarchy.get_labels(record["category"])
 
         targets = {
-            "global": _torch.from_numpy(y_global),
-            "local": [_torch.from_numpy(yl) for yl in y_local],
+            "global": torch.from_numpy(y_global),
+            "local": [torch.from_numpy(yl) for yl in y_local],
         }
         return encoded, targets
 
     @property
     def levels_size(self) -> dict:
+        """Number of classes per hierarchy level."""
         return self.hierarchy.levels_size
 
     @property
     def max_depth(self) -> int:
+        """Maximum depth of the label hierarchy."""
         return self.hierarchy.max_depth
 
     @property
     def adjacency_matrix(self):
-        import torch as _torch  # pylint: disable=import-outside-toplevel
-
-        return _torch.from_numpy(self.hierarchy.a).float()
+        """Adjacency matrix for label hierarchy (R-matrix)."""
+        return torch.from_numpy(self.hierarchy.a).float()
 
     def get_datasets(self):
         """64/16/20 split using HPT methodology, same as WOSManager."""
-        import numpy as _np  # pylint: disable=import-outside-toplevel
         from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
             train_test_split,
         )
-        from torch.utils.data import (
-            Subset as _Subset,  # pylint: disable=import-outside-toplevel
+        from torch.utils.data import (  # pylint: disable=import-outside-toplevel
+            Subset as _Subset,
         )
 
-        _np.random.seed(7)
+        np.random.seed(7)
         n = len(self)
         idx = list(range(n))
-        _np.random.shuffle(idx)
+        np.random.shuffle(idx)
 
         train_idx, test_idx = train_test_split(idx, test_size=0.2, random_state=0)
         train_idx, val_idx = train_test_split(train_idx, test_size=0.2, random_state=0)

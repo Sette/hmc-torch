@@ -18,6 +18,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+import urllib.error
 from urllib.request import urlretrieve
 
 logging.basicConfig(
@@ -56,7 +57,7 @@ def _download_archive(output_dir: Path) -> None:
                 local_name,
                 output_path.stat().st_size,
             )
-        except Exception as exc:
+        except (urllib.error.URLError, OSError) as exc:
             logger.error("Failed to download %s: %s", local_name, exc)
             if local_name == "eurovoc_concepts.jsonl":
                 logger.warning(
@@ -108,6 +109,7 @@ def _download_huggingface(output_dir: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point for EUR-Lex 57K dataset download."""
     parser = argparse.ArgumentParser(description="Download EUR-Lex 57K dataset")
     parser.add_argument(
         "--output_dir",
@@ -141,11 +143,11 @@ def main() -> None:
         # Try archive.org first (direct download, no deps)
         try:
             _download_archive(output_dir)
-        except Exception as exc:
+        except (urllib.error.URLError, OSError) as exc:
             logger.warning("archive.org download failed: %s", exc)
             try:
                 _download_huggingface(output_dir)
-            except Exception as exc2:
+            except (OSError, ImportError) as exc2:
                 logger.error("HuggingFace download also failed: %s", exc2)
                 sys.exit(1)
     elif method == "archive":

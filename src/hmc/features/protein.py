@@ -47,7 +47,7 @@ class ProteinFeatureEncoder(FeatureEncoder):
         if self._model is not None:
             return
         try:
-            import importlib
+            import importlib  # pylint: disable=import-outside-toplevel
 
             importlib.import_module("esm")
             logger.info("ESM loaded for protein encoding")
