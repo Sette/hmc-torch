@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
-def main(args: "Args | None" = None) -> dict:
+def main(args=None) -> dict:
     """Main training function (entrypoint).
 
     Args:
@@ -69,10 +69,6 @@ def main(args: "Args | None" = None) -> dict:
         args.job_id,
     )
 
-    # GoFun ARFF datasets only support local classifier for now
-    _is_gofun = any(suffix in (args.dataset.dataset_name or "")
-                    for suffix in ("_FUN", "_GO", "_others"))
-
     match args.method:
         case "global" | "global_baseline" | "globalGNN" | "globalLM":
             logging.info("Global classifier (frozen embeddings)")
@@ -92,10 +88,12 @@ def main(args: "Args | None" = None) -> dict:
         case "tabular_gbdt":
             logging.info("Tabular GBDT One-vs-Rest baseline")
             from hmc.pipeline.tabular.main import train_gbdt
+
             train_gbdt(args.dataset.dataset_name, args)
         case "tabular_mlp":
             logging.info("Tabular Residual MLP baseline")
             from hmc.pipeline.tabular.main import train_tabular_mlp
+
             train_tabular_mlp(args.dataset.dataset_name, args)
         case _:
             print(

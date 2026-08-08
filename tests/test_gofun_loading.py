@@ -2,10 +2,11 @@
 
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
+
+from tests.fixtures.arff import SyntheticARFFFixture
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -47,6 +48,7 @@ def _patch_gofun_paths(temp_dir: str):
 
 def _restore_gofun_paths():
     import hmc.utils.datasets.paths as path_mod
+
     if hasattr(path_mod, "_original_get_dataset_paths"):
         path_mod.get_dataset_paths = path_mod._original_get_dataset_paths
 
@@ -54,8 +56,6 @@ def _restore_gofun_paths():
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-from tests.fixtures.arff import SyntheticARFFFixture
 
 
 @pytest.fixture(scope="module")
@@ -79,6 +79,7 @@ def seq_fun_arff_dir():
 # Marco 0 — acceptance tests
 # ---------------------------------------------------------------------------
 
+
 class TestGoFunDataLoading:
     """Verify that GoFun ARFF datasets can be loaded."""
 
@@ -86,8 +87,10 @@ class TestGoFunDataLoading:
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu",
-            dataset_path=seq_fun_arff_dir, is_global=False,
+            "seq_FUN",
+            device="cpu",
+            dataset_path=seq_fun_arff_dir,
+            is_global=False,
         )
         assert mgr is not None
         assert mgr.input_dim == 10
@@ -98,8 +101,10 @@ class TestGoFunDataLoading:
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu",
-            dataset_path=seq_fun_arff_dir, is_global=False,
+            "seq_FUN",
+            device="cpu",
+            dataset_path=seq_fun_arff_dir,
+            is_global=False,
         )
         train, valid, test = mgr.get_datasets()
 
@@ -119,8 +124,10 @@ class TestGoFunDataLoading:
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu",
-            dataset_path=seq_fun_arff_dir, is_global=False,
+            "seq_FUN",
+            device="cpu",
+            dataset_path=seq_fun_arff_dir,
+            is_global=False,
         )
         train, _, _ = mgr.get_datasets()
 
@@ -130,6 +137,7 @@ class TestGoFunDataLoading:
         g_anc = train.g_t
 
         import networkx as nx
+
         for i in range(len(train.y)):
             for node, idx in mgr.nodes_idx.items():
                 if train.y[i, idx] == 1:
@@ -144,8 +152,10 @@ class TestGoFunDataLoading:
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu",
-            dataset_path=seq_fun_arff_dir, is_global=False,
+            "seq_FUN",
+            device="cpu",
+            dataset_path=seq_fun_arff_dir,
+            is_global=False,
         )
         # "root" node should be excluded from evaluation
         root_idx = mgr.nodes_idx.get("root")
@@ -157,8 +167,10 @@ class TestGoFunDataLoading:
 
         with pytest.raises(ValueError):
             initialize_dataset_experiments(
-                "nonexistent_dataset", device="cpu",
-                dataset_path="/tmp", is_global=False,
+                "nonexistent_dataset",
+                device="cpu",
+                dataset_path="/tmp",
+                is_global=False,
             )
 
 
@@ -167,19 +179,20 @@ class TestLocalClassifierWithGoFun:
 
     def test_one_epoch_seq_fun_local(self, seq_fun_arff_dir):
         import torch
-        from hmc.arguments import Args, DatasetConfig, TrainingConfig
+        from torch.utils.data import DataLoader
+
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
         from hmc.datasets.registry import DatasetRegistry
         from hmc.models.local_classifier.model import LocalModel
-        from hmc.utils.train.job import create_job_id_name
-        from torch.utils.data import DataLoader
 
         device = torch.device("cpu")
 
         # 1. Load dataset
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu",
-            dataset_path=seq_fun_arff_dir, is_global=False,
+            "seq_FUN",
+            device="cpu",
+            dataset_path=seq_fun_arff_dir,
+            is_global=False,
         )
         train, valid, test = mgr.get_datasets()
         registry = DatasetRegistry()
@@ -234,6 +247,7 @@ class TestLocalClassifierWithGoFun:
 
         # 6. Quick eval
         import numpy as np
+
         model.eval()
         all_preds, all_labels = [], []
         with torch.no_grad():

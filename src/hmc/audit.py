@@ -15,7 +15,6 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser
-from pathlib import Path
 
 import numpy as np
 
@@ -25,8 +24,7 @@ from hmc.data.hierarchy import Hierarchy
 logger = logging.getLogger(__name__)
 
 
-def _build_card(dataset_name: str, bundle: DatasetBundle,
-                output_dir: str) -> dict:
+def _build_card(dataset_name: str, bundle: DatasetBundle, output_dir: str) -> dict:
     """Produce a dataset-card dictionary from a :class:`DatasetBundle`."""
     h: Hierarchy = bundle.hierarchy
     train: Split = bundle.train
@@ -80,8 +78,7 @@ def _build_card(dataset_name: str, bundle: DatasetBundle,
     return card
 
 
-def run_audit(dataset_name: str, dataset_path: str,
-              output_dir: str = "./audit") -> str:
+def run_audit(dataset_name: str, dataset_path: str, output_dir: str = "./audit") -> str:
     """Load a dataset and write ``dataset-card.json``.
 
     Returns the path to the written JSON file.
@@ -100,12 +97,12 @@ def run_audit(dataset_name: str, dataset_path: str,
     train_legacy, valid_legacy, test_legacy = mgr.get_datasets()
 
     # Convert to Split objects
-    from hmc.data.base import FeatureMetadata, Modality, Split
+    from hmc.data.base import Modality
     from hmc.data.hierarchy import DagHierarchy, TreeHierarchy
 
     hierarchy: Hierarchy
     if mgr.dataset_values.get("is_go", False):
-        branches = [t for t in train_legacy.terms]
+        branches = list(train_legacy.terms)
         hierarchy = DagHierarchy.from_go_terms(branches)
     else:
         branches = [t for t in train_legacy.terms if t != "root"]
@@ -126,6 +123,7 @@ def run_audit(dataset_name: str, dataset_path: str,
 
     def _to_split(ds) -> Split:
         from hmc.data.gofun.adapter import _build_local_labels
+
         local = _build_local_labels(ds.y_local, hierarchy.level_sizes)
         return Split(
             features=ds.x.astype(np.float32),
@@ -154,9 +152,7 @@ def run_audit(dataset_name: str, dataset_path: str,
 
 
 def main():
-    parser = ArgumentParser(
-        description="Audit HMC dataset and write dataset-card.json"
-    )
+    parser = ArgumentParser(description="Audit HMC dataset and write dataset-card.json")
     parser.add_argument("--dataset_name", type=str, required=True)
     parser.add_argument("--dataset_path", type=str, default="./data")
     parser.add_argument("--output_dir", type=str, default="./audit")
@@ -167,9 +163,7 @@ def main():
     )
 
     try:
-        output_path = run_audit(
-            args.dataset_name, args.dataset_path, args.output_dir
-        )
+        output_path = run_audit(args.dataset_name, args.dataset_path, args.output_dir)
         print(f"Card written to: {output_path}")
     except Exception:
         logger.exception("Audit failed")

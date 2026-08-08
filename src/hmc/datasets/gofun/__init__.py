@@ -188,18 +188,6 @@ def get_dataset_paths(dataset_path="./data"):
                 "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.test.arff",
             ),
         ),
-        "church_FUN": (
-            False,
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.train.arff"),
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.valid.arff"),
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.test.arff"),
-        ),
-        "pheno_FUN": (
-            False,
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.train.arff"),
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.valid.arff"),
-            os.path.join(dataset_path, "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.test.arff"),
-        ),
         "cellcycle_GO": (
             True,
             os.path.join(

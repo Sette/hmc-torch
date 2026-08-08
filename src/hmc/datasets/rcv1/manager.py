@@ -11,7 +11,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -40,8 +39,8 @@ class RCV1Manager:
         self,
         data_dir: str,
         model_name: str = "allenai/specter2_base",
-        max_records: Optional[int] = None,
-        cache_dir: Optional[str] = None,
+        max_records: int | None = None,
+        cache_dir: str | None = None,
         load_features: bool = True,
         model_cache_dir: str = "./models",
     ) -> None:
@@ -57,7 +56,7 @@ class RCV1Manager:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_datasets(self) -> Tuple[RCV1Split, RCV1Split, RCV1Split]:
+    def get_datasets(self) -> tuple[RCV1Split, RCV1Split, RCV1Split]:
         """Return (train, valid, test) RCV1Split objects."""
         return self._train, self._valid, self._test
 
@@ -111,7 +110,7 @@ class RCV1Manager:
         )
         return files
 
-    def _load_json_records(self, filepath: Path) -> Tuple[list, list]:
+    def _load_json_records(self, filepath: Path) -> tuple[list, list]:
         """Load records from a HiAGM-format JSON file.
 
         Returns (texts, labels_list) where labels_list is a list of
@@ -245,9 +244,7 @@ class RCV1Manager:
         )
         digest = hashlib.md5(key.encode()).hexdigest()[:16]
         cache_dir = (
-            self._cache_dir
-            if self._cache_dir
-            else self._data_dir / ".feature_cache"
+            self._cache_dir if self._cache_dir else self._data_dir / ".feature_cache"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"rcv1_{digest}.npy"
@@ -273,7 +270,7 @@ class RCV1Manager:
     def _compute_labels(
         hierarchy: RCV1HierarchyManager,
         labels_list: list,
-    ) -> Tuple[np.ndarray, list]:
+    ) -> tuple[np.ndarray, list]:
         """Convert topic paths into global + local binary matrices."""
         n = len(labels_list)
         total_terms = len(hierarchy.terms)

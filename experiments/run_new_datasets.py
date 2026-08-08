@@ -31,6 +31,7 @@ print(f"Device: {DEVICE}")
 # Metrics
 # ---------------------------------------------------------------------------
 
+
 def compute_metrics(y_true, y_pred, eval_mask):
     """Micro-F1 (threshold sweep), AUPRC, Precision, Recall."""
     best = (0.0, 0.5, 0.0, 0.0)
@@ -45,8 +46,11 @@ def compute_metrics(y_true, y_pred, eval_mask):
         if f1 > best[0]:
             best = (f1, thr, p, r)
     try:
-        auprc = float(average_precision_score(
-            y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"))
+        auprc = float(
+            average_precision_score(
+                y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
+            )
+        )
     except Exception:
         auprc = 0.0
     return best[0], auprc, best[2], best[3], best[1]
@@ -56,13 +60,17 @@ def compute_metrics(y_true, y_pred, eval_mask):
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def load_data(dataset_name):
     """Load a text dataset via unified dispatch. Returns all needed arrays."""
     from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
     mgr = initialize_dataset_experiments(
-        dataset_name, device="cpu", dataset_path="./data",
-        is_global=True, model_cache_dir="./models",
+        dataset_name,
+        device="cpu",
+        dataset_path="./data",
+        is_global=True,
+        model_cache_dir="./models",
     )
     train, valid, test = mgr.get_datasets()
 
@@ -81,7 +89,7 @@ def load_data(dataset_name):
     X_te = scaler.transform(X_te).astype(np.float32)
 
     # For sparse R: pass the label DiGraph if available
-    label_g = getattr(test, 'g', None)
+    label_g = getattr(test, "g", None)
 
     return X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes, input_dim, label_g
 
@@ -102,8 +110,8 @@ def build_dense_r(adj):
 # Training
 # ---------------------------------------------------------------------------
 
-def train_model(X_tr, y_tr, r_matrix, n_nodes, hidden_dim, epochs,
-                batch_size, seed):
+
+def train_model(X_tr, y_tr, r_matrix, n_nodes, hidden_dim, epochs, batch_size, seed):
     """Train ConstrainedModel and return the model."""
     from hmc.models.global_classifier.constraint.model import ConstrainedModel
 
@@ -117,9 +125,13 @@ def train_model(X_tr, y_tr, r_matrix, n_nodes, hidden_dim, epochs,
         hidden_dim=min(hidden_dim, n_feat * 2),
         output_dim=n_nodes,
         hyperparams={
-            "batch_size": batch_size, "num_layers": 3, "dropout": 0.3,
-            "non_lin": "relu", "hidden_dim": min(hidden_dim, n_feat * 2),
-            "lr": 1e-4, "weight_decay": 1e-5,
+            "batch_size": batch_size,
+            "num_layers": 3,
+            "dropout": 0.3,
+            "non_lin": "relu",
+            "hidden_dim": min(hidden_dim, n_feat * 2),
+            "lr": 1e-4,
+            "weight_decay": 1e-5,
         },
         r_matrix=r_matrix,
         baseline_model=False,
@@ -128,7 +140,8 @@ def train_model(X_tr, y_tr, r_matrix, n_nodes, hidden_dim, epochs,
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
     tr_loader = DataLoader(
         TensorDataset(torch.tensor(X_tr), torch.tensor(y_tr)),
-        batch_size=batch_size, shuffle=True,
+        batch_size=batch_size,
+        shuffle=True,
     )
 
     model.train()
@@ -149,7 +162,8 @@ def predict(model, X_te, batch_size):
     preds = []
     te_loader = DataLoader(
         TensorDataset(torch.tensor(X_te)),
-        batch_size=min(64, batch_size), shuffle=False,
+        batch_size=min(64, batch_size),
+        shuffle=False,
     )
     with torch.no_grad():
         for (bx,) in te_loader:
@@ -157,29 +171,43 @@ def predict(model, X_te, batch_size):
     return np.concatenate(preds, axis=0)
 
 
-def train_and_eval(X_tr, y_tr, X_te, y_te, eval_mask, r_matrix, n_nodes,
-                   hidden_dim=512, epochs=50, batch_size=32, seed=42,
-                   sparse_r=None):
+def train_and_eval(
+    X_tr,
+    y_tr,
+    X_te,
+    y_te,
+    eval_mask,
+    r_matrix,
+    n_nodes,
+    hidden_dim=512,
+    epochs=50,
+    batch_size=32,
+    seed=42,
+    sparse_r=None,
+):
     """Train + inference + optional sparse R reconciliation."""
     t0 = time.time()
 
-    model = train_model(X_tr, y_tr, r_matrix, n_nodes,
-                        hidden_dim, epochs, batch_size, seed)
+    model = train_model(
+        X_tr, y_tr, r_matrix, n_nodes, hidden_dim, epochs, batch_size, seed
+    )
     scores = predict(model, X_te, batch_size)
 
     # Sparse R reconciliation (for large label spaces)
     if sparse_r is not None:
-        scores = sparse_r.reconcile(
-            torch.tensor(scores).to(DEVICE)
-        ).cpu().numpy()
+        scores = sparse_r.reconcile(torch.tensor(scores).to(DEVICE)).cpu().numpy()
 
     f1, au, p, r, thr = compute_metrics(y_te, scores, eval_mask)
     dur = time.time() - t0
 
     return {
-        "f1": float(f1), "auprc": float(au),
-        "precision": float(p), "recall": float(r),
-        "threshold": float(thr), "time_s": dur, "epochs": epochs,
+        "f1": float(f1),
+        "auprc": float(au),
+        "precision": float(p),
+        "recall": float(r),
+        "threshold": float(thr),
+        "time_s": dur,
+        "epochs": epochs,
     }
 
 
@@ -187,14 +215,16 @@ def train_and_eval(X_tr, y_tr, X_te, y_te, eval_mask, r_matrix, n_nodes,
 # Per-dataset runner
 # ---------------------------------------------------------------------------
 
+
 def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
     """Run full experiment (with-R + without-R ablation) on one dataset."""
     print(f"\n{'=' * 70}")
     print(f"DATASET: {dataset_name}")
     print(f"{'=' * 70}")
 
-    X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes, input_dim, label_g = \
-        load_data(dataset_name)
+    X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes, input_dim, label_g = load_data(
+        dataset_name
+    )
     print(
         f"  Train: {X_tr.shape}  Test: {X_te.shape}  "
         f"Features: {input_dim}  Nodes: {n_nodes}  "
@@ -206,6 +236,7 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
     if use_sparse_r:
         print(f"  >>> {n_nodes} nodes — sparse R (BlockDiagonalR) <<<")
         from hmc.models.hierarchical.sparse_r import BlockDiagonalR
+
         r_matrix = torch.eye(n_nodes).unsqueeze(0).to(DEVICE)
         if label_g is not None:
             sparse_r = BlockDiagonalR(label_g)
@@ -218,8 +249,10 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
         sparse_r = None
 
     results = {
-        "dataset": dataset_name, "n_nodes": n_nodes,
-        "n_features": input_dim, "use_sparse_r": use_sparse_r,
+        "dataset": dataset_name,
+        "n_nodes": n_nodes,
+        "n_features": input_dim,
+        "use_sparse_r": use_sparse_r,
     }
 
     # --- With R ---
@@ -228,8 +261,18 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
     for seed in seeds:
         print(f"    seed={seed}...", end=" ", flush=True)
         r = train_and_eval(
-            X_tr, y_tr, X_te, y_te, eval_mask, r_matrix, n_nodes,
-            hidden_dim, epochs, batch_size, seed, sparse_r,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            eval_mask,
+            r_matrix,
+            n_nodes,
+            hidden_dim,
+            epochs,
+            batch_size,
+            seed,
+            sparse_r,
         )
         with_r[str(seed)] = r
         print(f"F1={r['f1']:.4f} AUPRC={r['auprc']:.4f} t={r['time_s']:.1f}s")
@@ -250,8 +293,17 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
     for seed in seeds:
         print(f"    seed={seed}...", end=" ", flush=True)
         r = train_and_eval(
-            X_tr, y_tr, X_te, y_te, eval_mask, identity_r, n_nodes,
-            hidden_dim, epochs, batch_size, seed,
+            X_tr,
+            y_tr,
+            X_te,
+            y_te,
+            eval_mask,
+            identity_r,
+            n_nodes,
+            hidden_dim,
+            epochs,
+            batch_size,
+            seed,
             # No sparse R reconciliation for ablation
         )
         without_r[str(seed)] = r
@@ -284,12 +336,15 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run HMC experiments on new text datasets"
     )
     parser.add_argument(
-        "--dataset", type=str, default="all",
+        "--dataset",
+        type=str,
+        default="all",
         choices=["aapd", "rcv1", "eurlex", "all"],
     )
     parser.add_argument("--seeds", type=int, default=3)
@@ -305,8 +360,11 @@ def main():
     for ds in datasets:
         try:
             all_results[ds] = run_dataset(
-                ds, seeds=seeds, epochs=args.epochs,
-                hidden_dim=args.hidden_dim, batch_size=args.batch_size,
+                ds,
+                seeds=seeds,
+                epochs=args.epochs,
+                hidden_dim=args.hidden_dim,
+                batch_size=args.batch_size,
             )
         except FileNotFoundError as e:
             print(f"\n  SKIP {ds}: {e}")
@@ -315,6 +373,7 @@ def main():
         except Exception as e:
             print(f"\n  FAIL {ds}: {e}")
             import traceback
+
             traceback.print_exc()
             all_results[ds] = {"error": str(e)}
 
@@ -337,7 +396,7 @@ def main():
     os.makedirs("./output/new_datasets", exist_ok=True)
     with open("./output/new_datasets/summary.json", "w") as f:
         json.dump(all_results, f, indent=2)
-    print(f"\nCombined results saved to ./output/new_datasets/summary.json")
+    print("\nCombined results saved to ./output/new_datasets/summary.json")
 
 
 if __name__ == "__main__":

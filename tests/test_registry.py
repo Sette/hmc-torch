@@ -50,8 +50,6 @@ class TestDatasetRegistry:
 
     def test_list_available_includes_builtins(self):
         """Built-in datasets appear in list_available after import."""
-        from hmc.datasets.dataset_manager import initialize_dataset_experiments
-
         # Trigger builtin registration
         from hmc.data import DatasetRegistry
 
@@ -97,25 +95,38 @@ class TestDatasetRegistry:
 class TestProtocolCompliance:
     """Verify that built-in managers satisfy DatasetManagerProtocol."""
 
-    @pytest.mark.parametrize("dataset_name", [
-        "arxiv",
-        "wos",
-    ])
+    @pytest.mark.parametrize(
+        "dataset_name",
+        [
+            "arxiv",
+            "wos",
+        ],
+    )
     def test_manager_satisfies_protocol(self, dataset_name):
         """Built-in manager instances pass protocol check."""
-        from hmc.data import DatasetManagerProtocol
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         manager = initialize_dataset_experiments(
-            dataset_name, device="cpu", dataset_path="./data",
-            arxiv_load_features=False, arxiv_max_records=100,
+            dataset_name,
+            device="cpu",
+            dataset_path="./data",
+            arxiv_load_features=False,
+            arxiv_max_records=100,
         )
 
         # Structural checks — all required attrs must exist after _fit()
         required_attrs = [
-            "input_dim", "output_dim", "levels_size", "max_depth",
-            "a", "edge_index", "nodes_idx", "local_nodes_idx",
-            "to_eval", "hierarchy_map", "get_datasets",
+            "input_dim",
+            "output_dim",
+            "levels_size",
+            "max_depth",
+            "a",
+            "edge_index",
+            "nodes_idx",
+            "local_nodes_idx",
+            "to_eval",
+            "hierarchy_map",
+            "get_datasets",
         ]
         for attr in required_attrs:
             assert hasattr(manager, attr), f"Missing attribute: {attr}"
@@ -130,10 +141,11 @@ class TestTrainAPI:
 
     def test_train_accepts_args(self):
         """train() can be called with minimal arguments."""
-        import hmc
-
         # Just verify the function signature — don't actually train.
         import inspect
+
+        import hmc
+
         sig = inspect.signature(hmc.train)
         params = list(sig.parameters.keys())
         assert "dataset_name" in params

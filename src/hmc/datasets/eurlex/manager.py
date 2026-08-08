@@ -19,7 +19,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 import networkx as nx
 import numpy as np
@@ -61,8 +60,8 @@ class EURLexManager:
         self,
         data_dir: str,
         model_name: str = "allenai/specter2_base",
-        max_records: Optional[int] = None,
-        cache_dir: Optional[str] = None,
+        max_records: int | None = None,
+        cache_dir: str | None = None,
         load_features: bool = True,
         model_cache_dir: str = "./models",
     ) -> None:
@@ -78,7 +77,7 @@ class EURLexManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_datasets(self) -> Tuple[EURLexSplit, EURLexSplit, EURLexSplit]:
+    def get_datasets(self) -> tuple[EURLexSplit, EURLexSplit, EURLexSplit]:
         """Return (train, valid, test) EURLexSplit objects."""
         return self._train, self._valid, self._test
 
@@ -134,7 +133,7 @@ class EURLexManager:
         )
         return files
 
-    def _find_concept_file(self) -> Optional[Path]:
+    def _find_concept_file(self) -> Path | None:
         """Look for EUROVOC concept hierarchy file."""
         for name in _CONCEPT_CANDIDATES:
             path = self._data_dir / name
@@ -142,9 +141,7 @@ class EURLexManager:
                 return path
         return None
 
-    def _load_json_records(
-        self, filepath: Path
-    ) -> Tuple[list, list]:
+    def _load_json_records(self, filepath: Path) -> tuple[list, list]:
         """Load records from a JSON file.
 
         Returns (texts, labels_list) where labels_list is a list of
@@ -173,9 +170,7 @@ class EURLexManager:
                     texts.append(self._extract_text(rec))
                     labels_list.append(self._extract_labels(rec))
 
-        logger.info(
-            "Loaded %d records from %s.", len(texts), filepath.name
-        )
+        logger.info("Loaded %d records from %s.", len(texts), filepath.name)
         return texts, labels_list
 
     @staticmethod
@@ -216,7 +211,7 @@ class EURLexManager:
         )
         if isinstance(labels, str):
             labels = labels.split()
-        return [str(l) for l in labels]
+        return [str(label) for label in labels]
 
     def _fit(self) -> None:
         files = self._discover_json_files()
@@ -285,15 +280,9 @@ class EURLexManager:
         # Build a DiGraph for sparse R reconciliation
         train_g = self._build_label_digraph(hierarchy)
 
-        self._train = EURLexSplit(
-            x=X_train, y=Yg_train, y_local=Yl_train, g=train_g
-        )
-        self._valid = EURLexSplit(
-            x=X_val, y=Yg_val, y_local=Yl_val, g=train_g
-        )
-        self._test = EURLexSplit(
-            x=X_test, y=Yg_test, y_local=Yl_test, g=train_g
-        )
+        self._train = EURLexSplit(x=X_train, y=Yg_train, y_local=Yl_train, g=train_g)
+        self._valid = EURLexSplit(x=X_val, y=Yg_val, y_local=Yl_val, g=train_g)
+        self._test = EURLexSplit(x=X_test, y=Yg_test, y_local=Yl_test, g=train_g)
 
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Yg_train.shape[1])
 
@@ -348,9 +337,7 @@ class EURLexManager:
         )
         digest = hashlib.md5(key.encode()).hexdigest()[:16]
         cache_dir = (
-            self._cache_dir
-            if self._cache_dir
-            else self._data_dir / ".feature_cache"
+            self._cache_dir if self._cache_dir else self._data_dir / ".feature_cache"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"eurlex_{digest}.npy"
@@ -376,7 +363,7 @@ class EURLexManager:
     def _compute_labels(
         hierarchy: EURLexHierarchyManager,
         labels_list: list,
-    ) -> Tuple[np.ndarray, list]:
+    ) -> tuple[np.ndarray, list]:
         """Convert concept ID lists into global + local binary matrices."""
         n = len(labels_list)
         total_terms = len(hierarchy.terms)

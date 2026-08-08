@@ -23,7 +23,9 @@ def _has_model_weights(path: Path) -> bool:
     )
     if any((path / name).exists() for name in weight_patterns):
         return True
-    return any(path.glob("pytorch_model-*.bin")) or any(path.glob("model-*.safetensors"))
+    return any(path.glob("pytorch_model-*.bin")) or any(
+        path.glob("model-*.safetensors")
+    )
 
 
 def _has_tokenizer_files(path: Path) -> bool:
@@ -48,7 +50,9 @@ def is_transformer_model_cached(path: str | Path) -> bool:
     )
 
 
-def local_transformer_model_path(model_name: str, model_cache_dir: str = "./models") -> Path:
+def local_transformer_model_path(
+    model_name: str, model_cache_dir: str = "./models"
+) -> Path:
     """Return the deterministic local path used for a HuggingFace model id."""
     model_path = Path(model_name).expanduser()
     if model_path.exists():
@@ -56,7 +60,9 @@ def local_transformer_model_path(model_name: str, model_cache_dir: str = "./mode
     return Path(model_cache_dir).expanduser() / _safe_model_dir_name(model_name)
 
 
-def ensure_transformer_model_cached(model_name: str, model_cache_dir: str = "./models") -> str:
+def ensure_transformer_model_cached(
+    model_name: str, model_cache_dir: str = "./models"
+) -> str:
     """Download model/tokenizer once and return a local path for future loads.
 
     If ``model_name`` is already a local path, it is returned unchanged.
@@ -75,7 +81,10 @@ def ensure_transformer_model_cached(model_name: str, model_cache_dir: str = "./m
     local_path.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading transformer model %s to %s", model_name, local_path)
 
-    from transformers import AutoModel, AutoTokenizer  # pylint: disable=import-outside-toplevel
+    from transformers import (  # pylint: disable=import-outside-toplevel
+        AutoModel,
+        AutoTokenizer,
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModel.from_pretrained(model_name)

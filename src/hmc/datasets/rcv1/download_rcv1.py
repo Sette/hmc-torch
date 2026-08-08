@@ -9,11 +9,8 @@ Usage:
 """
 
 import argparse
-import json
 import logging
-import os
 import sys
-import zipfile
 from pathlib import Path
 from urllib.request import urlretrieve
 
@@ -23,9 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # HiAGM RCV1 data (public Google Drive mirror, processed JSON format)
-HIAGM_RCV1_URL = (
-    "https://github.com/Alibaba-NLP/HiAGM/raw/master/data/rcv1/"
-)
+HIAGM_RCV1_URL = "https://github.com/Alibaba-NLP/HiAGM/raw/master/data/rcv1/"
 
 
 def _download_hiagm_format(output_dir: Path) -> None:

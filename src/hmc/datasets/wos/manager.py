@@ -12,7 +12,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -45,7 +44,7 @@ class WOSManager:
         self,
         data_dir: str,
         model_name: str = "allenai/specter2_base",
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
         load_features: bool = True,
         model_cache_dir: str = "./models",
     ) -> None:
@@ -60,7 +59,7 @@ class WOSManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_datasets(self) -> Tuple[WOSSplit, WOSSplit, WOSSplit]:
+    def get_datasets(self) -> tuple[WOSSplit, WOSSplit, WOSSplit]:
         """Return (train, valid, test) WOSSplit objects."""
         return self._train, self._valid, self._test
 
@@ -124,7 +123,7 @@ class WOSManager:
         )
         return hierarchy
 
-    def _load_records(self, filename: str) -> Tuple[list, list]:
+    def _load_records(self, filename: str) -> tuple[list, list]:
         filepath = self._data_dir / filename
         logger.info("Loading WOS records from %s …", filepath)
         texts, label_ids = [], []
@@ -151,9 +150,7 @@ class WOSManager:
         )
         digest = hashlib.md5(key.encode()).hexdigest()[:16]
         cache_dir = (
-            self._cache_dir
-            if self._cache_dir
-            else self._data_dir / ".feature_cache"
+            self._cache_dir if self._cache_dir else self._data_dir / ".feature_cache"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{digest}.npy"
@@ -176,7 +173,7 @@ class WOSManager:
 
     def _compute_labels(
         self, hierarchy: WOSHierarchyManager, label_id_lists: list
-    ) -> Tuple[np.ndarray, list]:
+    ) -> tuple[np.ndarray, list]:
         n = len(label_id_lists)
         total_terms = len(hierarchy.terms)
         Y_global = np.zeros((n, total_terms), dtype=np.float32)

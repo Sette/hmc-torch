@@ -40,25 +40,19 @@ class ProteinFeatureEncoder(FeatureEncoder):
         self._model = None
         self._tokenizer = None
 
-    def fit(self, split: Split) -> "ProteinFeatureEncoder":
+    def fit(self, split: Split) -> ProteinFeatureEncoder:
         return self  # frozen embeddings, no fine-tuning initially
 
     def _ensure_loaded(self):
         if self._model is not None:
             return
         try:
-            import torch
-            try:
-                import esm  # noqa: F401
-                logger.info("ESM loaded for protein encoding")
-            except ImportError:
-                logger.warning(
-                    "ESM not installed — install with: "
-                    "pip install fair-esm"
-                )
-                return
-        except Exception as e:
-            logger.warning("Protein encoder loading failed: %s", e)
+            import importlib
+
+            importlib.import_module("esm")
+            logger.info("ESM loaded for protein encoding")
+        except ImportError:
+            logger.warning("ESM not installed — install with: pip install fair-esm")
 
     def transform(self, split: Split) -> Split:
         """Encode sequences if raw data available; otherwise passthrough."""

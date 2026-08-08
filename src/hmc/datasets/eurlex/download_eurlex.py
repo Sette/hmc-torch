@@ -16,7 +16,6 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from urllib.request import urlretrieve
@@ -73,9 +72,7 @@ def _download_huggingface(output_dir: Path) -> None:
     try:
         from datasets import load_dataset  # pylint: disable=import-outside-toplevel
     except ImportError:
-        logger.error(
-            "huggingface-datasets not installed. Run: pip install datasets"
-        )
+        logger.error("huggingface-datasets not installed. Run: pip install datasets")
         sys.exit(1)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -83,9 +80,7 @@ def _download_huggingface(output_dir: Path) -> None:
     for split in ["train", "dev", "test"]:
         output_path = output_dir / f"{split}.json"
         if output_path.exists() and output_path.stat().st_size > 1024:
-            logger.info(
-                "%s already exists. Skipping.", output_path.name
-            )
+            logger.info("%s already exists. Skipping.", output_path.name)
             continue
 
         logger.info("Loading EURLEX57K/%s from HuggingFace …", split)
@@ -109,15 +104,11 @@ def _download_huggingface(output_dir: Path) -> None:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(records, f, ensure_ascii=False)
 
-        logger.info(
-            "Saved %d records to %s", len(records), output_path
-        )
+        logger.info("Saved %d records to %s", len(records), output_path)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Download EUR-Lex 57K dataset"
-    )
+    parser = argparse.ArgumentParser(description="Download EUR-Lex 57K dataset")
     parser.add_argument(
         "--output_dir",
         type=str,

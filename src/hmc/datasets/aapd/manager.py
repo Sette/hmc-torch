@@ -11,7 +11,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -44,8 +43,8 @@ class AAPDManager:
         self,
         data_dir: str,
         model_name: str = "allenai/specter2_base",
-        max_records: Optional[int] = None,
-        cache_dir: Optional[str] = None,
+        max_records: int | None = None,
+        cache_dir: str | None = None,
         load_features: bool = True,
         model_cache_dir: str = "./models",
     ) -> None:
@@ -61,7 +60,7 @@ class AAPDManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_datasets(self) -> Tuple[AAPDSplit, AAPDSplit, AAPDSplit]:
+    def get_datasets(self) -> tuple[AAPDSplit, AAPDSplit, AAPDSplit]:
         """Return (train, valid, test) AAPDSplit objects."""
         return self._train, self._valid, self._test
 
@@ -118,7 +117,7 @@ class AAPDManager:
         text = re.sub(r"\s+", " ", text)
         return text.strip()
 
-    def _load_records(self, csv_path: Path) -> Tuple[list, list]:
+    def _load_records(self, csv_path: Path) -> tuple[list, list]:
         """Load AAPD CSV, returning (texts, labels_list).
 
         The CSV is expected to have columns: title, abstract, labels
@@ -152,9 +151,10 @@ class AAPDManager:
                 if labels.startswith("["):
                     try:
                         import json as _json
+
                         parsed = _json.loads(labels)
                         labels = " ".join(parsed)
-                    except (json.JSONDecodeError, TypeError):
+                    except (_json.JSONDecodeError, TypeError):
                         pass
 
                 text = f"{title} {abstract}"
@@ -179,9 +179,7 @@ class AAPDManager:
         )
         digest = hashlib.md5(key.encode()).hexdigest()[:16]
         cache_dir = (
-            self._cache_dir
-            if self._cache_dir
-            else self._data_dir / ".feature_cache"
+            self._cache_dir if self._cache_dir else self._data_dir / ".feature_cache"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"aapd_{digest}.npy"
@@ -207,7 +205,7 @@ class AAPDManager:
         self,
         hierarchy: AAPDHierarchyManager,
         labels_list: list,
-    ) -> Tuple[np.ndarray, list]:
+    ) -> tuple[np.ndarray, list]:
         """Convert text labels into global + local binary matrices."""
         n = len(labels_list)
         total_terms = len(hierarchy.terms)

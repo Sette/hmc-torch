@@ -8,19 +8,17 @@ training time.
 import json
 import os
 import sys
-import tempfile
 import time
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional
-
-sys.path.insert(0, "src")
-sys.path.insert(0, "tests")
 
 import numpy as np
 
 from tests.fixtures.arff import SyntheticARFFFixture
 from tests.test_gofun_loading import _patch_gofun_paths, _restore_gofun_paths
+
+sys.path.insert(0, "src")
+sys.path.insert(0, "tests")
 
 
 @dataclass
@@ -54,8 +52,12 @@ def _compute_metrics(y_true, y_pred, eval_mask):
             best_f1, best_thr, best_p, best_r = f1, thr, p, r
     try:
         from sklearn.metrics import average_precision_score
-        auprc = float(average_precision_score(
-            y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"))
+
+        auprc = float(
+            average_precision_score(
+                y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
+            )
+        )
     except ImportError:
         auprc = 0.0
     return best_f1, auprc, best_p, best_r, best_thr
@@ -65,12 +67,16 @@ def _compute_metrics(y_true, y_pred, eval_mask):
 # 1. Tabular methods on synthetic seq_FUN
 # ===================================================================
 
+
 def bench_tabular_methods():
     results = []
     fixture = SyntheticARFFFixture(
         name="seq_FUN",
         hierarchy="root.CC.CC01,root.CC.CC02,root.MF.MF01,root.BP.BP01",
-        num_features=50, num_train=200, num_valid=40, num_test=40,
+        num_features=50,
+        num_train=200,
+        num_valid=40,
+        num_test=40,
         is_go=False,
     )
     tmpdir = fixture.setup()
@@ -82,12 +88,14 @@ def bench_tabular_methods():
         t0 = time.time()
         try:
             import torch
-            from hmc.datasets.dataset_manager import initialize_dataset_experiments
-            from hmc.models.local_classifier.model import LocalModel
             from torch.utils.data import DataLoader
 
+            from hmc.datasets.dataset_manager import initialize_dataset_experiments
+            from hmc.models.local_classifier.model import LocalModel
+
             mgr = initialize_dataset_experiments(
-                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+            )
             train, valid, test = mgr.get_datasets()
 
             # Combine train+valid
@@ -98,6 +106,7 @@ def bench_tabular_methods():
 
             # Simple scaling
             from sklearn.preprocessing import StandardScaler
+
             scaler = StandardScaler()
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
@@ -108,21 +117,29 @@ def bench_tabular_methods():
             model = LocalModel(
                 input_dim=X_train.shape[1],
                 levels_size=mgr.levels_size,
-                hidden_dim=128, num_layers=2, dropout=0.2,
+                hidden_dim=128,
+                num_layers=2,
+                dropout=0.2,
             )
             optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
             criterion = torch.nn.BCELoss()
 
             # DataLoaders
-            train_ds = list(zip(
-                torch.tensor(X_train), torch.tensor(y_train),
-                [[np.stack(yy) for yy in yl] for yl in train.y_local] +
-                [[np.stack(yy) for yy in yl] for yl in valid.y_local]
-            ))
-            test_ds = list(zip(
-                torch.tensor(X_test), torch.tensor(y_test),
-                [[np.stack(yy) for yy in yl] for yl in test.y_local]
-            ))
+            train_ds = list(
+                zip(
+                    torch.tensor(X_train),
+                    torch.tensor(y_train),
+                    [[np.stack(yy) for yy in yl] for yl in train.y_local]
+                    + [[np.stack(yy) for yy in yl] for yl in valid.y_local],
+                )
+            )
+            test_ds = list(
+                zip(
+                    torch.tensor(X_test),
+                    torch.tensor(y_test),
+                    [[np.stack(yy) for yy in yl] for yl in test.y_local],
+                )
+            )
             train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
             test_loader = DataLoader(test_ds, batch_size=32, shuffle=False)
 
@@ -159,33 +176,50 @@ def bench_tabular_methods():
             y_pred = np.stack(all_preds)
             f1, auprc, p, r, thr = _compute_metrics(y_test, y_pred, eval_mask)
 
-            results.append(Result(
-                method="local", dataset="seq_FUN",
-                micro_f1=float(f1), auprc=float(auprc),
-                precision=float(p), recall=float(r), threshold=float(thr),
-                duration_s=time.time() - t0,
-                n_features=X_train.shape[1],
-                n_samples_train=len(X_train), n_samples_test=len(X_test),
-            ))
+            results.append(
+                Result(
+                    method="local",
+                    dataset="seq_FUN",
+                    micro_f1=float(f1),
+                    auprc=float(auprc),
+                    precision=float(p),
+                    recall=float(r),
+                    threshold=float(thr),
+                    duration_s=time.time() - t0,
+                    n_features=X_train.shape[1],
+                    n_samples_train=len(X_train),
+                    n_samples_test=len(X_test),
+                )
+            )
             print(f"  F1={f1:.4f}  AUPRC={auprc:.4f}  time={time.time()-t0:.1f}s")
         except Exception as e:
-            results.append(Result(method="local", dataset="seq_FUN",
-                                  micro_f1=0, auprc=0, precision=0, recall=0,
-                                  threshold=0.5, duration_s=time.time()-t0,
-                                  error=str(e)))
+            results.append(
+                Result(
+                    method="local",
+                    dataset="seq_FUN",
+                    micro_f1=0,
+                    auprc=0,
+                    precision=0,
+                    recall=0,
+                    threshold=0.5,
+                    duration_s=time.time() - t0,
+                    error=str(e),
+                )
+            )
             print(f"  ERROR: {e}")
 
         # ---- tabular_gbdt ----
         print("\n=== tabular_gbdt (seq_FUN) ===")
         t0 = time.time()
         try:
-            from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
-            from hmc.models.tabular.preprocessing import TabularPreprocessor
             from hmc.data.hierarchy import TreeHierarchy
             from hmc.models.hierarchical.postprocess import reconcile
+            from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
+            from hmc.models.tabular.preprocessing import TabularPreprocessor
 
             mgr2 = initialize_dataset_experiments(
-                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+            )
             train2, valid2, test2 = mgr2.get_datasets()
             Xt = np.concatenate([train2.x, valid2.x]).astype(np.float32)
             yt = np.concatenate([train2.y, valid2.y]).astype(np.float32)
@@ -204,22 +238,39 @@ def bench_tabular_methods():
             hier = TreeHierarchy.from_fun_cat_terms(branches)
             scores_final = reconcile(scores_raw, hier)
 
-            f1, auprc, p, r, thr = _compute_metrics(yt2, scores_final,
-                                                     np.array(mgr2.to_eval, dtype=bool))
-            results.append(Result(
-                method="tabular_gbdt", dataset="seq_FUN",
-                micro_f1=float(f1), auprc=float(auprc),
-                precision=float(p), recall=float(r), threshold=float(thr),
-                duration_s=time.time() - t0,
-                n_features=Xt_pp.shape[1],
-                n_samples_train=len(Xt), n_samples_test=len(Xt2),
-            ))
+            f1, auprc, p, r, thr = _compute_metrics(
+                yt2, scores_final, np.array(mgr2.to_eval, dtype=bool)
+            )
+            results.append(
+                Result(
+                    method="tabular_gbdt",
+                    dataset="seq_FUN",
+                    micro_f1=float(f1),
+                    auprc=float(auprc),
+                    precision=float(p),
+                    recall=float(r),
+                    threshold=float(thr),
+                    duration_s=time.time() - t0,
+                    n_features=Xt_pp.shape[1],
+                    n_samples_train=len(Xt),
+                    n_samples_test=len(Xt2),
+                )
+            )
             print(f"  F1={f1:.4f}  AUPRC={auprc:.4f}  time={time.time()-t0:.1f}s")
         except Exception as e:
-            results.append(Result(method="tabular_gbdt", dataset="seq_FUN",
-                                  micro_f1=0, auprc=0, precision=0, recall=0,
-                                  threshold=0.5, duration_s=time.time()-t0,
-                                  error=str(e)))
+            results.append(
+                Result(
+                    method="tabular_gbdt",
+                    dataset="seq_FUN",
+                    micro_f1=0,
+                    auprc=0,
+                    precision=0,
+                    recall=0,
+                    threshold=0.5,
+                    duration_s=time.time() - t0,
+                    error=str(e),
+                )
+            )
             print(f"  ERROR: {e}")
 
         # ---- tabular_mlp ----
@@ -227,12 +278,14 @@ def bench_tabular_methods():
         t0 = time.time()
         try:
             import torch
-            from hmc.models.tabular.mlp import TabularMLPModel
-            from hmc.models.hierarchical.losses import WeightedBCELoss
             from torch.utils.data import DataLoader, TensorDataset
 
+            from hmc.models.hierarchical.losses import WeightedBCELoss
+            from hmc.models.tabular.mlp import TabularMLPModel
+
             mgr3 = initialize_dataset_experiments(
-                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+                "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+            )
             train3, valid3, test3 = mgr3.get_datasets()
             Xm = np.concatenate([train3.x, valid3.x]).astype(np.float32)
             ym = np.concatenate([train3.y, valid3.y]).astype(np.float32)
@@ -245,8 +298,12 @@ def bench_tabular_methods():
 
             device = torch.device("cpu")
             model_mlp = TabularMLPModel(
-                input_dim=Xm_pp.shape[1], n_nodes=ym.shape[1],
-                hidden_dim=128, n_blocks=2, head_layers=2, dropout=0.2,
+                input_dim=Xm_pp.shape[1],
+                n_nodes=ym.shape[1],
+                hidden_dim=128,
+                n_blocks=2,
+                head_layers=2,
+                dropout=0.2,
             ).to(device)
 
             pos_w = WeightedBCELoss.compute_pos_weight(torch.tensor(ym)).to(device)
@@ -282,22 +339,39 @@ def bench_tabular_methods():
             )
             scores_final_mlp = reconcile(y_pred_mlp, hier2)
 
-            f1, auprc, p, r, thr = _compute_metrics(ym2, scores_final_mlp,
-                                                     np.array(mgr3.to_eval, dtype=bool))
-            results.append(Result(
-                method="tabular_mlp", dataset="seq_FUN",
-                micro_f1=float(f1), auprc=float(auprc),
-                precision=float(p), recall=float(r), threshold=float(thr),
-                duration_s=time.time() - t0,
-                n_features=Xm_pp.shape[1],
-                n_samples_train=len(Xm), n_samples_test=len(Xm2),
-            ))
+            f1, auprc, p, r, thr = _compute_metrics(
+                ym2, scores_final_mlp, np.array(mgr3.to_eval, dtype=bool)
+            )
+            results.append(
+                Result(
+                    method="tabular_mlp",
+                    dataset="seq_FUN",
+                    micro_f1=float(f1),
+                    auprc=float(auprc),
+                    precision=float(p),
+                    recall=float(r),
+                    threshold=float(thr),
+                    duration_s=time.time() - t0,
+                    n_features=Xm_pp.shape[1],
+                    n_samples_train=len(Xm),
+                    n_samples_test=len(Xm2),
+                )
+            )
             print(f"  F1={f1:.4f}  AUPRC={auprc:.4f}  time={time.time()-t0:.1f}s")
         except Exception as e:
-            results.append(Result(method="tabular_mlp", dataset="seq_FUN",
-                                  micro_f1=0, auprc=0, precision=0, recall=0,
-                                  threshold=0.5, duration_s=time.time()-t0,
-                                  error=str(e)))
+            results.append(
+                Result(
+                    method="tabular_mlp",
+                    dataset="seq_FUN",
+                    micro_f1=0,
+                    auprc=0,
+                    precision=0,
+                    recall=0,
+                    threshold=0.5,
+                    duration_s=time.time() - t0,
+                    error=str(e),
+                )
+            )
             print(f"  ERROR: {e}")
 
     finally:
@@ -311,6 +385,7 @@ def bench_tabular_methods():
 # 2. Text-based methods on WOS
 # ===================================================================
 
+
 def bench_wos_methods():
     results = []
     wos_path = "./data"
@@ -320,15 +395,16 @@ def bench_wos_methods():
     t0 = time.time()
     try:
         import torch
+        from torch.utils.data import DataLoader
+
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
         from hmc.models.global_classifier.constraint.model import ConstrainedModel
-        from hmc.pipeline.global_classifier.core.train import train_step
-        from hmc.utils.train.job import create_job_id_name
-        from torch.utils.data import DataLoader
-        import networkx as nx
 
         mgr = initialize_dataset_experiments(
-            "wos", device="cpu", dataset_path=wos_path, is_global=True,
+            "wos",
+            device="cpu",
+            dataset_path=wos_path,
+            is_global=True,
             model_cache_dir="./models",
         )
         train, valid, test = mgr.get_datasets()
@@ -347,9 +423,16 @@ def bench_wos_methods():
             input_dim=n_features,
             hidden_dim=256,
             output_dim=n_nodes,
-            hyperparams={"batch_size": 32, "num_layers": 2, "dropout": 0.3,
-                         "non_lin": "relu", "hidden_dim": 256},
-            r_matrix=torch.eye(n_nodes).unsqueeze(0),  # simplified - no constraint matrix
+            hyperparams={
+                "batch_size": 32,
+                "num_layers": 2,
+                "dropout": 0.3,
+                "non_lin": "relu",
+                "hidden_dim": 256,
+            },
+            r_matrix=torch.eye(n_nodes).unsqueeze(
+                0
+            ),  # simplified - no constraint matrix
             baseline_model=False,
         )
 
@@ -380,22 +463,39 @@ def bench_wos_methods():
             y_pred = model_wos(Xt_test).numpy()
 
         f1, auprc, p, r, thr = _compute_metrics(y_test, y_pred, eval_mask)
-        results.append(Result(
-            method="global", dataset="wos",
-            micro_f1=float(f1), auprc=float(auprc),
-            precision=float(p), recall=float(r), threshold=float(thr),
-            duration_s=time.time() - t0,
-            n_features=n_features,
-            n_samples_train=len(X_train), n_samples_test=len(X_test),
-        ))
+        results.append(
+            Result(
+                method="global",
+                dataset="wos",
+                micro_f1=float(f1),
+                auprc=float(auprc),
+                precision=float(p),
+                recall=float(r),
+                threshold=float(thr),
+                duration_s=time.time() - t0,
+                n_features=n_features,
+                n_samples_train=len(X_train),
+                n_samples_test=len(X_test),
+            )
+        )
         print(f"  F1={f1:.4f}  AUPRC={auprc:.4f}  time={time.time()-t0:.1f}s")
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        results.append(Result(method="global", dataset="wos",
-                              micro_f1=0, auprc=0, precision=0, recall=0,
-                              threshold=0.5, duration_s=time.time()-t0,
-                              error=str(e)))
+        results.append(
+            Result(
+                method="global",
+                dataset="wos",
+                micro_f1=0,
+                auprc=0,
+                precision=0,
+                recall=0,
+                threshold=0.5,
+                duration_s=time.time() - t0,
+                error=str(e),
+            )
+        )
         print(f"  ERROR: {e}")
 
     return results
@@ -442,12 +542,17 @@ if __name__ == "__main__":
     out = []
     for r in all_results:
         d = {
-            "method": r.method, "dataset": r.dataset,
-            "micro_f1": r.micro_f1, "auprc": r.auprc,
-            "precision": r.precision, "recall": r.recall,
-            "threshold": r.threshold, "duration_s": r.duration_s,
+            "method": r.method,
+            "dataset": r.dataset,
+            "micro_f1": r.micro_f1,
+            "auprc": r.auprc,
+            "precision": r.precision,
+            "recall": r.recall,
+            "threshold": r.threshold,
+            "duration_s": r.duration_s,
             "n_features": r.n_features,
-            "n_train": r.n_samples_train, "n_test": r.n_samples_test,
+            "n_train": r.n_samples_train,
+            "n_test": r.n_samples_test,
         }
         if r.error:
             d["error"] = r.error

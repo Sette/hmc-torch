@@ -26,26 +26,22 @@ download-all:
 
 lint-check:
 	@echo "--> Running linter check"
-	autopep8 --in-place --recursive src
-	flake8 src/
-	black --check src/
-	ruff check src/
-	isort -c src/
-	pylint src/
+	uv run flake8 src/
+	uv run ruff check src/
+	uv run isort -c src/
+	uv run pylint src/
 
 pre-commit:
 	@echo "--> Running pre-commit"
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 lint:
 	@echo "--> Running linter"
-	autopep8 --in-place --recursive src
-	flake8 src/
-	black src/
-	ruff format src/
-	ruff check src/ --fix
-	isort src/
-	pylint $$(git ls-files '*.py')
+	uv run flake8 src/
+	uv run ruff format src/
+	uv run ruff check src/ --fix
+	uv run isort src/
+	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/')
 
 run:
 	./run.sh --device cuda --dataset_name wos --method global --output_path output

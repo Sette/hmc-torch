@@ -5,10 +5,6 @@ Wraps :class:`TabularPreprocessor` in the :class:`FeatureEncoder` protocol.
 
 from __future__ import annotations
 
-from typing import Optional
-
-import numpy as np
-
 from hmc.data.base import FeatureEncoder, Split
 from hmc.models.tabular.preprocessing import TabularPreprocessor
 
@@ -28,8 +24,8 @@ class TabularFeatureEncoder(FeatureEncoder):
         self,
         with_imputation: bool = True,
         with_scaling: bool = True,
-        feature_selector: Optional[str] = None,
-        selector_kwargs: Optional[dict] = None,
+        feature_selector: str | None = None,
+        selector_kwargs: dict | None = None,
     ):
         self._pp = TabularPreprocessor(
             with_imputation=with_imputation,
@@ -38,7 +34,7 @@ class TabularFeatureEncoder(FeatureEncoder):
             selector_kwargs=selector_kwargs,
         )
 
-    def fit(self, split: Split) -> "TabularFeatureEncoder":
+    def fit(self, split: Split) -> TabularFeatureEncoder:
         self._pp.fit(split.features, split.labels)
         return self
 

@@ -8,7 +8,6 @@ When raw text is not available, falls back to pre-extracted features
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 
@@ -50,7 +49,7 @@ class TextFeatureEncoder(FeatureEncoder):
         self._tokenizer = None
         self._fitted = False
 
-    def fit(self, split: Split) -> "TextFeatureEncoder":
+    def fit(self, split: Split) -> TextFeatureEncoder:
         """Load tokenizer and model (no training needed for frozen encoder)."""
         self._fitted = True
         # Lazy-load on first transform
@@ -62,18 +61,17 @@ class TextFeatureEncoder(FeatureEncoder):
         try:
             from transformers import AutoModel, AutoTokenizer
         except ImportError:
-            logger.warning(
-                "Transformers not installed; text encoder will passthrough"
-            )
+            logger.warning("Transformers not installed; text encoder will passthrough")
             return
         try:
             from hmc.utils.model_cache import (  # pylint: disable=import-outside-toplevel
                 ensure_transformer_model_cached,
             )
+
             local_path = ensure_transformer_model_cached(
                 self.model_name, self.model_cache_dir
             )
-        except Exception:
+        except (OSError, ImportError):
             local_path = self.model_name
 
         try:
@@ -84,7 +82,7 @@ class TextFeatureEncoder(FeatureEncoder):
                 local_path, local_files_only=True
             ).to(self.device)
             self._model.eval()
-        except Exception as e:
+        except (OSError, ImportError) as e:
             logger.warning("Could not load transformer model: %s", e)
 
     def transform(self, split: Split) -> Split:

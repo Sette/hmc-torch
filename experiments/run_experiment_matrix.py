@@ -5,16 +5,19 @@ Runs tabular_gbdt and tabular_mlp on each dataset.
 Saves artefacts and produces comparison table.
 """
 
-import json, os, sys, time
+import json
+import os
+import sys
+import time
+
 import numpy as np
 import torch
-
-sys.path.insert(0, "src")
-
-from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import average_precision_score
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
+
+sys.path.insert(0, "src")
 
 
 def compute_metrics(y_true, y_pred, eval_mask):
@@ -30,8 +33,11 @@ def compute_metrics(y_true, y_pred, eval_mask):
         if f1 > best_f1:
             best_f1, best_thr, best_p, best_r = f1, thr, p, r
     try:
-        auprc = float(average_precision_score(
-            y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"))
+        auprc = float(
+            average_precision_score(
+                y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
+            )
+        )
     except Exception:
         auprc = 0.0
     return best_f1, auprc, best_p, best_r, best_thr
@@ -39,9 +45,13 @@ def compute_metrics(y_true, y_pred, eval_mask):
 
 def load_dataset(name):
     from hmc.datasets.manager.dataset_manager import initialize_dataset_experiments
+
     mgr = initialize_dataset_experiments(
-        name, device="cpu", dataset_path="./data",
-        dataset_type="arff", is_global=False,
+        name,
+        device="cpu",
+        dataset_path="./data",
+        dataset_type="arff",
+        is_global=False,
     )
     train, valid, test = mgr.get_datasets()
     X_tr = np.concatenate([train.x, valid.x]).astype(np.float32)
@@ -57,24 +67,27 @@ def load_dataset(name):
 
     # Hierarchy
     from hmc.data.hierarchy import TreeHierarchy
+
     branches = [t for t in train.terms if t != "root"]
-    hier = TreeHierarchy.from_fun_cat_terms(
-        branches if branches else train.terms
-    )
+    hier = TreeHierarchy.from_fun_cat_terms(branches if branches else train.terms)
     return X_tr, y_tr, X_te, y_te, eval_mask, hier, mgr
 
 
 def run_gbdt(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
-    from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
     from hmc.models.hierarchical.postprocess import reconcile
+    from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
 
     t0 = time.time()
     n_pos = y_tr.sum(axis=0)
     trainable = (n_pos >= 5) & eval_mask
 
-    gbdt = GBDTOvRClassifier(backend="histgb", backend_kwargs={
-        "early_stopping": False, "max_iter": 100,
-    })
+    gbdt = GBDTOvRClassifier(
+        backend="histgb",
+        backend_kwargs={
+            "early_stopping": False,
+            "max_iter": 100,
+        },
+    )
     gbdt.fit(X_tr, y_tr, eval_mask=trainable)
     scores_raw = gbdt.predict_proba(X_te)
     scores = reconcile(scores_raw, hier, strategy="ancestor_max")
@@ -84,12 +97,19 @@ def run_gbdt(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
     out_dir = f"./output/experiments/{name}/tabular_gbdt"
     os.makedirs(out_dir, exist_ok=True)
     np.savez_compressed(f"{out_dir}/scores_final.npz", scores=scores)
-    metrics_dict = {"micro_f1": float(f1), "auprc": float(au),
-                    "precision": float(p), "recall": float(r),
-                    "threshold": float(thr), "duration_s": dur,
-                    "nodes_trained": int(trainable.sum()),
-                    "n_train": len(X_tr), "n_test": len(X_te),
-                    "n_features": X_tr.shape[1], "n_nodes": y_tr.shape[1]}
+    metrics_dict = {
+        "micro_f1": float(f1),
+        "auprc": float(au),
+        "precision": float(p),
+        "recall": float(r),
+        "threshold": float(thr),
+        "duration_s": dur,
+        "nodes_trained": int(trainable.sum()),
+        "n_train": len(X_tr),
+        "n_test": len(X_te),
+        "n_features": X_tr.shape[1],
+        "n_nodes": y_tr.shape[1],
+    }
     with open(f"{out_dir}/metrics.json", "w") as f:
         json.dump(metrics_dict, f, indent=2)
 
@@ -97,9 +117,9 @@ def run_gbdt(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
 
 
 def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
-    from hmc.models.tabular.mlp import TabularMLPModel
     from hmc.models.hierarchical.losses import WeightedBCELoss
     from hmc.models.hierarchical.postprocess import reconcile
+    from hmc.models.tabular.mlp import TabularMLPModel
 
     t0 = time.time()
     device = torch.device("cpu")
@@ -107,13 +127,15 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
     n_nodes = y_tr.shape[1]
 
     model = TabularMLPModel(
-        input_dim=n_features, n_nodes=n_nodes,
-        hidden_dim=min(512, n_features), n_blocks=2,
-        head_layers=2, dropout=0.3,
+        input_dim=n_features,
+        n_nodes=n_nodes,
+        hidden_dim=min(512, n_features),
+        n_blocks=2,
+        head_layers=2,
+        dropout=0.3,
     ).to(device)
 
-    pos_w = WeightedBCELoss.compute_pos_weight(
-        torch.tensor(y_tr)).to(device)
+    pos_w = WeightedBCELoss.compute_pos_weight(torch.tensor(y_tr)).to(device)
     crit = WeightedBCELoss(pos_weight=pos_w)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
 
@@ -124,6 +146,7 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
 
     # Use registry epochs if available, else 30
     from hmc.datasets.registry import DatasetRegistry
+
     reg = DatasetRegistry()
     is_go = "_GO" in name
     ontology = "GO" if is_go else "FUN"
@@ -137,7 +160,9 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
             bx, by = bx.to(device), by.to(device)
             preds = model(bx)
             loss = crit(preds, by)
-            opt.zero_grad(); loss.backward(); opt.step()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
 
     model.eval()
     all_preds = []
@@ -152,12 +177,19 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
     out_dir = f"./output/experiments/{name}/tabular_mlp"
     os.makedirs(out_dir, exist_ok=True)
     np.savez_compressed(f"{out_dir}/scores_final.npz", scores=scores)
-    metrics_dict = {"micro_f1": float(f1), "auprc": float(au),
-                    "precision": float(p), "recall": float(r),
-                    "threshold": float(thr), "duration_s": dur,
-                    "epochs": epochs, "n_train": len(X_tr),
-                    "n_test": len(X_te), "n_features": n_features,
-                    "n_nodes": n_nodes}
+    metrics_dict = {
+        "micro_f1": float(f1),
+        "auprc": float(au),
+        "precision": float(p),
+        "recall": float(r),
+        "threshold": float(thr),
+        "duration_s": dur,
+        "epochs": epochs,
+        "n_train": len(X_tr),
+        "n_test": len(X_te),
+        "n_features": n_features,
+        "n_nodes": n_nodes,
+    }
     with open(f"{out_dir}/metrics.json", "w") as f:
         json.dump(metrics_dict, f, indent=2)
 
@@ -166,8 +198,14 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
 
 # ===================================================================
 FUN_DATASETS = [
-    "cellcycle_FUN", "derisi_FUN", "eisen_FUN", "expr_FUN",
-    "gasch1_FUN", "gasch2_FUN", "seq_FUN", "spo_FUN",
+    "cellcycle_FUN",
+    "derisi_FUN",
+    "eisen_FUN",
+    "expr_FUN",
+    "gasch1_FUN",
+    "gasch2_FUN",
+    "seq_FUN",
+    "spo_FUN",
 ]
 
 all_results = []
@@ -182,26 +220,34 @@ for ds_name in FUN_DATASETS:
         n_feat = X_tr.shape[1]
         n_pos = int(y_tr.sum(axis=0).mean())
         print(f"  Samples: {X_tr.shape[0]} train, {X_te.shape[0]} test")
-        print(f"  Features: {n_feat}  Nodes: {n_nodes}  "
-              f"Eval: {eval_mask.sum()}  Avg positives/node: {n_pos}")
+        print(
+            f"  Features: {n_feat}  Nodes: {n_nodes}  "
+            f"Eval: {eval_mask.sum()}  Avg positives/node: {n_pos}"
+        )
 
         # GBDT
-        print(f"  [GBDT] ", end="", flush=True)
+        print("  [GBDT] ", end="", flush=True)
         r_gbdt = run_gbdt(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
         all_results.append(r_gbdt)
-        print(f"F1={r_gbdt['micro_f1']:.4f}  AUPRC={r_gbdt['auprc']:.4f}  "
-              f"nodes={r_gbdt['nodes_trained']}/{n_nodes}  time={r_gbdt['duration_s']:.1f}s")
+        print(
+            f"F1={r_gbdt['micro_f1']:.4f}  AUPRC={r_gbdt['auprc']:.4f}  "
+            f"nodes={r_gbdt['nodes_trained']}/{n_nodes}  time={r_gbdt['duration_s']:.1f}s"
+        )
 
         # MLP
-        print(f"  [MLP]  ", end="", flush=True)
+        print("  [MLP]  ", end="", flush=True)
         r_mlp = run_mlp(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
         all_results.append(r_mlp)
-        print(f"F1={r_mlp['micro_f1']:.4f}  AUPRC={r_mlp['auprc']:.4f}  "
-              f"epochs={r_mlp.get('epochs','?')}  time={r_mlp['duration_s']:.1f}s")
+        print(
+            f"F1={r_mlp['micro_f1']:.4f}  AUPRC={r_mlp['auprc']:.4f}  "
+            f"epochs={r_mlp.get('epochs', '?')}  time={r_mlp['duration_s']:.1f}s"
+        )
 
     except Exception as e:
         print(f"  ERROR: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
 
 # ===================================================================
 # Report
@@ -222,10 +268,12 @@ for ds_name in FUN_DATASETS:
             extra = f"  nodes={r['nodes_trained']}"
         if "epochs" in r:
             extra = f"  epochs={r['epochs']}"
-        print(f"  {r['method']:<15} F1={r['micro_f1']:.4f}  "
-              f"AUPRC={r['auprc']:.4f}  P={r['precision']:.4f}  "
-              f"R={r['recall']:.4f}  thr={r['threshold']:.2f}  "
-              f"time={r['duration_s']:.1f}s{extra}")
+        print(
+            f"  {r['method']:<15} F1={r['micro_f1']:.4f}  "
+            f"AUPRC={r['auprc']:.4f}  P={r['precision']:.4f}  "
+            f"R={r['recall']:.4f}  thr={r['threshold']:.2f}  "
+            f"time={r['duration_s']:.1f}s{extra}"
+        )
 
 # Summary by method
 print(f"\n{'='*100}")
@@ -238,11 +286,13 @@ for method in ["tabular_gbdt", "tabular_mlp"]:
     avg_f1 = np.mean([r["micro_f1"] for r in m_results])
     avg_au = np.mean([r["auprc"] for r in m_results])
     avg_t = np.mean([r["duration_s"] for r in m_results])
-    print(f"  {method:<15} avg F1={avg_f1:.4f}  avg AUPRC={avg_au:.4f}  "
-          f"avg time={avg_t:.1f}s  ({len(m_results)} datasets)")
+    print(
+        f"  {method:<15} avg F1={avg_f1:.4f}  avg AUPRC={avg_au:.4f}  "
+        f"avg time={avg_t:.1f}s  ({len(m_results)} datasets)"
+    )
 
 # Save
 os.makedirs("./output/experiments", exist_ok=True)
 with open("./output/experiments/fun_matrix.json", "w") as f:
     json.dump(all_results, f, indent=2)
-print(f"\nFull results saved to ./output/experiments/fun_matrix.json")
+print("\nFull results saved to ./output/experiments/fun_matrix.json")

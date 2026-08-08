@@ -5,15 +5,12 @@ installed and has a non-commercial license.
 """
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-# Mock tabfm before any real import attempts
-_tabfm_mock = MagicMock()
-sys.modules["tabfm"] = _tabfm_mock
-
+import hmc.models.tabular.tabfm.adapter as adapter_mod
 from hmc.models.tabular.tabfm.adapter import TabFMAdapter, _check_tabfm, require_tabfm
 from hmc.models.tabular.tabfm.cache import TabFMCache
 from hmc.models.tabular.tabfm.context import (
@@ -21,8 +18,12 @@ from hmc.models.tabular.tabfm.context import (
     StratifiedContextSampler,
 )
 
+# Mock tabfm before any real import attempts
+_tabfm_mock = MagicMock()
+sys.modules["tabfm"] = _tabfm_mock
+
 # Clear the cached check so the mock is picked up
-import hmc.models.tabular.tabfm.adapter as adapter_mod
+
 adapter_mod._TABFM_AVAILABLE = True
 
 
@@ -111,8 +112,9 @@ class TestStratifiedContextSampler:
         y = np.zeros((20, 2), dtype=np.float32)
         y[:3, 0] = 1.0  # only 3 positives
 
-        sampler = StratifiedContextSampler(k_pos=10, k_neg=10,
-                                           seed=42, fallback="reduce")
+        sampler = StratifiedContextSampler(
+            k_pos=10, k_neg=10, seed=42, fallback="reduce"
+        )
         X_ctx, y_ctx = sampler.sample(X, y, node_idx=0, parent_indices=[])
         assert X_ctx.shape[0] < 20  # reduced
 
@@ -123,8 +125,11 @@ class TestStratifiedContextSampler:
 
         sampler = StratifiedContextSampler(k_pos=5, k_neg=5, seed=42)
         results = sampler.sample_multiple(
-            X, y, node_indices=[0, 1, 2],
-            parent_map=parent_map, n_contexts=3,
+            X,
+            y,
+            node_indices=[0, 1, 2],
+            parent_map=parent_map,
+            n_contexts=3,
         )
         assert len(results) == 3
         for nid, contexts in results.items():

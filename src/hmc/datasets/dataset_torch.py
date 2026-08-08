@@ -30,7 +30,7 @@ class HMCDatasetTorch:
             elif isinstance(data, dict):
                 self.examples.append(data)
             else:
-                raise ValueError(f"File {file} has unexpected type: {type(data)}")
+                raise TypeError(f"File {file} has unexpected type: {type(data)}")
 
         self.parse_to_array()
 

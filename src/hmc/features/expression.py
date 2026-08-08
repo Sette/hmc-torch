@@ -6,11 +6,10 @@ Includes normalisation and optional denoising/masked autoencoder.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 
-from hmc.data.base import FeatureEncoder, Modality, Split
+from hmc.data.base import FeatureEncoder, Split
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class ExpressionFeatureEncoder(FeatureEncoder):
         self,
         normalize: bool = True,
         use_autoencoder: bool = False,
-        autoencoder_kwargs: Optional[dict] = None,
+        autoencoder_kwargs: dict | None = None,
     ):
         self.normalize = normalize
         self.use_autoencoder = use_autoencoder
@@ -41,7 +40,7 @@ class ExpressionFeatureEncoder(FeatureEncoder):
         self._autoencoder = None
         self._fitted = False
 
-    def fit(self, split: Split) -> "ExpressionFeatureEncoder":
+    def fit(self, split: Split) -> ExpressionFeatureEncoder:
         X = split.features.astype(np.float32).copy()
 
         if self.normalize:
@@ -55,6 +54,7 @@ class ExpressionFeatureEncoder(FeatureEncoder):
             from hmc.models.expression.autoencoder import (  # pylint: disable=import-outside-toplevel
                 ExpressionAutoencoder,
             )
+
             self._autoencoder = ExpressionAutoencoder(
                 input_dim=X.shape[1],
                 **self.autoencoder_kwargs,

@@ -12,7 +12,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 import networkx as nx
 import numpy as np
@@ -88,9 +87,9 @@ def compute_transformer_embeddings(
             embeddings = output.last_hidden_state[:, 0, :]
         else:
             mask = encoded["attention_mask"].unsqueeze(-1).float()
-            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(
-                1
-            ).clamp(min=1e-9)
+            embeddings = (output.last_hidden_state * mask).sum(1) / mask.sum(1).clamp(
+                min=1e-9
+            )
         all_embeddings.append(embeddings.cpu().numpy())
 
     X = np.concatenate(all_embeddings, axis=0).astype(np.float32)
@@ -122,10 +121,10 @@ class ArXivManager:
     def __init__(
         self,
         jsonl_path: str,
-        max_records: Optional[int] = 50_000,
-        category_prefix: Optional[str] = None,
+        max_records: int | None = 50_000,
+        category_prefix: str | None = None,
         model_name: str = "allenai/specter2_base",
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
         load_features: bool = True,
         model_cache_dir: str = "./models",
     ) -> None:
@@ -140,7 +139,7 @@ class ArXivManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_datasets(self) -> Tuple[ArXivSplit, ArXivSplit, ArXivSplit]:
+    def get_datasets(self) -> tuple[ArXivSplit, ArXivSplit, ArXivSplit]:
         """Return (train, valid, test) ArXivSplit objects."""
         return self._train, self._valid, self._test
 
@@ -151,8 +150,8 @@ class ArXivManager:
     def _fit(
         self,
         jsonl_path: str,
-        max_records: Optional[int],
-        category_prefix: Optional[str],
+        max_records: int | None,
+        category_prefix: str | None,
     ) -> None:
         texts, cats_list = self._load_records(jsonl_path, max_records, category_prefix)
 
@@ -171,9 +170,9 @@ class ArXivManager:
     def _load_records(
         self,
         jsonl_path: str,
-        max_records: Optional[int],
-        category_prefix: Optional[str],
-    ) -> Tuple[list, list]:
+        max_records: int | None,
+        category_prefix: str | None,
+    ) -> tuple[list, list]:
         logger.info("Loading ArXiv records from %s (max=%s) …", jsonl_path, max_records)
         texts, cats_list = [], []
         with open(jsonl_path, "r", encoding="utf-8") as f:
@@ -251,7 +250,7 @@ class ArXivManager:
 
     def _compute_labels(
         self, hierarchy: ArXivHierarchyManager, cats_list: list
-    ) -> Tuple[np.ndarray, list]:
+    ) -> tuple[np.ndarray, list]:
         n = len(cats_list)
         total_terms = len(hierarchy.terms)
         Y_global = np.zeros((n, total_terms), dtype=np.float32)

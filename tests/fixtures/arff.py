@@ -1,12 +1,12 @@
 """Synthetic ARFF fixtures for testing GoFun dataset loading."""
 
-import os
 import tempfile
 from pathlib import Path
 
 
-def _make_arff_content(hierarchy_str: str, num_features: int,
-                        num_samples: int, is_go: bool = False) -> str:
+def _make_arff_content(
+    hierarchy_str: str, num_features: int, num_samples: int, is_go: bool = False
+) -> str:
     """Build a minimal valid HMC ARFF file as a string.
 
     Args:
@@ -27,6 +27,7 @@ def _make_arff_content(hierarchy_str: str, num_features: int,
     lines.append("@DATA")
 
     import random
+
     rng = random.Random(42)
     for _ in range(num_samples):
         feats = ",".join(f"{rng.uniform(-1, 1):.4f}" for _ in range(num_features))
@@ -44,11 +45,16 @@ class SyntheticARFFFixture:
     """Creates a temporary directory with synthetic ARFF files for a
     minimal GoFun-style dataset (train, valid, test)."""
 
-    def __init__(self, name: str = "seq_FUN",
-                 hierarchy: str = "root.A.A1,root.A.A2,root.B",
-                 num_features: int = 10, num_train: int = 20,
-                 num_valid: int = 5, num_test: int = 5,
-                 is_go: bool = False):
+    def __init__(
+        self,
+        name: str = "seq_FUN",
+        hierarchy: str = "root.A.A1,root.A.A2,root.B",
+        num_features: int = 10,
+        num_train: int = 20,
+        num_valid: int = 5,
+        num_test: int = 5,
+        is_go: bool = False,
+    ):
         self.name = name
         self.hierarchy = hierarchy
         self.num_features = num_features
@@ -70,9 +76,7 @@ class SyntheticARFFFixture:
             content = _make_arff_content(
                 self.hierarchy, self.num_features, n, is_go=self.is_go
             )
-            (ds_dir / f"{self.name}.{split}.arff").write_text(
-                content, encoding="utf-8"
-            )
+            (ds_dir / f"{self.name}.{split}.arff").write_text(content, encoding="utf-8")
 
         return self._tmpdir.name
 

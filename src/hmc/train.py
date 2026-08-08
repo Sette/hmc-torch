@@ -22,14 +22,63 @@ from __future__ import annotations
 import logging
 import os
 import random
-import sys
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
 
 logger = logging.getLogger(__name__)
+
+
+def _build_configs(
+    dataset_name: str,
+    method: str,
+    device: str,
+    epochs: int,
+    batch_size: int,
+    dataset_path: str,
+    output_path: str,
+    seed: int,
+    **kwargs: Any,
+) -> tuple:
+    """Build DatasetConfig, TrainingConfig, and Args from kwargs."""
+    from dataclasses import (
+        fields as dc_fields,  # pylint: disable=import-outside-toplevel
+    )
+
+    from hmc.arguments import (  # pylint: disable=import-outside-toplevel
+        Args,
+        DatasetConfig,
+        TrainingConfig,
+    )
+
+    dataset = DatasetConfig(
+        dataset_path=dataset_path,
+        dataset_name=dataset_name,
+        arxiv_model_name=kwargs.pop("arxiv_model_name", "allenai/specter2_base"),
+        arxiv_max_records=kwargs.pop("arxiv_max_records", 50_000),
+        model_cache_dir=kwargs.pop("model_cache_dir", "./models"),
+    )
+
+    _training_fields = {f.name for f in dc_fields(TrainingConfig)}
+    training_kwargs = {
+        "batch_size": batch_size,
+        "device": device,
+        "epochs": epochs,
+        "seed": seed,
+    }
+    for k, v in kwargs.items():
+        if k in _training_fields:
+            training_kwargs[k] = v
+
+    training = TrainingConfig(**training_kwargs)
+
+    return Args(
+        dataset=dataset,
+        output_path=output_path,
+        method=method,
+        training=training,
+    )
 
 
 def train(
@@ -66,8 +115,7 @@ def train(
         Dictionary with training metrics (``micro_f1``, ``auprc``, …).
     """
     # Import here to avoid circular dependency on module load
-    from hmc.arguments import DatasetConfig, TrainingConfig, Args
-    from hmc.main import main as _main_impl
+    from hmc.main import main as _main_impl  # pylint: disable=import-outside-toplevel
 
     # Seed everything early
     torch.manual_seed(seed)
@@ -75,35 +123,16 @@ def train(
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
 
-    # Build config objects
-    dataset = DatasetConfig(
-        dataset_path=dataset_path,
+    args = _build_configs(
         dataset_name=dataset_name,
-        arxiv_model_name=kwargs.pop("arxiv_model_name", "allenai/specter2_base"),
-        arxiv_max_records=kwargs.pop("arxiv_max_records", 50_000),
-        model_cache_dir=kwargs.pop("model_cache_dir", "./models"),
-    )
-
-    # Build TrainingConfig, only passing known fields
-    from dataclasses import fields as dc_fields
-    _training_fields = {f.name for f in dc_fields(TrainingConfig)}
-    training_kwargs = {
-        "batch_size": batch_size,
-        "device": device,
-        "epochs": epochs,
-        "seed": seed,
-    }
-    for k, v in kwargs.items():
-        if k in _training_fields:
-            training_kwargs[k] = v
-
-    training = TrainingConfig(**training_kwargs)
-
-    args = Args(
-        dataset=dataset,
-        output_path=output_path,
         method=method,
-        training=training,
+        device=device,
+        epochs=epochs,
+        batch_size=batch_size,
+        dataset_path=dataset_path,
+        output_path=output_path,
+        seed=seed,
+        **kwargs,
     )
 
     return _main_impl(args)

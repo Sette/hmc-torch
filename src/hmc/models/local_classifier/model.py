@@ -6,7 +6,7 @@ Two variants:
 """
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 _CLS_POOL_MODELS = ("specter",)
 
@@ -42,7 +42,9 @@ class LocalE2EModel(nn.Module):
         )
 
         local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
-        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
+        self.transformer = AutoModel.from_pretrained(
+            local_model_path, local_files_only=True
+        )
         if freeze_transformer:
             for p in self.transformer.parameters():
                 p.requires_grad_(False)
@@ -55,7 +57,11 @@ class LocalE2EModel(nn.Module):
             layers = []
             in_dim = embed_dim
             for _ in range(num_layers):
-                layers += [nn.Linear(in_dim, hidden_dim), nn.ReLU(), nn.Dropout(dropout)]
+                layers += [
+                    nn.Linear(in_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Dropout(dropout),
+                ]
                 in_dim = hidden_dim
             layers.append(nn.Linear(in_dim, n_classes))
             self.heads[str(lvl)] = nn.Sequential(*layers)
@@ -68,13 +74,10 @@ class LocalE2EModel(nn.Module):
         ).float().clamp(min=1e-9)
 
     def forward(self, input_ids, attention_mask, **_kw):
+        """Forward pass returning per-level sigmoid probabilities."""
         out = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
         emb = self._pool(out, attention_mask)
         return {lvl: torch.sigmoid(head(emb)) for lvl, head in self.heads.items()}
-
-
-import torch
-import torch.nn as nn
 
 
 class LevelMLP(nn.Module):
@@ -106,6 +109,7 @@ class LevelMLP(nn.Module):
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass: MLP → sigmoid."""
         return torch.sigmoid(self.net(x))
 
 

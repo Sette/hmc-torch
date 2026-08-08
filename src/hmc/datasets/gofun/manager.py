@@ -104,9 +104,7 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
                     self.dataset_values["test_file"],
                 ) = ds
             else:
-                raise ValueError(
-                    f"Expected dataset tuple of length 3 or 4, got {n}"
-                )
+                raise ValueError(f"Expected dataset tuple of length 3 or 4, got {n}")
             self.load_arff_data()
 
     def load_structure_from_json(self, labels_json):

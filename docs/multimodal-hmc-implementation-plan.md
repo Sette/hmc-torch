@@ -342,4 +342,3 @@ manual/noturno separado.
 - uso comercial dos pesos TabFM v1.0;
 - misturar exemplos entre datasets sem auditoria de IDs;
 - alegações de SOTA antes de reproduzir split, métrica e baseline publicados.
-

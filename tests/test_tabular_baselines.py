@@ -8,7 +8,6 @@ from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
 from hmc.models.tabular.mlp import ResidualBlock, ResidualMLPEncoder, TabularMLPModel
 from hmc.models.tabular.preprocessing import TabularPreprocessor
 
-
 # ---------------------------------------------------------------------------
 # Preprocessing
 # ---------------------------------------------------------------------------
@@ -156,8 +155,12 @@ class TestResidualMLP:
 
     def test_full_model(self):
         model = TabularMLPModel(
-            input_dim=30, n_nodes=10, hidden_dim=64,
-            n_blocks=2, head_layers=1, dropout=0.1,
+            input_dim=30,
+            n_nodes=10,
+            hidden_dim=64,
+            n_blocks=2,
+            head_layers=1,
+            dropout=0.1,
         )
         x = torch.randn(16, 30)
         out = model(x)
@@ -166,7 +169,10 @@ class TestResidualMLP:
 
     def test_get_embeddings(self):
         model = TabularMLPModel(
-            input_dim=20, n_nodes=5, hidden_dim=64, n_blocks=2,
+            input_dim=20,
+            n_nodes=5,
+            hidden_dim=64,
+            n_blocks=2,
         )
         x = torch.randn(4, 20)
         emb = model.get_embeddings(x)
@@ -175,8 +181,12 @@ class TestResidualMLP:
     def test_training_step(self):
         """One training step should reduce loss."""
         model = TabularMLPModel(
-            input_dim=10, n_nodes=3, hidden_dim=32,
-            n_blocks=1, head_layers=1, dropout=0.0,
+            input_dim=10,
+            n_nodes=3,
+            hidden_dim=32,
+            n_blocks=1,
+            head_layers=1,
+            dropout=0.0,
         )
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
         criterion = torch.nn.BCELoss()
@@ -200,5 +210,6 @@ class TestResidualMLP:
         with torch.no_grad():
             loss_after = criterion(model(x), y).item()
 
-        assert loss_after < loss_before, \
+        assert loss_after < loss_before, (
             f"Training step should reduce loss: {loss_before:.4f} -> {loss_after:.4f}"
+        )

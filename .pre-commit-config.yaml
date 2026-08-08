@@ -3,6 +3,8 @@ default_language_version:
   python: python3
 fail_fast: false
 
+exclude: ^experiments/|^tests/|^notebooks/
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -18,29 +20,29 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.2.0
     hooks:
-      - id: black
-        args: [--line-length=88]
+      - id: flake8
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
 
   - repo: https://github.com/pycqa/isort
     rev: 6.0.1
     hooks:
       - id: isort
-        args: [--profile=black]
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.8
-    hooks:
-      - id: ruff
-        args: [--fix]
-        exclude: ^notebooks/
 
   - repo: local
     hooks:
       - id: pylint
         name: pylint
         language: system
-        entry: uv run pylint
+        entry: >-
+          bash -c 'git ls-files "*.py" | grep -v "^experiments/" | grep -v "^tests/" | xargs uv run pylint'
         types_or: [python, pyi]
+        pass_filenames: false

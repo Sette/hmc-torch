@@ -159,9 +159,7 @@ class ConstrainedGNNModel(nn.Module):  # pylint: disable=too-many-instance-attri
         return scores
 
 
-class ConstrainedLightningModel(
-    LightningModule
-):  # pylint: disable=too-many-instance-attributes
+class ConstrainedLightningModel(LightningModule):  # pylint: disable=too-many-instance-attributes
     """Constrained Lightning Model."""
 
     def __init__(

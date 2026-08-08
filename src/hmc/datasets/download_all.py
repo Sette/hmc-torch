@@ -50,7 +50,7 @@ def _run_module(module_name: str, output_dir: str) -> bool:
 
     cmd = [sys.executable, "-m", module_name, "--output_dir", output_dir]
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, check=False)  # pylint: disable=subprocess-run-check
     return result.returncode == 0
 
 
@@ -65,7 +65,9 @@ def main():
     groups = list(AVAILABLE) if args.groups == "all" else args.groups.split(",")
 
     for g in groups:
-        logger.info("  %-8s %s  [%s]", g, AVAILABLE[g]["description"], AVAILABLE[g]["size"])
+        logger.info(
+            "  %-8s %s  [%s]", g, AVAILABLE[g]["description"], AVAILABLE[g]["size"]
+        )
 
     if args.dry_run:
         return

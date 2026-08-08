@@ -271,9 +271,7 @@ class HMCDatasetArff:
         max_depth = len(levels_size)
         # Deduplicate level nodes before indexing so that local_nodes_idx
         # maps each node to a valid 0..n-1 index within its level.
-        levels_unique = {
-            key: sorted(set(value)) for key, value in levels.items()
-        }
+        levels_unique = {key: sorted(set(value)) for key, value in levels.items()}
         local_nodes_idx = {
             idx: {node: i for i, node in enumerate(level_nodes)}
             for idx, level_nodes in levels_unique.items()

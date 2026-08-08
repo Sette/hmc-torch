@@ -11,7 +11,7 @@ import os
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.data import DataLoader
 
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
@@ -29,8 +29,9 @@ def train_local(dataset_name, args):
     args.ontology = None
 
     # Detect dataset family for registry lookup
-    _is_gofun = any(suffix in (dataset_name or "")
-                    for suffix in ("_FUN", "_GO", "_others"))
+    _is_gofun = any(
+        suffix in (dataset_name or "") for suffix in ("_FUN", "_GO", "_others")
+    )
 
     # 1. Dataset
     args.hmc_dataset = initialize_dataset_experiments(
@@ -69,26 +70,18 @@ def train_local(dataset_name, args):
     args.input_dim = args.hmc_dataset.input_dim
     args.levels_size = args.hmc_dataset.levels_size
     args.max_depth = args.hmc_dataset.max_depth
-    args.to_eval = torch.as_tensor(
-        args.hmc_dataset.to_eval, dtype=torch.bool
-    )
+    args.to_eval = torch.as_tensor(args.hmc_dataset.to_eval, dtype=torch.bool)
 
     # 3. Convert features to tensors
     for split in (args.train, args.valid, args.test):
-        split.samples.x = (
-            torch.tensor(split.x).clone().detach().float().to(args.device)
-        )
-        split.samples.y = (
-            torch.tensor(split.y).clone().detach().float().to(args.device)
-        )
+        split.samples.x = torch.tensor(split.x).clone().detach().float().to(args.device)
+        split.samples.y = torch.tensor(split.y).clone().detach().float().to(args.device)
 
     # 4. Build DataLoaders — concat train + valid for training
     train_dataset = list(zip(args.train.x, args.train.y, args.train.y_local))
     for x, y, yl in zip(args.valid.x, args.valid.y, args.valid.y_local):
         train_dataset.append((x, y, yl))
-    test_dataset = list(
-        zip(args.test.x, args.test.y, args.test.y_local)
-    )
+    test_dataset = list(zip(args.test.x, args.test.y, args.test.y_local))
 
     args.train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True
@@ -137,7 +130,10 @@ def train_local(dataset_name, args):
             micro_f1, scores = _evaluate(model, args.test_loader, args)
             logger.info(
                 "Epoch %d/%d — loss %.4f — micro-F1 %.4f",
-                epoch + 1, args.epochs, total_loss, micro_f1,
+                epoch + 1,
+                args.epochs,
+                total_loss,
+                micro_f1,
             )
             if micro_f1 > best_micro_f1:
                 best_micro_f1 = micro_f1
@@ -146,10 +142,9 @@ def train_local(dataset_name, args):
     # 7. Save results
     import json
 
-    with open(f"{args.results_path}/test-scores.json", "w") as f:
+    with open(f"{args.results_path}/test-scores.json", "w", encoding="utf-8") as f:
         json.dump(args.score, f, indent=4)
-    logger.info("Best Micro-F1: %.4f — saved to %s",
-                best_micro_f1, args.results_path)
+    logger.info("Best Micro-F1: %.4f — saved to %s", best_micro_f1, args.results_path)
     return args.score
 
 
@@ -163,9 +158,9 @@ def _evaluate(model, loader, args):
             x = x.to(args.device)
             preds = model(x)
 
-            for i in range(len(x)):
+            for i, yg in enumerate(y_global):
                 global_pred = np.zeros(args.hmc_dataset.output_dim, dtype=np.float32)
-                global_label = y_global[i].cpu().numpy()
+                global_label = yg.cpu().numpy()
                 for lvl in sorted(args.levels_size):
                     local_pred = preds[str(lvl)][i].cpu().numpy()
                     local_idx = args.hmc_dataset.local_nodes_idx[lvl]
@@ -181,8 +176,25 @@ def _evaluate(model, loader, args):
 
     # Find best threshold on eval nodes only
     best_f1, best_thr = 0.0, 0.5
-    for thr in [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5,
-                0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9]:
+    for thr in [
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35,
+        0.4,
+        0.45,
+        0.5,
+        0.55,
+        0.6,
+        0.65,
+        0.7,
+        0.75,
+        0.8,
+        0.85,
+        0.9,
+    ]:
         y_bin = (y_pred > thr).astype(np.float32)
         tp = (y_bin[:, to_eval] * y_true[:, to_eval]).sum()
         fp = (y_bin[:, to_eval] * (1 - y_true[:, to_eval])).sum()
@@ -219,31 +231,39 @@ def _evaluate(model, loader, args):
         }
 
     scores["global"] = {
-        "precision": float((y_bin[:, to_eval] * y_true[:, to_eval]).sum()
-                           / (y_bin[:, to_eval].sum() + 1e-9)),
-        "recall": float((y_bin[:, to_eval] * y_true[:, to_eval]).sum()
-                        / (y_true[:, to_eval].sum() + 1e-9)),
+        "precision": float(
+            (y_bin[:, to_eval] * y_true[:, to_eval]).sum()
+            / (y_bin[:, to_eval].sum() + 1e-9)
+        ),
+        "recall": float(
+            (y_bin[:, to_eval] * y_true[:, to_eval]).sum()
+            / (y_true[:, to_eval].sum() + 1e-9)
+        ),
         "f1score": float(best_f1),
         "best_threshold": best_thr,
     }
 
-    logger.info("Level 0 F1: %.4f  Level 1 F1: %.4f  Micro-F1: %.4f",
-                scores["0"]["f1score"], scores["1"]["f1score"], best_f1)
+    logger.info(
+        "Level 0 F1: %.4f  Level 1 F1: %.4f  Micro-F1: %.4f",
+        scores["0"]["f1score"],
+        scores["1"]["f1score"],
+        best_f1,
+    )
     return best_f1, scores
 
 
 # ── Local E2E (fine-tuned transformer + per-level MLPs) ──────────────
 
+
 def train_local_e2e(dataset_name, args):
     """Fine-tune a transformer with per-level MLP heads (no R-matrix)."""
     from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
 
-    import torch.nn as nn
-
     from hmc.models.local_classifier.model import LocalE2EModel
 
-    _is_gofun_e2e = any(suffix in (dataset_name or "")
-                        for suffix in ("_FUN", "_GO", "_others"))
+    _is_gofun_e2e = any(
+        suffix in (dataset_name or "") for suffix in ("_FUN", "_GO", "_others")
+    )
 
     args.device = torch.device(args.device)
     model_name = args.dataset.arxiv_model_name
@@ -267,9 +287,13 @@ def train_local_e2e(dataset_name, args):
     args.output_dim = args.hmc_dataset.output_dim
 
     defaults = (
-        args.registry.wos_defaults if dataset_name == "wos"
-        else args.registry.gofun_defaults if _is_gofun_e2e
-        else args.registry.arxiv_defaults
+        args.registry.wos_defaults
+        if dataset_name == "wos"
+        else (
+            args.registry.gofun_defaults
+            if _is_gofun_e2e
+            else args.registry.arxiv_defaults
+        )
     )
     args.lr = defaults["lr"]
     args.hidden_dim = defaults["hidden_dim"]
@@ -313,10 +337,13 @@ def train_local_e2e(dataset_name, args):
         model_cache_dir=args.dataset.model_cache_dir,
     ).to(args.device)
 
-    optimizer = torch.optim.AdamW([
-        {"params": model.transformer.parameters(), "lr": args.lr_transformer},
-        {"params": model.heads.parameters(), "lr": args.lr},
-    ], weight_decay=defaults["weight_decay"])
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": model.transformer.parameters(), "lr": args.lr_transformer},
+            {"params": model.heads.parameters(), "lr": args.lr},
+        ],
+        weight_decay=defaults["weight_decay"],
+    )
     criterion = nn.BCELoss()
 
     # 5. Training loop
@@ -326,8 +353,10 @@ def train_local_e2e(dataset_name, args):
         total_loss = 0.0
         for batch in args.train_loader:
             inputs, targets = batch  # (encoded_dict, labels_dict)
-            inputs = {k: v.to(args.device) if isinstance(v, torch.Tensor) else v
-                      for k, v in inputs.items()}
+            inputs = {
+                k: v.to(args.device) if isinstance(v, torch.Tensor) else v
+                for k, v in inputs.items()
+            }
             preds = model(**inputs)
             # targets["local"] includes root at index 0; skip it
             y_local = targets["local"][1:]  # [tensor_l0, tensor_l1]
@@ -341,15 +370,21 @@ def train_local_e2e(dataset_name, args):
             total_loss += loss.item()
 
         micro_f1, scores = _evaluate_local_e2e(model, args.test_loader, args)
-        logger.info("Epoch %d/%d — loss %.2f — micro-F1 %.4f",
-                     epoch + 1, args.epochs, total_loss, micro_f1)
+        logger.info(
+            "Epoch %d/%d — loss %.2f — micro-F1 %.4f",
+            epoch + 1,
+            args.epochs,
+            total_loss,
+            micro_f1,
+        )
         if micro_f1 > best_micro_f1:
             best_micro_f1 = micro_f1
             args.score = scores
 
     # 6. Save
     import json
-    with open(f"{args.results_path}/test-scores.json", "w") as f:
+
+    with open(f"{args.results_path}/test-scores.json", "w", encoding="utf-8") as f:
         json.dump(args.score, f, indent=4)
     logger.info("Best Micro-F1: %.4f", best_micro_f1)
     return args.score
@@ -363,14 +398,16 @@ def _evaluate_local_e2e(model, loader, args):
     with torch.no_grad():
         for batch in loader:
             inputs, targets = batch
-            inputs = {k: v.to(args.device) if isinstance(v, torch.Tensor) else v
-                      for k, v in inputs.items()}
+            inputs = {
+                k: v.to(args.device) if isinstance(v, torch.Tensor) else v
+                for k, v in inputs.items()
+            }
             preds = model(**inputs)
             y_global = targets["global"]
 
-            for i in range(len(y_global)):
+            for i, _global_label in enumerate(y_global):
                 global_pred = np.zeros(args.hmc_dataset.output_dim, dtype=np.float32)
-                global_label = y_global[i].cpu().numpy()
+                global_label = _global_label.cpu().numpy()
                 for lvl in sorted(args.levels_size):
                     local_pred = preds[str(lvl)][i].cpu().numpy()
                     local_idx = args.hmc_dataset.local_nodes_idx[lvl]

@@ -14,7 +14,7 @@ The hierarchy is a tree: each child has exactly one parent.
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 class _SamplesHolder:
     """Mutable holder so the pipeline can attach tensor views."""
 
-    x: Optional[Any] = None
-    y: Optional[Any] = None
+    x: Any | None = None
+    y: Any | None = None
 
 
 class RCV1Split:
@@ -36,7 +36,7 @@ class RCV1Split:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        y_local: List[List[np.ndarray]],
+        y_local: list[list[np.ndarray]],
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
@@ -55,19 +55,19 @@ class RCV1HierarchyManager:
     def __init__(self) -> None:
         self.g = nx.DiGraph()
         self.g_t = nx.DiGraph()
-        self.levels: Dict[int, List[str]] = defaultdict(list)
-        self.levels_size: Dict[int, int] = {}
-        self.nodes_idx: Dict[str, int] = {}
-        self.local_nodes_idx: Dict[int, Dict[str, int]] = {}
+        self.levels: dict[int, list[str]] = defaultdict(list)
+        self.levels_size: dict[int, int] = {}
+        self.nodes_idx: dict[str, int] = {}
+        self.local_nodes_idx: dict[int, dict[str, int]] = {}
         self.max_depth: int = 0
-        self.terms: List[str] = []
-        self.edge_index: Dict[int, np.ndarray] = {}
+        self.terms: list[str] = []
+        self.edge_index: dict[int, np.ndarray] = {}
         self.a: np.ndarray = np.array([])
         self._is_fitted: bool = False
 
     @classmethod
     def from_topic_paths(
-        cls, all_topic_paths: List[List[str]]
+        cls, all_topic_paths: list[list[str]]
     ) -> "RCV1HierarchyManager":
         """Build the hierarchy from a list of topic-path lists.
 
@@ -86,7 +86,7 @@ class RCV1HierarchyManager:
         )
         return mgr
 
-    def _build_graphs(self, all_topic_paths: List[List[str]]) -> None:
+    def _build_graphs(self, all_topic_paths: list[list[str]]) -> None:
         """Build DiGraph from observed topic paths."""
         self.g.add_node("root")
         self.levels[0].append("root")
@@ -147,9 +147,7 @@ class RCV1HierarchyManager:
             prev_nodes = self.levels[depth - 1]
             curr_nodes = self.levels[depth]
 
-            matrix = np.zeros(
-                (len(prev_nodes), len(curr_nodes)), dtype=np.float32
-            )
+            matrix = np.zeros((len(prev_nodes), len(curr_nodes)), dtype=np.float32)
             parent_map = {node: i for i, node in enumerate(prev_nodes)}
             child_map = {node: i for i, node in enumerate(curr_nodes)}
 
@@ -160,9 +158,7 @@ class RCV1HierarchyManager:
 
             self.edge_index[depth] = matrix
 
-    def get_labels(
-        self, topic_paths: List[str]
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def get_labels(self, topic_paths: list[str]) -> tuple[np.ndarray, list[np.ndarray]]:
         """Convert topic paths into global + local binary label vectors.
 
         Each topic path activates that node plus all its ancestors.
@@ -192,9 +188,7 @@ class RCV1HierarchyManager:
                 for i in range(1, len(parts) + 1):
                     partial = "/".join(parts[:i])
                     if partial in self.nodes_idx:
-                        self._activate_node(
-                            partial, y_global, y_local
-                        )
+                        self._activate_node(partial, y_global, y_local)
                 continue
 
             self._activate_node(path, y_global, y_local)
@@ -205,7 +199,7 @@ class RCV1HierarchyManager:
         self,
         node: str,
         y_global: np.ndarray,
-        y_local: List[np.ndarray],
+        y_local: list[np.ndarray],
     ) -> None:
         """Activate a node and all its ancestors."""
         y_global[self.nodes_idx[node]] = 1.0
@@ -215,6 +209,4 @@ class RCV1HierarchyManager:
         for ancestor in nx.ancestors(self.g_t, node):
             y_global[self.nodes_idx[ancestor]] = 1.0
             anc_depth = nx.shortest_path_length(self.g_t, "root", ancestor)
-            y_local[anc_depth][
-                self.local_nodes_idx[anc_depth][ancestor]
-            ] = 1.0
+            y_local[anc_depth][self.local_nodes_idx[anc_depth][ancestor]] = 1.0

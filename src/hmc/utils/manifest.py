@@ -11,16 +11,17 @@ import os
 import platform
 import subprocess
 import sys
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
-def get_git_sha(repo_path: str = ".") -> Optional[str]:
+def get_git_sha(repo_path: str = ".") -> str | None:
     """Return the current git HEAD SHA, or None if not in a repo."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # pylint: disable=subprocess-run-check
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            cwd=repo_path,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -29,12 +30,14 @@ def get_git_sha(repo_path: str = ".") -> Optional[str]:
     return None
 
 
-def get_git_branch(repo_path: str = ".") -> Optional[str]:
+def get_git_branch(repo_path: str = ".") -> str | None:
     """Return the current git branch name."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # pylint: disable=subprocess-run-check
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            cwd=repo_path,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -43,12 +46,17 @@ def get_git_branch(repo_path: str = ".") -> Optional[str]:
     return None
 
 
-def get_dependency_versions(packages: Optional[list[str]] = None) -> dict[str, str]:
+def get_dependency_versions(packages: list[str] | None = None) -> dict[str, str]:
     """Return installed versions of key packages."""
     if packages is None:
         packages = [
-            "torch", "numpy", "sklearn", "networkx",
-            "transformers", "pandas", "scipy",
+            "torch",
+            "numpy",
+            "sklearn",
+            "networkx",
+            "transformers",
+            "pandas",
+            "scipy",
         ]
     versions = {}
     for pkg in packages:
@@ -69,7 +77,7 @@ def write_manifest(
     method: str,
     dataset_name: str,
     seed: int,
-    extra: Optional[dict] = None,
+    extra: dict | None = None,
 ) -> str:
     """Write ``manifest.json`` and return its path.
 
@@ -84,7 +92,7 @@ def write_manifest(
         Path to the written file.
     """
     manifest = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "git_sha": get_git_sha(),
         "git_branch": get_git_branch(),
         "method": method,

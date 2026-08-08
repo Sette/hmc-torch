@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from hmc.datasets.registry import DatasetRegistry
 
@@ -10,8 +10,9 @@ from hmc.datasets.registry import DatasetRegistry
 @dataclass
 class DatasetConfig:
     """Dataset-specific configuration."""
+
     dataset_path: str
-    dataset_name: Optional[str] = None
+    dataset_name: str | None = None
     arxiv_model_name: str = "allenai/specter2_base"
     arxiv_max_records: int = 50_000
     model_cache_dir: str = "./models"
@@ -20,6 +21,7 @@ class DatasetConfig:
 @dataclass
 class TrainingConfig:
     """Training loop and optimization settings."""
+
     batch_size: int = 32
     non_lin: str = "relu"
     device: str = "cuda"
@@ -43,10 +45,17 @@ class Args:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     results_path: str = "./results/"
 
-    _DIRECT_FIELDS: ClassVar[frozenset] = frozenset({
-        "dataset", "output_path", "registry", "job_id", "method",
-        "training", "results_path",
-    })
+    _DIRECT_FIELDS: ClassVar[frozenset] = frozenset(
+        {
+            "dataset",
+            "output_path",
+            "registry",
+            "job_id",
+            "method",
+            "training",
+            "results_path",
+        }
+    )
 
     def __getattr__(self, name: str):
         for sub in ("dataset", "training"):
@@ -88,21 +97,34 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--arxiv_model_name", type=str, default="allenai/specter2_base")
     parser.add_argument("--arxiv_max_records", type=int, default=50_000)
     parser.add_argument("--model_cache_dir", type=str, default="./models")
-    parser.add_argument("--use_contrastive_loss", type=str, default="false",
-                        choices=["true", "false"])
+    parser.add_argument(
+        "--use_contrastive_loss", type=str, default="false", choices=["true", "false"]
+    )
     parser.add_argument("--lambda_contrastive", type=float, default=0.1)
-    parser.add_argument("--non_lin", type=str, default="relu",
-                        choices=["relu", "tanh", "sigmoid"])
-    parser.add_argument("--device", type=str, default="cuda",
-                        choices=["cpu", "cuda"])
+    parser.add_argument(
+        "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
+    )
+    parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--method", type=str, default="global",
-                        choices=["global", "globalGNN", "globalE2E", "globalSOTA",
-                                 "local", "localE2E",
-                                 "tabular_gbdt", "tabular_mlp"])
-    parser.add_argument("--best_threshold", type=str, default="false",
-                        choices=["true", "false"])
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="global",
+        choices=[
+            "global",
+            "globalGNN",
+            "globalE2E",
+            "globalSOTA",
+            "local",
+            "localE2E",
+            "tabular_gbdt",
+            "tabular_mlp",
+        ],
+    )
+    parser.add_argument(
+        "--best_threshold", type=str, default="false", choices=["true", "false"]
+    )
     parser.add_argument("--results_path", type=str, default="./results/")
     return parser
 

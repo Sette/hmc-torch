@@ -27,7 +27,7 @@ _registered_builtins: bool = False
 
 def _ensure_builtins() -> None:
     """Register all built-in dataset factories.  Idempotent."""
-    global _registered_builtins  # noqa: PLW0603
+    global _registered_builtins  # pylint: disable=global-statement
     if _registered_builtins:
         return
     _registered_builtins = True
@@ -37,10 +37,14 @@ def _ensure_builtins() -> None:
         from hmc.datasets.arxiv.manager import (  # pylint: disable=import-outside-toplevel
             ArXivManager,
         )
+
         jsonl_path = kw.pop(
             "jsonl_path",
-            os.path.join(kw.pop("dataset_path", "data"), "arxiv",
-                         "arxiv-metadata-oai-snapshot.json"),
+            os.path.join(
+                kw.pop("dataset_path", "data"),
+                "arxiv",
+                "arxiv-metadata-oai-snapshot.json",
+            ),
         )
         max_records = kw.pop("max_records", None)
         model_name = kw.pop("model_name", "allenai/specter2_base")
@@ -63,6 +67,7 @@ def _ensure_builtins() -> None:
         from hmc.datasets.wos.manager import (  # pylint: disable=import-outside-toplevel
             WOSManager,
         )
+
         data_dir = kw.pop(
             "data_dir",
             os.path.join(kw.pop("dataset_path", "data"), "wos"),
@@ -86,6 +91,7 @@ def _ensure_builtins() -> None:
         from hmc.datasets.aapd.manager import (  # pylint: disable=import-outside-toplevel
             AAPDManager,
         )
+
         data_dir = kw.pop(
             "data_dir",
             os.path.join(kw.pop("dataset_path", "data"), "aapd"),
@@ -111,6 +117,7 @@ def _ensure_builtins() -> None:
         from hmc.datasets.rcv1.manager import (  # pylint: disable=import-outside-toplevel
             RCV1Manager,
         )
+
         data_dir = kw.pop(
             "data_dir",
             os.path.join(kw.pop("dataset_path", "data"), "rcv1"),
@@ -136,6 +143,7 @@ def _ensure_builtins() -> None:
         from hmc.datasets.eurlex.manager import (  # pylint: disable=import-outside-toplevel
             EURLexManager,
         )
+
         data_dir = kw.pop(
             "data_dir",
             os.path.join(kw.pop("dataset_path", "data"), "eurlex"),
@@ -166,6 +174,7 @@ def _ensure_builtins() -> None:
 # ---------------------------------------------------------------------------
 # GoFun factory (shared across all GoFun ARFF datasets)
 # ---------------------------------------------------------------------------
+
 
 def _load_gofun_dataset(
     name: str,
@@ -252,9 +261,7 @@ def initialize_dataset_experiments(
         "model_cache_dir": model_cache_dir,
     }
 
-    if name == "arxiv":
-        factory_kwargs["max_records"] = arxiv_max_records
-    elif name in ("aapd", "rcv1", "eurlex"):
+    if name == "arxiv" or name in ("aapd", "rcv1", "eurlex"):
         factory_kwargs["max_records"] = arxiv_max_records
 
     # Pass through any extra kwargs
@@ -264,7 +271,7 @@ def initialize_dataset_experiments(
 
 
 # Re-export for convenience
-__all__ = ["initialize_dataset_experiments", "DatasetRegistry", "pick_defaults"]
+__all__ = ["DatasetRegistry", "initialize_dataset_experiments", "pick_defaults"]
 
 # Auto-register built-in datasets on module import so that
 # DatasetRegistry.list_available() works without calling any function.

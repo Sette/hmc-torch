@@ -11,7 +11,7 @@ Hierarchy is loaded from HPT-format files (slot.pt + value_dict.pt).
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 class _SamplesHolder:
     """Mutable holder so the pipeline can attach tensor views."""
 
-    x: Optional[Any] = None
-    y: Optional[Any] = None
+    x: Any | None = None
+    y: Any | None = None
 
 
 class WOSSplit:
@@ -39,7 +39,7 @@ class WOSSplit:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        y_local: List[List[np.ndarray]],
+        y_local: list[list[np.ndarray]],
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
@@ -60,13 +60,13 @@ class WOSHierarchyManager:
     def __init__(self) -> None:
         self.g = nx.DiGraph()
         self.g_t = nx.DiGraph()
-        self.levels: Dict[int, List[str]] = defaultdict(list)
-        self.levels_size: Dict[int, int] = {}
-        self.nodes_idx: Dict[str, int] = {}
-        self.local_nodes_idx: Dict[int, Dict[str, int]] = {}
+        self.levels: dict[int, list[str]] = defaultdict(list)
+        self.levels_size: dict[int, int] = {}
+        self.nodes_idx: dict[str, int] = {}
+        self.local_nodes_idx: dict[int, dict[str, int]] = {}
         self.max_depth: int = 0
-        self.terms: List[str] = []
-        self.edge_index: Dict[int, np.ndarray] = {}
+        self.terms: list[str] = []
+        self.edge_index: dict[int, np.ndarray] = {}
         self.a: np.ndarray = np.array([])
         self.slot: dict = {}  # parent_id → set(child_ids)
         self.value_dict: dict = {}  # id → label_name
@@ -85,7 +85,7 @@ class WOSHierarchyManager:
         )
 
         # Convert slot values to sets of ints (torch.save may store tensors)
-        slot: Dict[int, set] = {}
+        slot: dict[int, set] = {}
         for parent_id, child_ids in self.slot.items():
             if isinstance(parent_id, torch.Tensor):
                 parent_id = parent_id.item()
@@ -105,7 +105,7 @@ class WOSHierarchyManager:
             dict(self.levels_size),
         )
 
-    def _build_graphs(self, slot: Dict[int, set]) -> None:
+    def _build_graphs(self, slot: dict[int, set]) -> None:
         """Build DiGraph from HPT slot dict."""
         self.g.add_node("root")
         self.levels[0].append("root")
@@ -158,7 +158,7 @@ class WOSHierarchyManager:
 
             self.edge_index[depth] = matrix
 
-    def get_labels(self, category_name: str) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def get_labels(self, category_name: str) -> tuple[np.ndarray, list[np.ndarray]]:
         """Convert a single WOS category name into global and local label vectors.
 
         For WOS, each document has exactly one leaf category. The method activates
@@ -231,9 +231,7 @@ class WOSPyTorchDataset:
                     rec = _json.loads(line)
                     child_id = rec["label"][1]
                     child_name = self.hierarchy.value_dict[child_id]
-                    self.records.append(
-                        {"text": rec["token"], "category": child_name}
-                    )
+                    self.records.append({"text": rec["token"], "category": child_name})
 
     def __len__(self) -> int:
         return len(self.records)
@@ -280,19 +278,17 @@ class WOSPyTorchDataset:
         from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
             train_test_split,
         )
-        from torch.utils.data import Subset as _Subset  # pylint: disable=import-outside-toplevel
+        from torch.utils.data import (
+            Subset as _Subset,  # pylint: disable=import-outside-toplevel
+        )
 
         _np.random.seed(7)
         n = len(self)
         idx = list(range(n))
         _np.random.shuffle(idx)
 
-        train_idx, test_idx = train_test_split(
-            idx, test_size=0.2, random_state=0
-        )
-        train_idx, val_idx = train_test_split(
-            train_idx, test_size=0.2, random_state=0
-        )
+        train_idx, test_idx = train_test_split(idx, test_size=0.2, random_state=0)
+        train_idx, val_idx = train_test_split(train_idx, test_size=0.2, random_state=0)
 
         return (
             _Subset(self, sorted(train_idx)),

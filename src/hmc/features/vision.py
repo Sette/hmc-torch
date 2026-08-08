@@ -36,23 +36,23 @@ class VisionFeatureEncoder(FeatureEncoder):
         self._model = None
         self._transform = None
 
-    def fit(self, split: Split) -> "VisionFeatureEncoder":
+    def fit(self, split: Split) -> VisionFeatureEncoder:
         return self  # frozen encoder, no fitting
 
     def _ensure_loaded(self):
         if self._model is not None:
             return
         try:
-            import torch
             if self.backbone == "dinov2":
                 try:
-                    import dinov2  # noqa: F401
+                    import importlib
+
+                    importlib.import_module("dinov2")
                 except ImportError:
                     logger.warning("dinov2 not installed — vision encoder unavailable")
                     return
-            logger.info("Vision backbone '%s' loaded on %s",
-                         self.backbone, self.device)
-        except Exception as e:
+            logger.info("Vision backbone '%s' loaded on %s", self.backbone, self.device)
+        except ImportError as e:
             logger.warning("Vision encoder loading failed: %s", e)
 
     def transform(self, split: Split) -> Split:

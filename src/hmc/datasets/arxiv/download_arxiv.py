@@ -28,12 +28,14 @@ def _check_existing(data_dir: Path) -> Path | None:
     """Check if the dataset already exists locally."""
     dest = data_dir / EXPECTED_FILE
     if dest.exists() and dest.stat().st_size > EXPECTED_SIZE_HINT:
-        logger.info("ArXiv dataset already at %s (%.1f GB)", dest,
-                     dest.stat().st_size / 1e9)
+        logger.info(
+            "ArXiv dataset already at %s (%.1f GB)", dest, dest.stat().st_size / 1e9
+        )
         return dest
     if dest.exists():
-        logger.warning("%s exists but seems too small (%d bytes)",
-                       dest, dest.stat().st_size)
+        logger.warning(
+            "%s exists but seems too small (%d bytes)", dest, dest.stat().st_size
+        )
     return None
 
 
@@ -42,9 +44,7 @@ def download_kagglehub(data_dir: Path) -> Path:
     try:
         import kagglehub  # pylint: disable=import-outside-toplevel
     except ImportError:
-        logger.error(
-            "kagglehub not installed. Run: pip install kagglehub"
-        )
+        logger.error("kagglehub not installed. Run: pip install kagglehub")
         sys.exit(1)
 
     logger.info("Downloading ArXiv dataset via kagglehub ...")
@@ -62,7 +62,6 @@ def download_kagglehub(data_dir: Path) -> Path:
 def download_kaggle_api(data_dir: Path) -> Path:
     """Download via kaggle CLI (requires API key setup)."""
     import subprocess  # pylint: disable=import-outside-toplevel
-    import shutil  # pylint: disable=import-outside-toplevel
 
     dest = data_dir / EXPECTED_FILE
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -70,9 +69,15 @@ def download_kaggle_api(data_dir: Path) -> Path:
     logger.info("Downloading ArXiv dataset via kaggle CLI ...")
     subprocess.run(
         [
-            "kaggle", "datasets", "download", "Cornell-University/arxiv",
-            "-f", "arxiv-metadata-oai-snapshot.json",
-            "-p", str(data_dir), "--unzip",
+            "kaggle",
+            "datasets",
+            "download",
+            "Cornell-University/arxiv",
+            "-f",
+            "arxiv-metadata-oai-snapshot.json",
+            "-p",
+            str(data_dir),
+            "--unzip",
         ],
         check=True,
     )
@@ -83,14 +88,18 @@ def download_kaggle_api(data_dir: Path) -> Path:
 def main():
     parser = argparse.ArgumentParser(description="Download ArXiv dataset")
     parser.add_argument(
-        "--output_dir", type=str, default="./data/arxiv",
+        "--output_dir",
+        type=str,
+        default="./data/arxiv",
         help="Output directory (default: ./data/arxiv)",
     )
     parser.add_argument(
-        "--method", type=str, choices=["auto", "kagglehub", "kaggle", "manual"],
+        "--method",
+        type=str,
+        choices=["auto", "kagglehub", "kaggle", "manual"],
         default="auto",
         help="Download method (default: auto — try kagglehub first). "
-             "Use 'manual' for instructions if auto fails.",
+        "Use 'manual' for instructions if auto fails.",
     )
     args = parser.parse_args()
 

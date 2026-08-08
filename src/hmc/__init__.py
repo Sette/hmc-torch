@@ -25,31 +25,33 @@ from __future__ import annotations
 
 import os
 
-# Suppress HuggingFace progress bars by default
-os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
-
-# ---------------------------------------------------------------------------
-# Public API — data contracts
-# ---------------------------------------------------------------------------
+from hmc.arguments import Args, parse_args
 from hmc.data.base import DatasetBundle, FeatureMetadata, Modality, Split
 from hmc.data.hierarchy import Hierarchy
 from hmc.data.protocols import DatasetManagerProtocol
 from hmc.data.registry import DatasetRegistry
+from hmc.datasets.dataset_manager import _ensure_builtins as _reg_builtins
+from hmc.train import train
+
+# Suppress HuggingFace progress bars by default
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 # ---------------------------------------------------------------------------
 # Public API — configuration
 # ---------------------------------------------------------------------------
-from hmc.arguments import Args, parse_args
 
 # ---------------------------------------------------------------------------
-# Public API — training
+# Public API — data contracts
 # ---------------------------------------------------------------------------
-from hmc.train import train
 
 # ---------------------------------------------------------------------------
 # Auto-register built-in datasets on import
 # ---------------------------------------------------------------------------
-from hmc.datasets.dataset_manager import _ensure_builtins as _reg_builtins
+
+# ---------------------------------------------------------------------------
+# Public API — training
+# ---------------------------------------------------------------------------
+
 _reg_builtins()
 
 # ---------------------------------------------------------------------------
@@ -61,7 +63,7 @@ __version__ = "0.0.9"
 # Exports
 # ---------------------------------------------------------------------------
 __all__ = [
-    # Data contracts
+    "Args",
     "DatasetBundle",
     "DatasetManagerProtocol",
     "DatasetRegistry",
@@ -69,11 +71,7 @@ __all__ = [
     "Hierarchy",
     "Modality",
     "Split",
-    # Configuration
-    "Args",
-    "parse_args",
-    # Training
-    "train",
-    # Version
     "__version__",
+    "parse_args",
+    "train",
 ]

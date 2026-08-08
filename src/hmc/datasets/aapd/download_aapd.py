@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -27,9 +26,7 @@ def _download_kaggle(output_dir: Path) -> None:
     import kagglehub  # pylint: disable=import-outside-toplevel
 
     logger.info("Downloading AAPD from Kaggle via kagglehub …")
-    path = kagglehub.dataset_download(
-        "syedharoon312/aapd-arxiv-academic-paper-dataset"
-    )
+    path = kagglehub.dataset_download("syedharoon312/aapd-arxiv-academic-paper-dataset")
     logger.info("Downloaded to: %s", path)
     _copy_csv(path, output_dir)
 
@@ -75,9 +72,7 @@ def _copy_csv(src_dir: str, output_dir: Path) -> None:
     # Find the CSV file in the downloaded directory
     csv_files = list(src_path.rglob("*.csv"))
     if not csv_files:
-        logger.warning(
-            "No CSV found in %s. Listing contents:", src_dir
-        )
+        logger.warning("No CSV found in %s. Listing contents:", src_dir)
         for f in sorted(src_path.rglob("*")):
             logger.warning("  %s", f)
         raise FileNotFoundError(f"No CSV files found in {src_dir}")
@@ -88,9 +83,7 @@ def _copy_csv(src_dir: str, output_dir: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Download AAPD dataset"
-    )
+    parser = argparse.ArgumentParser(description="Download AAPD dataset")
     parser.add_argument(
         "--output_dir",
         type=str,
@@ -141,9 +134,7 @@ def main() -> None:
 
     if output_path.exists():
         size_mb = output_path.stat().st_size / (1024 * 1024)
-        logger.info(
-            "Done! AAPD dataset saved to %s (%.1f MB)", output_path, size_mb
-        )
+        logger.info("Done! AAPD dataset saved to %s (%.1f MB)", output_path, size_mb)
     else:
         logger.error("Download did not produce the expected file.")
         sys.exit(1)

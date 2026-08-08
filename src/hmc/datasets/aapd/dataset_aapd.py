@@ -12,7 +12,7 @@ upward: a paper labelled ``cs.CL`` also belongs to ``cs``.
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -20,42 +20,114 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # AAPD top-level fields and known sub-fields
-AAPD_AREAS: Dict[str, List[str]] = {
+AAPD_AREAS: dict[str, list[str]] = {
     "cs": [
-        "cs.AI", "cs.CL", "cs.CV", "cs.CY", "cs.CR", "cs.DC", "cs.DS",
-        "cs.GT", "cs.IR", "cs.IT", "cs.LG", "cs.LO", "cs.MA", "cs.MM",
-        "cs.NE", "cs.NI", "cs.RO", "cs.SE", "cs.SI",
+        "cs.AI",
+        "cs.CL",
+        "cs.CV",
+        "cs.CY",
+        "cs.CR",
+        "cs.DC",
+        "cs.DS",
+        "cs.GT",
+        "cs.IR",
+        "cs.IT",
+        "cs.LG",
+        "cs.LO",
+        "cs.MA",
+        "cs.MM",
+        "cs.NE",
+        "cs.NI",
+        "cs.RO",
+        "cs.SE",
+        "cs.SI",
     ],
     "math": [
-        "math.AC", "math.AG", "math.AP", "math.AT", "math.CA", "math.CO",
-        "math.CT", "math.DS", "math.FA", "math.GM", "math.GR", "math.HO",
-        "math.IT", "math.LO", "math.MP", "math.NA", "math.NT", "math.OA",
-        "math.OC", "math.PR", "math.QA", "math.RA", "math.RT", "math.SG",
-        "math.SP", "math.ST",
+        "math.AC",
+        "math.AG",
+        "math.AP",
+        "math.AT",
+        "math.CA",
+        "math.CO",
+        "math.CT",
+        "math.DS",
+        "math.FA",
+        "math.GM",
+        "math.GR",
+        "math.HO",
+        "math.IT",
+        "math.LO",
+        "math.MP",
+        "math.NA",
+        "math.NT",
+        "math.OA",
+        "math.OC",
+        "math.PR",
+        "math.QA",
+        "math.RA",
+        "math.RT",
+        "math.SG",
+        "math.SP",
+        "math.ST",
     ],
     "physics": [
-        "physics.acc-ph", "physics.ao-ph", "physics.app-ph", "physics.atm-clus",
-        "physics.bio-ph", "physics.chem-ph", "physics.class-ph", "physics.comp-ph",
-        "physics.data-an", "physics.ed-ph", "physics.flu-dyn", "physics.gen-ph",
-        "physics.geo-ph", "physics.hist-ph", "physics.ins-det", "physics.med-ph",
-        "physics.optics", "physics.plasm-ph", "physics.pop-ph", "physics.soc-ph",
+        "physics.acc-ph",
+        "physics.ao-ph",
+        "physics.app-ph",
+        "physics.atm-clus",
+        "physics.bio-ph",
+        "physics.chem-ph",
+        "physics.class-ph",
+        "physics.comp-ph",
+        "physics.data-an",
+        "physics.ed-ph",
+        "physics.flu-dyn",
+        "physics.gen-ph",
+        "physics.geo-ph",
+        "physics.hist-ph",
+        "physics.ins-det",
+        "physics.med-ph",
+        "physics.optics",
+        "physics.plasm-ph",
+        "physics.pop-ph",
+        "physics.soc-ph",
         "physics.space-ph",
     ],
     "stat": [
-        "stat.AP", "stat.CO", "stat.ME", "stat.ML", "stat.OT", "stat.TH",
+        "stat.AP",
+        "stat.CO",
+        "stat.ME",
+        "stat.ML",
+        "stat.OT",
+        "stat.TH",
     ],
     "q-bio": [
-        "q-bio.BM", "q-bio.CB", "q-bio.GN", "q-bio.MN", "q-bio.NC",
-        "q-bio.OT", "q-bio.PE", "q-bio.QM", "q-bio.SC", "q-bio.TO",
+        "q-bio.BM",
+        "q-bio.CB",
+        "q-bio.GN",
+        "q-bio.MN",
+        "q-bio.NC",
+        "q-bio.OT",
+        "q-bio.PE",
+        "q-bio.QM",
+        "q-bio.SC",
+        "q-bio.TO",
     ],
     "q-fin": [
-        "q-fin.CP", "q-fin.EC", "q-fin.GN", "q-fin.MF", "q-fin.PM",
-        "q-fin.PR", "q-fin.RM", "q-fin.ST", "q-fin.TR",
+        "q-fin.CP",
+        "q-fin.EC",
+        "q-fin.GN",
+        "q-fin.MF",
+        "q-fin.PM",
+        "q-fin.PR",
+        "q-fin.RM",
+        "q-fin.ST",
+        "q-fin.TR",
     ],
 }
 
 # Flattened list: all 54 labels (6 top-level + 48 sub-fields)
-AAPD_ALL_LABELS: List[str] = []
+AAPD_ALL_LABELS: list[str] = []
 for _area, _subs in AAPD_AREAS.items():
     AAPD_ALL_LABELS.append(_area)
     AAPD_ALL_LABELS.extend(_subs)
@@ -64,8 +136,8 @@ for _area, _subs in AAPD_AREAS.items():
 class _SamplesHolder:
     """Mutable holder so the pipeline can attach tensor views."""
 
-    x: Optional[Any] = None
-    y: Optional[Any] = None
+    x: Any | None = None
+    y: Any | None = None
 
 
 class AAPDSplit:
@@ -80,7 +152,7 @@ class AAPDSplit:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        y_local: List[List[np.ndarray]],
+        y_local: list[list[np.ndarray]],
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
@@ -98,18 +170,18 @@ class AAPDHierarchyManager:
     def __init__(self) -> None:
         self.g = nx.DiGraph()
         self.g_t = nx.DiGraph()
-        self.levels: Dict[int, List[str]] = defaultdict(list)
-        self.levels_size: Dict[int, int] = {}
-        self.nodes_idx: Dict[str, int] = {}
-        self.local_nodes_idx: Dict[int, Dict[str, int]] = {}
+        self.levels: dict[int, list[str]] = defaultdict(list)
+        self.levels_size: dict[int, int] = {}
+        self.nodes_idx: dict[str, int] = {}
+        self.local_nodes_idx: dict[int, dict[str, int]] = {}
         self.max_depth: int = 0
-        self.terms: List[str] = []
-        self.edge_index: Dict[int, np.ndarray] = {}
+        self.terms: list[str] = []
+        self.edge_index: dict[int, np.ndarray] = {}
         self.a: np.ndarray = np.array([])
         self._is_fitted: bool = False
 
     @classmethod
-    def from_labels(cls, labels: List[str]) -> "AAPDHierarchyManager":
+    def from_labels(cls, labels: list[str]) -> "AAPDHierarchyManager":
         """Build the hierarchy from a list of observed label strings.
 
         Labels are expected to be space-separated sub-field codes
@@ -129,14 +201,14 @@ class AAPDHierarchyManager:
         )
         return mgr
 
-    def _build_graphs(self, observed_labels: Set[str]) -> None:
+    def _build_graphs(self, observed_labels: set[str]) -> None:
         """Build DiGraph from observed labels and the known AAPD taxonomy."""
         self.g.add_node("root")
         self.levels[0].append("root")
 
         # Collect all areas and sub-fields present in the data
-        seen_areas: Set[str] = set()
-        seen_subs: Set[str] = set()
+        seen_areas: set[str] = set()
+        seen_subs: set[str] = set()
 
         for label in observed_labels:
             if "." in label:
@@ -183,9 +255,7 @@ class AAPDHierarchyManager:
             prev_nodes = self.levels[depth - 1]
             curr_nodes = self.levels[depth]
 
-            matrix = np.zeros(
-                (len(prev_nodes), len(curr_nodes)), dtype=np.float32
-            )
+            matrix = np.zeros((len(prev_nodes), len(curr_nodes)), dtype=np.float32)
             parent_map = {node: i for i, node in enumerate(prev_nodes)}
             child_map = {node: i for i, node in enumerate(curr_nodes)}
 
@@ -196,9 +266,7 @@ class AAPDHierarchyManager:
 
             self.edge_index[depth] = matrix
 
-    def get_labels(
-        self, category_str: str
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def get_labels(self, category_str: str) -> tuple[np.ndarray, list[np.ndarray]]:
         """Convert a space-separated category string into global and local labels.
 
         Each category in *category_str* activates that node plus all its
@@ -234,8 +302,6 @@ class AAPDHierarchyManager:
             for ancestor in nx.ancestors(self.g_t, cat):
                 y_global[self.nodes_idx[ancestor]] = 1.0
                 anc_depth = nx.shortest_path_length(self.g_t, "root", ancestor)
-                y_local[anc_depth][
-                    self.local_nodes_idx[anc_depth][ancestor]
-                ] = 1.0
+                y_local[anc_depth][self.local_nodes_idx[anc_depth][ancestor]] = 1.0
 
         return y_global, y_local

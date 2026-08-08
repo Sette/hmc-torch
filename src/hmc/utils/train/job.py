@@ -10,7 +10,7 @@ This module provides:
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 import psutil
@@ -32,7 +32,7 @@ def create_job_id_name(prefix="job"):
     Returns:
         str: A unique job ID string.
     """
-    now = datetime.now()
+    now = datetime.now(tz=UTC)
     job_id = f"{prefix}_{now.strftime('%Y%m%d_%H%M%S')}"
     return job_id
 

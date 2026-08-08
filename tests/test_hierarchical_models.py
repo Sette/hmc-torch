@@ -25,10 +25,10 @@ from hmc.models.hierarchical.postprocess import (
     reconcile_tree,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def fun_tree():
@@ -49,8 +49,7 @@ def level_sizes():
 
 class TestGlobalSigmoidHead:
     def test_output_shape(self):
-        head = GlobalSigmoidHead(input_dim=64, n_nodes=10, hidden_dim=32,
-                                 num_layers=2)
+        head = GlobalSigmoidHead(input_dim=64, n_nodes=10, hidden_dim=32, num_layers=2)
         x = torch.randn(4, 64)
         out = head(x)
         assert out.shape == (4, 10)
@@ -66,8 +65,9 @@ class TestGlobalSigmoidHead:
 
 class TestLocalLevelHead:
     def test_output_structure(self, level_sizes):
-        head = LocalLevelHead(input_dim=64, level_sizes=level_sizes,
-                              hidden_dim=32, num_layers=2)
+        head = LocalLevelHead(
+            input_dim=64, level_sizes=level_sizes, hidden_dim=32, num_layers=2
+        )
         x = torch.randn(4, 64)
         out = head(x)
         assert set(out.keys()) == {"0", "1", "2"}
@@ -76,18 +76,23 @@ class TestLocalLevelHead:
         assert out["2"].shape == (4, 3)
 
     def test_to_global(self, fun_tree, level_sizes):
-        head = LocalLevelHead(input_dim=64, level_sizes=level_sizes,
-                              hidden_dim=32, num_layers=2)
+        head = LocalLevelHead(
+            input_dim=64, level_sizes=level_sizes, hidden_dim=32, num_layers=2
+        )
         x = torch.randn(4, 64)
         level_preds = head(x)
 
         global_pred = head.to_global(
             level_preds,
-            local_nodes_idx=fun_tree.local_nodes_idx if hasattr(fun_tree, 'local_nodes_idx') else {
-                0: {"root": 0},
-                1: {"root.A": 0, "root.B": 1, "root.C": 2},
-                2: {"root.A.A1": 0, "root.A.A2": 1, "root.B.B1": 2},
-            },
+            local_nodes_idx=(
+                fun_tree.local_nodes_idx
+                if hasattr(fun_tree, "local_nodes_idx")
+                else {
+                    0: {"root": 0},
+                    1: {"root.A": 0, "root.B": 1, "root.C": 2},
+                    2: {"root.A.A1": 0, "root.A.A2": 1, "root.B.B1": 2},
+                }
+            ),
             nodes_idx=fun_tree.node_index,
             n_nodes=fun_tree.n_nodes,
         )
@@ -96,8 +101,7 @@ class TestLocalLevelHead:
 
 class TestTreePathHead:
     def test_output_structure(self, level_sizes):
-        head = TreePathHead(input_dim=64, level_sizes=level_sizes,
-                            hidden_dim=32)
+        head = TreePathHead(input_dim=64, level_sizes=level_sizes, hidden_dim=32)
         x = torch.randn(4, 64)
         out = head(x)
         assert set(out.keys()) == {"0", "1", "2"}
@@ -221,8 +225,7 @@ class TestReconciliation:
 
     def test_dag_reconcile_max_path(self):
         dag = DagHierarchy.from_go_terms(
-            ["GO:0008150/GO:0009987/GO:0008152",
-             "GO:0008150/GO:0005575/GO:0005623"]
+            ["GO:0008150/GO:0009987/GO:0008152", "GO:0008150/GO:0005575/GO:0005623"]
         )
         scores = np.random.rand(2, dag.n_nodes).astype(np.float32)
         reconciled = reconcile_dag(scores, dag, strategy="max_path")
@@ -275,28 +278,36 @@ class TestCalibrators:
 class TestLabelGCN:
     def test_output_shape(self):
         n_nodes, embed_dim = 8, 64
-        gcn = LabelGCN(n_nodes=n_nodes, embed_dim=embed_dim,
-                       hidden_dim=32, num_layers=2)
+        gcn = LabelGCN(
+            n_nodes=n_nodes, embed_dim=embed_dim, hidden_dim=32, num_layers=2
+        )
 
         # Build undirected edge index
-        edge_index = torch.tensor([
-            [0, 1, 1, 2, 0, 3],
-            [1, 0, 2, 1, 3, 0],
-        ], dtype=torch.long)
+        edge_index = torch.tensor(
+            [
+                [0, 1, 1, 2, 0, 3],
+                [1, 0, 2, 1, 3, 0],
+            ],
+            dtype=torch.long,
+        )
 
         out = gcn(edge_index)
         assert out.shape == (n_nodes, embed_dim)
 
     def test_embeddings_change_after_forward(self):
         n_nodes, embed_dim = 5, 32
-        gcn = LabelGCN(n_nodes=n_nodes, embed_dim=embed_dim,
-                       hidden_dim=16, num_layers=2)
+        gcn = LabelGCN(
+            n_nodes=n_nodes, embed_dim=embed_dim, hidden_dim=16, num_layers=2
+        )
         initial = gcn.label_embed.clone()
 
-        edge_index = torch.tensor([
-            [0, 1, 2, 3, 4],
-            [1, 2, 3, 4, 0],
-        ], dtype=torch.long)
+        edge_index = torch.tensor(
+            [
+                [0, 1, 2, 3, 4],
+                [1, 2, 3, 4, 0],
+            ],
+            dtype=torch.long,
+        )
 
         out = gcn(edge_index)
         # Output should differ from initial embeddings
@@ -306,13 +317,17 @@ class TestLabelGCN:
 class TestLabelGAT:
     def test_output_shape(self):
         n_nodes, embed_dim = 8, 64
-        gat = LabelGAT(n_nodes=n_nodes, embed_dim=embed_dim,
-                       hidden_dim=32, num_layers=2, heads=4)
+        gat = LabelGAT(
+            n_nodes=n_nodes, embed_dim=embed_dim, hidden_dim=32, num_layers=2, heads=4
+        )
 
-        edge_index = torch.tensor([
-            [0, 1, 1, 2, 0, 3],
-            [1, 0, 2, 1, 3, 0],
-        ], dtype=torch.long)
+        edge_index = torch.tensor(
+            [
+                [0, 1, 1, 2, 0, 3],
+                [1, 0, 2, 1, 3, 0],
+            ],
+            dtype=torch.long,
+        )
 
         out = gat(edge_index)
         assert out.shape == (n_nodes, embed_dim)

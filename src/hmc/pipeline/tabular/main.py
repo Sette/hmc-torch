@@ -12,13 +12,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Optional
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from hmc.data.base import DatasetBundle
 from hmc.data.hierarchy import Hierarchy
 from hmc.models.hierarchical.postprocess import reconcile
 from hmc.models.tabular.preprocessing import TabularPreprocessor
@@ -70,9 +68,12 @@ def _compute_metrics(
     auprc = 0.0
     try:
         from sklearn.metrics import average_precision_score
-        auprc = float(average_precision_score(
-            y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
-        ))
+
+        auprc = float(
+            average_precision_score(
+                y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
+            )
+        )
     except ImportError:
         pass
 
@@ -119,7 +120,7 @@ def _save_artefacts(
 def train_gbdt(
     dataset_name: str,
     args,
-    preprocessor: Optional[TabularPreprocessor] = None,
+    preprocessor: TabularPreprocessor | None = None,
 ) -> dict:
     """Train a GBDT One-vs-Rest baseline.
 
@@ -191,8 +192,11 @@ def train_gbdt(
     }
     _save_artefacts(output_dir, scores_raw, scores_final, metrics, run_config)
 
-    logger.info("GBDT Micro-F1: %.4f  AUPRC: %.4f",
-                metrics["micro_f1"], metrics.get("auprc_micro", 0))
+    logger.info(
+        "GBDT Micro-F1: %.4f  AUPRC: %.4f",
+        metrics["micro_f1"],
+        metrics.get("auprc_micro", 0),
+    )
     return metrics
 
 
@@ -204,15 +208,21 @@ def train_gbdt(
 def train_tabular_mlp(
     dataset_name: str,
     args,
-    preprocessor: Optional[TabularPreprocessor] = None,
+    preprocessor: TabularPreprocessor | None = None,
 ) -> dict:
     """Train a Residual MLP baseline.
 
     Returns the metrics dict.
     """
-    from hmc.datasets.dataset_manager import initialize_dataset_experiments
-    from hmc.models.hierarchical.losses import WeightedBCELoss
-    from hmc.models.tabular.mlp import TabularMLPModel
+    from hmc.datasets.dataset_manager import (  # pylint: disable=import-outside-toplevel
+        initialize_dataset_experiments,
+    )
+    from hmc.models.hierarchical.losses import (  # pylint: disable=import-outside-toplevel
+        WeightedBCELoss,
+    )
+    from hmc.models.tabular.mlp import (  # pylint: disable=import-outside-toplevel
+        TabularMLPModel,
+    )
 
     logger.info("=== Tabular MLP baseline for %s ===", dataset_name)
 
@@ -270,12 +280,8 @@ def train_tabular_mlp(
         torch.tensor(X_test_pp, dtype=torch.float32),
         torch.tensor(y_test, dtype=torch.float32),
     )
-    train_loader = DataLoader(
-        train_ds, batch_size=defaults["batch_size"], shuffle=True
-    )
-    test_loader = DataLoader(
-        test_ds, batch_size=defaults["batch_size"], shuffle=False
-    )
+    train_loader = DataLoader(train_ds, batch_size=defaults["batch_size"], shuffle=True)
+    test_loader = DataLoader(test_ds, batch_size=defaults["batch_size"], shuffle=False)
 
     # 5. Loss with prevalence weights
     pos_weight = WeightedBCELoss.compute_pos_weight(
@@ -341,8 +347,11 @@ def train_tabular_mlp(
     }
     _save_artefacts(output_dir, scores_raw, scores_final, metrics, run_config)
 
-    logger.info("Tabular MLP Micro-F1: %.4f  AUPRC: %.4f",
-                metrics["micro_f1"], metrics.get("auprc_micro", 0))
+    logger.info(
+        "Tabular MLP Micro-F1: %.4f  AUPRC: %.4f",
+        metrics["micro_f1"],
+        metrics.get("auprc_micro", 0),
+    )
     return metrics
 
 
@@ -353,19 +362,20 @@ def train_tabular_mlp(
 
 def _build_hierarchy_from_manager(mgr) -> Hierarchy:
     """Instantiate the appropriate Hierarchy from a legacy manager."""
-    from hmc.data.hierarchy import DagHierarchy, TreeHierarchy
+    from hmc.data.hierarchy import (  # pylint: disable=import-outside-toplevel
+        DagHierarchy,
+        TreeHierarchy,
+    )
 
     train = mgr.get_datasets()[0]
     is_go = mgr.dataset_values.get("is_go", False)
 
     if is_go:
-        branches = [t for t in train.terms]
+        branches = list(train.terms)
         return DagHierarchy.from_go_terms(branches)
 
     branches = [t for t in train.terms if t != "root"]
-    return TreeHierarchy.from_fun_cat_terms(
-        branches if branches else train.terms
-    )
+    return TreeHierarchy.from_fun_cat_terms(branches if branches else list(train.terms))
 
 
 def _resolve_output_dir(args, dataset_name: str, method: str) -> str:

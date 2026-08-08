@@ -13,8 +13,7 @@ Classification on EU Legislation"
 import json
 import logging
 from collections import defaultdict
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -25,8 +24,8 @@ logger = logging.getLogger(__name__)
 class _SamplesHolder:
     """Mutable holder so the pipeline can attach tensor views."""
 
-    x: Optional[Any] = None
-    y: Optional[Any] = None
+    x: Any | None = None
+    y: Any | None = None
 
 
 class EURLexSplit:
@@ -36,8 +35,8 @@ class EURLexSplit:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        y_local: List[List[np.ndarray]],
-        g: Optional[nx.DiGraph] = None,
+        y_local: list[list[np.ndarray]],
+        g: nx.DiGraph | None = None,
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
@@ -63,13 +62,13 @@ class EURLexHierarchyManager:
     def __init__(self) -> None:
         self.g = nx.DiGraph()
         self.g_t = nx.DiGraph()
-        self.levels: Dict[int, List[str]] = defaultdict(list)
-        self.levels_size: Dict[int, int] = {}
-        self.nodes_idx: Dict[str, int] = {}
-        self.local_nodes_idx: Dict[int, Dict[str, int]] = {}
+        self.levels: dict[int, list[str]] = defaultdict(list)
+        self.levels_size: dict[int, int] = {}
+        self.nodes_idx: dict[str, int] = {}
+        self.local_nodes_idx: dict[int, dict[str, int]] = {}
         self.max_depth: int = 0
-        self.terms: List[str] = []
-        self.edge_index: Dict[int, np.ndarray] = {}
+        self.terms: list[str] = []
+        self.edge_index: dict[int, np.ndarray] = {}
         self.a: np.ndarray = np.array([])
         self._is_fitted: bool = False
 
@@ -77,7 +76,7 @@ class EURLexHierarchyManager:
     def from_concept_file(
         cls,
         concept_path: str,
-        observed_labels: Set[str],
+        observed_labels: set[str],
     ) -> "EURLexHierarchyManager":
         """Build hierarchy from a EUROVOC concept JSONL file.
 
@@ -101,7 +100,7 @@ class EURLexHierarchyManager:
     @classmethod
     def from_labels(
         cls,
-        all_labels_list: List[List[str]],
+        all_labels_list: list[list[str]],
     ) -> "EURLexHierarchyManager":
         """Build a flat 2-level hierarchy from observed labels.
 
@@ -109,7 +108,7 @@ class EURLexHierarchyManager:
         when no EUROVOC concept file is available.
         """
         mgr = cls()
-        all_ids: Set[str] = set()
+        all_ids: set[str] = set()
         for labels in all_labels_list:
             all_ids.update(labels)
 
@@ -132,11 +131,11 @@ class EURLexHierarchyManager:
     def _load_concept_file(
         self,
         concept_path: str,
-        observed_labels: Set[str],
+        observed_labels: set[str],
     ) -> None:
         """Load EUROVOC concept hierarchy from JSONL file."""
         # Map: concept_id → set of broader (parent) concept IDs
-        broader: Dict[str, List[str]] = {}
+        broader: dict[str, list[str]] = {}
 
         with open(concept_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -153,7 +152,7 @@ class EURLexHierarchyManager:
                 broader[cid] = [str(p) for p in parents]
 
         # Collect all relevant concepts: observed + their ancestors
-        relevant: Set[str] = set(observed_labels)
+        relevant: set[str] = set(observed_labels)
         changed = True
         while changed:
             changed = False
@@ -186,9 +185,11 @@ class EURLexHierarchyManager:
         self.terms = sorted(
             self.g.nodes(),
             key=lambda x: (
-                nx.shortest_path_length(self.g, x, "root")
-                if x in self.g and nx.has_path(self.g, x, "root")
-                else 999,
+                (
+                    nx.shortest_path_length(self.g, x, "root")
+                    if x in self.g and nx.has_path(self.g, x, "root")
+                    else 999
+                ),
                 x,
             ),
         )
@@ -216,9 +217,7 @@ class EURLexHierarchyManager:
             prev_nodes = self.levels[depth - 1]
             curr_nodes = self.levels[depth]
 
-            matrix = np.zeros(
-                (len(prev_nodes), len(curr_nodes)), dtype=np.float32
-            )
+            matrix = np.zeros((len(prev_nodes), len(curr_nodes)), dtype=np.float32)
             parent_map = {node: i for i, node in enumerate(prev_nodes)}
             child_map = {node: i for i, node in enumerate(curr_nodes)}
 
@@ -229,9 +228,7 @@ class EURLexHierarchyManager:
 
             self.edge_index[depth] = matrix
 
-    def get_labels(
-        self, concept_ids: List[str]
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def get_labels(self, concept_ids: list[str]) -> tuple[np.ndarray, list[np.ndarray]]:
         """Convert EUROVOC concept IDs into global + local binary labels.
 
         Each concept ID activates that node plus all its ancestors.
@@ -264,7 +261,7 @@ class EURLexHierarchyManager:
         self,
         node: str,
         y_global: np.ndarray,
-        y_local: List[np.ndarray],
+        y_local: list[np.ndarray],
     ) -> None:
         """Activate a node and all its ancestors."""
         y_global[self.nodes_idx[node]] = 1.0
@@ -280,8 +277,6 @@ class EURLexHierarchyManager:
                 y_global[self.nodes_idx[ancestor]] = 1.0
                 anc_depth = nx.shortest_path_length(self.g_t, "root", ancestor)
                 if anc_depth < len(y_local):
-                    y_local[anc_depth][
-                        self.local_nodes_idx[anc_depth][ancestor]
-                    ] = 1.0
+                    y_local[anc_depth][self.local_nodes_idx[anc_depth][ancestor]] = 1.0
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             pass

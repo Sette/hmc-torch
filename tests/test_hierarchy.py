@@ -3,8 +3,7 @@
 import numpy as np
 import pytest
 
-from hmc.data.hierarchy import DagHierarchy, Hierarchy, TreeHierarchy
-
+from hmc.data.hierarchy import DagHierarchy, TreeHierarchy
 
 # ---------------------------------------------------------------------------
 # TreeHierarchy
@@ -34,8 +33,9 @@ class TestTreeHierarchy:
         # Tree: each non-root has exactly one parent
         for node in fun_tree.nodes:
             if node != "root":
-                assert len(fun_tree.parents(node)) == 1, \
+                assert len(fun_tree.parents(node)) == 1, (
                     f"Tree node '{node}' should have exactly 1 parent"
+                )
 
     def test_children(self, fun_tree):
         assert fun_tree.children("root") == {"root.A", "root.B", "root.C"}
@@ -109,8 +109,9 @@ class TestTreeHierarchy:
             child_indices = [fun_tree.node_index[c] for c in children]
             node_idx = fun_tree.node_index[node]
             for b in range(scores.shape[0]):
-                assert reconciled[b, node_idx] + 1e-6 >= reconciled[b, child_indices].max(), \
-                    f"Parent '{node}' score must be >= max child score"
+                assert (
+                    reconciled[b, node_idx] + 1e-6 >= reconciled[b, child_indices].max()
+                ), f"Parent '{node}' score must be >= max child score"
 
     def test_reconcile_no_violations(self, fun_tree):
         """Reconciled scores should have no hierarchy violations."""
@@ -187,6 +188,7 @@ class TestDagHierarchy:
 # ---------------------------------------------------------------------------
 # Cross-hierarchy tests
 # ---------------------------------------------------------------------------
+
 
 class TestHierarchyRoundTrip:
     """Verify that TreeHierarchy and DagHierarchy produce consistent shapes."""

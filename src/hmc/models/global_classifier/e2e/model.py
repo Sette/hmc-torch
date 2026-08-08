@@ -1,8 +1,8 @@
 """End-to-end transformer models for hierarchical classification (globalE2E / globalSOTA)."""
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 from transformers import AutoModel
 
 from hmc.models.global_classifier.constraint.utils import get_constr_out
@@ -36,7 +36,9 @@ class E2EConstrainedModel(nn.Module):
     ) -> None:
         super().__init__()
         local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
-        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
+        self.transformer = AutoModel.from_pretrained(
+            local_model_path, local_files_only=True
+        )
         if freeze_transformer:
             for param in self.transformer.parameters():
                 param.requires_grad_(False)
@@ -111,7 +113,9 @@ class E2EGNNModel(nn.Module):
         )
 
         local_model_path = ensure_transformer_model_cached(model_name, model_cache_dir)
-        self.transformer = AutoModel.from_pretrained(local_model_path, local_files_only=True)
+        self.transformer = AutoModel.from_pretrained(
+            local_model_path, local_files_only=True
+        )
         if freeze_transformer:
             for param in self.transformer.parameters():
                 param.requires_grad_(False)

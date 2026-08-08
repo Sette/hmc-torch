@@ -9,23 +9,19 @@ import json
 import os
 import sys
 import time
-import tempfile
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional
-
-sys.path.insert(0, "src")
-sys.path.insert(0, "tests")
 
 import numpy as np
 import torch
-
 from sklearn.metrics import average_precision_score
+
+sys.path.insert(0, "src")
+sys.path.insert(0, "tests")
 
 
 # ===================================================================
 # Metrics
 # ===================================================================
+
 
 def compute_all_metrics(y_true, y_pred, eval_mask, hierarchy=None):
     """Compute Micro-F1, AUPRC, per-level F1, and best threshold."""
@@ -47,8 +43,11 @@ def compute_all_metrics(y_true, y_pred, eval_mask, hierarchy=None):
     fn_g = ((1 - y_bin[:, eval_mask]) * y_true[:, eval_mask]).sum()
 
     try:
-        auprc = float(average_precision_score(
-            y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"))
+        auprc = float(
+            average_precision_score(
+                y_true[:, eval_mask], y_pred[:, eval_mask], average="micro"
+            )
+        )
     except Exception:
         auprc = 0.0
 
@@ -58,13 +57,16 @@ def compute_all_metrics(y_true, y_pred, eval_mask, hierarchy=None):
         "micro_recall": float(best_r),
         "auprc_micro": auprc,
         "best_threshold": float(best_thr),
-        "tp": int(tp_g), "fp": int(fp_g), "fn": int(fn_g),
+        "tp": int(tp_g),
+        "fp": int(fp_g),
+        "fn": int(fn_g),
     }
 
 
 # ===================================================================
 # WOS experiments (text + transformer)
 # ===================================================================
+
 
 def run_wos_experiments():
     """Run global, globalE2E, and local on WOS."""
@@ -84,7 +86,10 @@ def run_wos_experiments():
     t_load = time.time()
 
     mgr = initialize_dataset_experiments(
-        "wos", device="cpu", dataset_path="./data", is_global=True,
+        "wos",
+        device="cpu",
+        dataset_path="./data",
+        is_global=True,
         model_cache_dir="./models",
     )
     train, valid, test = mgr.get_datasets()
@@ -99,6 +104,7 @@ def run_wos_experiments():
 
     # Normalize embeddings
     from sklearn.preprocessing import StandardScaler
+
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train_raw)
     X_test_s = scaler.transform(X_test)
@@ -111,11 +117,12 @@ def run_wos_experiments():
     print("\n=== [1/2] global (frozen SPECTER2 + MLP) ===")
     t0 = time.time()
     try:
-        from hmc.models.global_classifier.constraint.model import ConstrainedModel
-        from torch.utils.data import DataLoader
-
         # Build R-matrix
         import networkx as nx
+        from torch.utils.data import DataLoader
+
+        from hmc.models.global_classifier.constraint.model import ConstrainedModel
+
         a = mgr.a
         r_matrix_np = np.zeros(a.shape)
         np.fill_diagonal(r_matrix_np, 1)
@@ -151,7 +158,9 @@ def run_wos_experiments():
         criterion = torch.nn.BCELoss()
 
         train_ds = list(zip(torch.tensor(X_train), torch.tensor(y_train_raw)))
-        train_loader = DataLoader(train_ds, batch_size=defaults["batch_size"], shuffle=True)
+        train_loader = DataLoader(
+            train_ds, batch_size=defaults["batch_size"], shuffle=True
+        )
 
         model.train()
         epochs = 20
@@ -180,18 +189,35 @@ def run_wos_experiments():
         with open(f"{out_dir}/metrics.json", "w") as f:
             json.dump(metrics, f, indent=2)
 
-        results.append({
-            "method": "global", "dataset": "wos",
-            **metrics, "duration_s": dur, "epochs": epochs,
-            "n_train": len(X_train), "n_test": len(X_test),
-            "n_features": n_features, "n_nodes": n_nodes,
-        })
-        print(f"  F1={metrics['micro_f1']:.4f}  AUPRC={metrics['auprc_micro']:.4f}  time={dur:.1f}s")
+        results.append(
+            {
+                "method": "global",
+                "dataset": "wos",
+                **metrics,
+                "duration_s": dur,
+                "epochs": epochs,
+                "n_train": len(X_train),
+                "n_test": len(X_test),
+                "n_features": n_features,
+                "n_nodes": n_nodes,
+            }
+        )
+        print(
+            f"  F1={metrics['micro_f1']:.4f}  AUPRC={metrics['auprc_micro']:.4f}  time={dur:.1f}s"
+        )
 
     except Exception as e:
-        import traceback; traceback.print_exc()
-        results.append({"method": "global", "dataset": "wos",
-                        "error": str(e), "duration_s": time.time()-t0})
+        import traceback
+
+        traceback.print_exc()
+        results.append(
+            {
+                "method": "global",
+                "dataset": "wos",
+                "error": str(e),
+                "duration_s": time.time() - t0,
+            }
+        )
 
     # ---- 2. local (frozen SPECTER2 + per-level MLPs) ----
     print("\n=== [2/2] local (frozen SPECTER2 + per-level MLPs) ===")
@@ -199,7 +225,10 @@ def run_wos_experiments():
     try:
         # Load with is_global=False for local classifier
         mgr_loc = initialize_dataset_experiments(
-            "wos", device="cpu", dataset_path="./data", is_global=False,
+            "wos",
+            device="cpu",
+            dataset_path="./data",
+            is_global=False,
             model_cache_dir="./models",
         )
         tr_l, va_l, te_l = mgr_loc.get_datasets()
@@ -212,8 +241,9 @@ def run_wos_experiments():
         X_test_l = scaler.transform(te_l.x.astype(np.float32))
         y_test_l = te_l.y.astype(np.float32)
 
-        from hmc.models.local_classifier.model import LocalModel
         from torch.utils.data import DataLoader
+
+        from hmc.models.local_classifier.model import LocalModel
 
         model_l = LocalModel(
             input_dim=n_features,
@@ -230,17 +260,27 @@ def run_wos_experiments():
         )
         criterion_l = torch.nn.BCELoss()
 
-        tr_dataset = list(zip(
-            torch.tensor(X_train_l), torch.tensor(y_train_l),
-            [[np.stack(yy) for yy in yl] for yl in tr_l.y_local] +
-            [[np.stack(yy) for yy in yl] for yl in va_l.y_local]
-        ))
-        te_dataset = list(zip(
-            torch.tensor(X_test_l), torch.tensor(y_test_l),
-            [[np.stack(yy) for yy in yl] for yl in te_l.y_local]
-        ))
-        tr_loader = DataLoader(tr_dataset, batch_size=defaults["batch_size"], shuffle=True)
-        te_loader = DataLoader(te_dataset, batch_size=defaults["batch_size"], shuffle=False)
+        tr_dataset = list(
+            zip(
+                torch.tensor(X_train_l),
+                torch.tensor(y_train_l),
+                [[np.stack(yy) for yy in yl] for yl in tr_l.y_local]
+                + [[np.stack(yy) for yy in yl] for yl in va_l.y_local],
+            )
+        )
+        te_dataset = list(
+            zip(
+                torch.tensor(X_test_l),
+                torch.tensor(y_test_l),
+                [[np.stack(yy) for yy in yl] for yl in te_l.y_local],
+            )
+        )
+        tr_loader = DataLoader(
+            tr_dataset, batch_size=defaults["batch_size"], shuffle=True
+        )
+        te_loader = DataLoader(
+            te_dataset, batch_size=defaults["batch_size"], shuffle=False
+        )
 
         model_l.train()
         epochs = 20
@@ -284,18 +324,35 @@ def run_wos_experiments():
         with open(f"{out_dir_l}/metrics.json", "w") as f:
             json.dump(metrics_l, f, indent=2)
 
-        results.append({
-            "method": "local", "dataset": "wos",
-            **metrics_l, "duration_s": dur_l, "epochs": epochs,
-            "n_train": len(X_train_l), "n_test": len(X_test_l),
-            "n_features": n_features, "n_nodes": n_nodes,
-        })
-        print(f"  F1={metrics_l['micro_f1']:.4f}  AUPRC={metrics_l['auprc_micro']:.4f}  time={dur_l:.1f}s")
+        results.append(
+            {
+                "method": "local",
+                "dataset": "wos",
+                **metrics_l,
+                "duration_s": dur_l,
+                "epochs": epochs,
+                "n_train": len(X_train_l),
+                "n_test": len(X_test_l),
+                "n_features": n_features,
+                "n_nodes": n_nodes,
+            }
+        )
+        print(
+            f"  F1={metrics_l['micro_f1']:.4f}  AUPRC={metrics_l['auprc_micro']:.4f}  time={dur_l:.1f}s"
+        )
 
     except Exception as e:
-        import traceback; traceback.print_exc()
-        results.append({"method": "local", "dataset": "wos",
-                        "error": str(e), "duration_s": time.time()-t0})
+        import traceback
+
+        traceback.print_exc()
+        results.append(
+            {
+                "method": "local",
+                "dataset": "wos",
+                "error": str(e),
+                "duration_s": time.time() - t0,
+            }
+        )
 
     return results
 
@@ -303,6 +360,7 @@ def run_wos_experiments():
 # ===================================================================
 # seq_FUN synthetic experiments
 # ===================================================================
+
 
 def run_seqfun_experiments():
     """Run all tabular methods on synthetic seq_FUN fixture."""
@@ -316,25 +374,30 @@ def run_seqfun_experiments():
     fixture = SyntheticARFFFixture(
         name="seq_FUN",
         hierarchy="root.CC.CC01,root.CC.CC02,root.MF.MF01,root.BP.BP01",
-        num_features=50, num_train=400, num_valid=50, num_test=50,
+        num_features=50,
+        num_train=400,
+        num_valid=50,
+        num_test=50,
     )
     tmpdir = fixture.setup()
     _patch_gofun_paths(tmpdir)
 
     try:
-        from hmc.datasets.dataset_manager import initialize_dataset_experiments
-        from hmc.models.tabular.preprocessing import TabularPreprocessor
-        from hmc.models.hierarchical.postprocess import reconcile
         from hmc.data.hierarchy import TreeHierarchy
+        from hmc.datasets.dataset_manager import initialize_dataset_experiments
+        from hmc.models.hierarchical.postprocess import reconcile
+        from hmc.models.tabular.preprocessing import TabularPreprocessor
 
         # ==== local ====
         print("\n=== [seq_FUN] local ===")
         t0 = time.time()
-        from hmc.models.local_classifier.model import LocalModel
         from torch.utils.data import DataLoader
 
+        from hmc.models.local_classifier.model import LocalModel
+
         mgr = initialize_dataset_experiments(
-            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+        )
         tr, va, te = mgr.get_datasets()
 
         pp_loc = TabularPreprocessor(with_imputation=True, with_scaling=True)
@@ -347,17 +410,30 @@ def run_seqfun_experiments():
         yte = te.y.astype(np.float32)
 
         model_loc = LocalModel(
-            input_dim=Xtr.shape[1], levels_size=mgr.levels_size,
-            hidden_dim=128, num_layers=2, dropout=0.2,
+            input_dim=Xtr.shape[1],
+            levels_size=mgr.levels_size,
+            hidden_dim=128,
+            num_layers=2,
+            dropout=0.2,
         )
         opt_loc = torch.optim.AdamW(model_loc.parameters(), lr=1e-3)
         crit_loc = torch.nn.BCELoss()
 
-        tr_ds = list(zip(torch.tensor(Xtr), torch.tensor(ytr),
-            [[np.stack(yy) for yy in yl] for yl in tr.y_local] +
-            [[np.stack(yy) for yy in yl] for yl in va.y_local]))
-        te_ds = list(zip(torch.tensor(Xte), torch.tensor(yte),
-            [[np.stack(yy) for yy in yl] for yl in te.y_local]))
+        tr_ds = list(
+            zip(
+                torch.tensor(Xtr),
+                torch.tensor(ytr),
+                [[np.stack(yy) for yy in yl] for yl in tr.y_local]
+                + [[np.stack(yy) for yy in yl] for yl in va.y_local],
+            )
+        )
+        te_ds = list(
+            zip(
+                torch.tensor(Xte),
+                torch.tensor(yte),
+                [[np.stack(yy) for yy in yl] for yl in te.y_local],
+            )
+        )
         tr_ldr = DataLoader(tr_ds, batch_size=32, shuffle=True)
         te_ldr = DataLoader(te_ds, batch_size=32, shuffle=False)
 
@@ -368,7 +444,9 @@ def run_seqfun_experiments():
                 loss = torch.tensor(0.0)
                 for lvl in sorted(mgr.levels_size):
                     loss = loss + crit_loc(preds[str(lvl)], byl[lvl].float())
-                opt_loc.zero_grad(); loss.backward(); opt_loc.step()
+                opt_loc.zero_grad()
+                loss.backward()
+                opt_loc.step()
 
         model_loc.eval()
         all_preds = []
@@ -385,18 +463,24 @@ def run_seqfun_experiments():
                     all_preds.append(gp)
         yp_loc = np.stack(all_preds)
 
-        hier = TreeHierarchy.from_fun_cat_terms(
-            [t for t in tr.terms if t != "root"]
-        )
+        hier = TreeHierarchy.from_fun_cat_terms([t for t in tr.terms if t != "root"])
         yp_loc_rec = reconcile(yp_loc, hier)
 
         metrics_loc = compute_all_metrics(yte, yp_loc_rec, eval_mask_loc)
-        results.append({
-            "method": "local", "dataset": "seq_FUN",
-            **metrics_loc, "duration_s": time.time()-t0, "epochs": 30,
-            "n_train": len(Xtr), "n_test": len(Xte),
-        })
-        print(f"  F1={metrics_loc['micro_f1']:.4f}  AUPRC={metrics_loc['auprc_micro']:.4f}  time={time.time()-t0:.1f}s")
+        results.append(
+            {
+                "method": "local",
+                "dataset": "seq_FUN",
+                **metrics_loc,
+                "duration_s": time.time() - t0,
+                "epochs": 30,
+                "n_train": len(Xtr),
+                "n_test": len(Xte),
+            }
+        )
+        print(
+            f"  F1={metrics_loc['micro_f1']:.4f}  AUPRC={metrics_loc['auprc_micro']:.4f}  time={time.time()-t0:.1f}s"
+        )
 
         # ==== tabular_gbdt ====
         print("\n=== [seq_FUN] tabular_gbdt ===")
@@ -404,7 +488,8 @@ def run_seqfun_experiments():
         from hmc.models.tabular.gbdt_ovr import GBDTOvRClassifier
 
         mgr2 = initialize_dataset_experiments(
-            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+        )
         tr2, va2, te2 = mgr2.get_datasets()
 
         pp_gbdt = TabularPreprocessor(with_imputation=True, with_scaling=True)
@@ -428,21 +513,29 @@ def run_seqfun_experiments():
         metrics_gbdt = compute_all_metrics(
             ygb_te, scores_gbdt_rec, np.array(mgr2.to_eval, dtype=bool)
         )
-        results.append({
-            "method": "tabular_gbdt", "dataset": "seq_FUN",
-            **metrics_gbdt, "duration_s": time.time()-t0,
-        })
-        print(f"  F1={metrics_gbdt['micro_f1']:.4f}  AUPRC={metrics_gbdt['auprc_micro']:.4f}  time={time.time()-t0:.1f}s")
+        results.append(
+            {
+                "method": "tabular_gbdt",
+                "dataset": "seq_FUN",
+                **metrics_gbdt,
+                "duration_s": time.time() - t0,
+            }
+        )
+        print(
+            f"  F1={metrics_gbdt['micro_f1']:.4f}  AUPRC={metrics_gbdt['auprc_micro']:.4f}  time={time.time()-t0:.1f}s"
+        )
 
         # ==== tabular_mlp ====
         print("\n=== [seq_FUN] tabular_mlp ===")
         t0 = time.time()
-        from hmc.models.tabular.mlp import TabularMLPModel
-        from hmc.models.hierarchical.losses import WeightedBCELoss
         from torch.utils.data import TensorDataset
 
+        from hmc.models.hierarchical.losses import WeightedBCELoss
+        from hmc.models.tabular.mlp import TabularMLPModel
+
         mgr3 = initialize_dataset_experiments(
-            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False)
+            "seq_FUN", device="cpu", dataset_path=tmpdir, is_global=False
+        )
         tr3, va3, te3 = mgr3.get_datasets()
 
         pp_mlp = TabularPreprocessor(with_imputation=True, with_scaling=True)
@@ -456,8 +549,12 @@ def run_seqfun_experiments():
 
         device = torch.device("cpu")
         mlp_model = TabularMLPModel(
-            input_dim=Xm.shape[1], n_nodes=ym.shape[1],
-            hidden_dim=128, n_blocks=2, head_layers=2, dropout=0.2,
+            input_dim=Xm.shape[1],
+            n_nodes=ym.shape[1],
+            hidden_dim=128,
+            n_blocks=2,
+            head_layers=2,
+            dropout=0.2,
         ).to(device)
 
         pos_w = WeightedBCELoss.compute_pos_weight(torch.tensor(ym)).to(device)
@@ -475,7 +572,9 @@ def run_seqfun_experiments():
                 bx, by = bx.to(device), by.to(device)
                 preds = mlp_model(bx)
                 loss = crit_mlp(preds, by)
-                opt_mlp.zero_grad(); loss.backward(); opt_mlp.step()
+                opt_mlp.zero_grad()
+                loss.backward()
+                opt_mlp.step()
 
         mlp_model.eval()
         all_preds_mlp = []
@@ -492,12 +591,20 @@ def run_seqfun_experiments():
         metrics_mlp = compute_all_metrics(
             ym_te, yp_mlp_rec, np.array(mgr3.to_eval, dtype=bool)
         )
-        results.append({
-            "method": "tabular_mlp", "dataset": "seq_FUN",
-            **metrics_mlp, "duration_s": time.time()-t0, "epochs": 40,
-            "n_train": len(Xm), "n_test": len(Xm_te),
-        })
-        print(f"  F1={metrics_mlp['micro_f1']:.4f}  AUPRC={metrics_mlp['auprc_micro']:.4f}  time={time.time()-t0:.1f}s")
+        results.append(
+            {
+                "method": "tabular_mlp",
+                "dataset": "seq_FUN",
+                **metrics_mlp,
+                "duration_s": time.time() - t0,
+                "epochs": 40,
+                "n_train": len(Xm),
+                "n_test": len(Xm_te),
+            }
+        )
+        print(
+            f"  F1={metrics_mlp['micro_f1']:.4f}  AUPRC={metrics_mlp['auprc_micro']:.4f}  time={time.time()-t0:.1f}s"
+        )
 
     finally:
         _restore_gofun_paths()
@@ -541,7 +648,9 @@ if __name__ == "__main__":
         if "error" in r:
             print(f"{r['method']:<18} {r['dataset']:<10} {'ERR: '+r['error'][:45]}")
         else:
-            print(f"{r['method']:<18} {r['dataset']:<10} {r['micro_f1']:>10.4f} {r['auprc_micro']:>10.4f} {r['micro_precision']:>8.4f} {r['micro_recall']:>8.4f} {r['best_threshold']:>6.2f} {r['duration_s']:>7.1f}s {r.get('n_train', 0):>7d}")
+            print(
+                f"{r['method']:<18} {r['dataset']:<10} {r['micro_f1']:>10.4f} {r['auprc_micro']:>10.4f} {r['micro_precision']:>8.4f} {r['micro_recall']:>8.4f} {r['best_threshold']:>6.2f} {r['duration_s']:>7.1f}s {r.get('n_train', 0):>7d}"
+            )
 
     print("-" * 85)
-    print(f"\nArtefacts saved to ./output/experiments/")
+    print("\nArtefacts saved to ./output/experiments/")

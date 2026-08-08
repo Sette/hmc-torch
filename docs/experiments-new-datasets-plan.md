@@ -1,7 +1,7 @@
 # Plano: Experimentos em Novos Datasets para o HMC-Torch
 
-**Autor:** Bruno Sette  
-**Data:** Agosto 2026  
+**Autor:** Bruno Sette
+**Data:** Agosto 2026
 **Status:** Proposta (revisar antes de implementar)
 
 ---
@@ -63,7 +63,7 @@ O `three-month-plan.md` diz "❌ Novos datasets — já temos 25, é suficiente"
 
 **Métodos publicados (Micro-F1):**
 - C-HMCNN: 0.836 (2021)
-- HMCN-F: 0.838 (2018)  
+- HMCN-F: 0.838 (2018)
 - HiAGM: 0.834 (2019)
 - HTCInfoMax: 0.847 (2020)
 

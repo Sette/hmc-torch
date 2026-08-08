@@ -8,7 +8,7 @@ Complies with Clean Architecture and Pylint standards.
 import json
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 class _SamplesHolder:
     """Mutable holder so create_dataloader can attach tensor views."""
 
-    x: Optional[Any] = None
-    y: Optional[Any] = None
+    x: Any | None = None
+    y: Any | None = None
 
 
 class ArXivSplit:
@@ -42,7 +42,7 @@ class ArXivSplit:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        y_local: List[List[np.ndarray]],
+        y_local: list[list[np.ndarray]],
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32  — global binary labels
@@ -60,13 +60,13 @@ class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes
         """Initialise empty structures for the hierarchy graph."""
         self.g = nx.DiGraph()
         self.g_t = nx.DiGraph()
-        self.levels: Dict[int, List[str]] = defaultdict(list)
-        self.levels_size: Dict[int, int] = {}
-        self.nodes_idx: Dict[str, int] = {}
-        self.local_nodes_idx: Dict[int, Dict[str, int]] = {}
+        self.levels: dict[int, list[str]] = defaultdict(list)
+        self.levels_size: dict[int, int] = {}
+        self.nodes_idx: dict[str, int] = {}
+        self.local_nodes_idx: dict[int, dict[str, int]] = {}
         self.max_depth: int = 0
-        self.terms: List[str] = []
-        self.edge_index: Dict[int, np.ndarray] = {}
+        self.terms: list[str] = []
+        self.edge_index: dict[int, np.ndarray] = {}
         self.a: np.ndarray = np.array([])
         self._is_fitted: bool = False
 
@@ -78,7 +78,7 @@ class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes
             jsonl_path (str): Path to the saved '.jsonl' dataset.
         """
         logger.info("Scanning %s to build the hierarchy...", jsonl_path)
-        unique_categories: Set[str] = set()
+        unique_categories: set[str] = set()
 
         # Extract all unique categories
         with open(jsonl_path, "r", encoding="utf-8") as file:
@@ -93,7 +93,7 @@ class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes
         self._is_fitted = True
         logger.info("Hierarchy built. Total unique nodes: %d", len(self.terms))
 
-    def _build_graphs(self, unique_categories: Set[str]) -> None:
+    def _build_graphs(self, unique_categories: set[str]) -> None:
         """
         Constructs the DiGraph and assigns depths based on ArXiv logic (e.g., cs -> cs.AI).
         """
@@ -152,7 +152,7 @@ class ArXivHierarchyManager:  # pylint: disable=too-many-instance-attributes
 
             self.edge_index[depth] = matrix
 
-    def get_labels(self, categories_string: str) -> Tuple[np.ndarray, List[np.ndarray]]:
+    def get_labels(self, categories_string: str) -> tuple[np.ndarray, list[np.ndarray]]:
         """
         Converts the raw category string into global and local tensors.
 
@@ -201,7 +201,7 @@ class ArXivPyTorchDataset(Dataset):
         hierarchy_manager: ArXivHierarchyManager,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
-        max_records: Optional[int] = None,
+        max_records: int | None = None,
     ):
         """
         Initialise the dataset, loading the JSONL into memory (suitable for abstracts).
@@ -209,7 +209,7 @@ class ArXivPyTorchDataset(Dataset):
         self.hierarchy = hierarchy_manager
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.records: List[Dict[str, str]] = []
+        self.records: list[dict[str, str]] = []
 
         logger.info("Loading records from %s into memory...", jsonl_path)
         with open(jsonl_path, "r", encoding="utf-8") as file:
@@ -227,7 +227,7 @@ class ArXivPyTorchDataset(Dataset):
     def __len__(self) -> int:
         return len(self.records)
 
-    def __getitem__(self, idx: int) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
+    def __getitem__(self, idx: int) -> tuple[dict[str, torch.Tensor], dict[str, Any]]:
         record = self.records[idx]
 
         # Tokenize text features
@@ -271,7 +271,7 @@ class ArXivPyTorchDataset(Dataset):
 
     def get_datasets(
         self,
-    ) -> Tuple[Subset, Subset, Subset]:
+    ) -> tuple[Subset, Subset, Subset]:
         """Split into 64/16/20 using HPT methodology — same as ArXivManager."""
         from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
             train_test_split,
@@ -282,12 +282,8 @@ class ArXivPyTorchDataset(Dataset):
         idx = list(range(n))
         np.random.shuffle(idx)
 
-        train_idx, test_idx = train_test_split(
-            idx, test_size=0.2, random_state=0
-        )
-        train_idx, val_idx = train_test_split(
-            train_idx, test_size=0.2, random_state=0
-        )
+        train_idx, test_idx = train_test_split(idx, test_size=0.2, random_state=0)
+        train_idx, val_idx = train_test_split(train_idx, test_size=0.2, random_state=0)
 
         train_dataset = Subset(self, sorted(train_idx))
         valid_dataset = Subset(self, sorted(val_idx))

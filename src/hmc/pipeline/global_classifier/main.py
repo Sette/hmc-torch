@@ -29,8 +29,7 @@ def _get_defaults(registry, dataset_name: str) -> dict:
     """Pick default hyperparams based on dataset family."""
     if dataset_name == "wos":
         return registry.wos_defaults
-    if any(suffix in (dataset_name or "")
-           for suffix in ("_FUN", "_GO", "_others")):
+    if any(suffix in (dataset_name or "") for suffix in ("_FUN", "_GO", "_others")):
         return registry.gofun_defaults
     return registry.arxiv_defaults
 
@@ -110,12 +109,8 @@ def train_global(dataset_name, args):
 
     # Text features: convert directly to tensors without sklearn scaling.
     for split in (args.train, args.valid, args.test):
-        split.samples.x = (
-            torch.tensor(split.x).clone().detach().float().to(args.device)
-        )
-        split.samples.y = (
-            torch.tensor(split.y).clone().detach().float().to(args.device)
-        )
+        split.samples.x = torch.tensor(split.x).clone().detach().float().to(args.device)
+        split.samples.y = torch.tensor(split.y).clone().detach().float().to(args.device)
 
     args.train_dataset = list(zip(args.train.x, args.train.y))
     for x, y in zip(args.valid.x, args.valid.y):
@@ -132,12 +127,13 @@ def train_global(dataset_name, args):
     return fit_trainer(args)
 
 
-def _get_transformer_dataset(dataset_name, args, tokenizer, model_name):
+def _get_transformer_dataset(dataset_name, args, tokenizer, model_name):  # pylint: disable=unused-argument
     """Return (PyTorchDataset, jsonl_path_or_data_dir) for transformer datasets."""
     if dataset_name == "arxiv":
         from hmc.datasets.arxiv.dataset_arxiv import (  # pylint: disable=import-outside-toplevel
             ArXivPyTorchDataset,
         )
+
         jsonl_path = os.path.join(
             args.dataset.dataset_path, "arxiv", "arxiv-metadata-oai-snapshot.json"
         )
@@ -153,6 +149,7 @@ def _get_transformer_dataset(dataset_name, args, tokenizer, model_name):
     from hmc.datasets.wos.dataset_wos import (  # pylint: disable=import-outside-toplevel
         WOSPyTorchDataset,
     )
+
     data_dir = os.path.join(args.dataset.dataset_path, "wos")
     ds = WOSPyTorchDataset(
         data_dir=data_dir,
