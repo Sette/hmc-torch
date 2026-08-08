@@ -30,7 +30,7 @@ jobs:
       run: uv run ruff check src/ --fix
 
     - name: Run isort (check)
-      run: uv run isort -c src/
+      run: uv run isort src/
 
     - name: Run pylint
       run: |
