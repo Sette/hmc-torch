@@ -17,7 +17,7 @@ that integrates the **R-matrix constraint** — originally proposed by
 [Giunchiglia & Lukasiewicz (2018, NeurIPS)](https://papers.nips.cc/paper_files/paper/2018/hash/08aacd96e9e26e79b77e4f65b9c0aa33-Abstract.html) —
 as a reusable, first-class architectural component.
 
-> 📄 **Paper**: *HMC-Torch: A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints* (Bruno Sette, UFMG, 2026)
+> 📄 **Paper**: *HMC-Torch: A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints* (Bruno Sette, UFSCar, 2026)
 
 ---
 
