@@ -42,6 +42,7 @@ lint:
 	uv run ruff check src/
 	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/'| grep -v '^notebooks/')
 
+
 run:
 	./run.sh --device cuda --dataset_name wos --method global --output_path output
 
@@ -53,3 +54,6 @@ test:
 build:
 	@echo "--> Docker build"
 	docker build -f Dockerfile -t hmc-torch:$(VERSION) .
+
+
+pipeline: lint test
