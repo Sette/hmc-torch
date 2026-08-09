@@ -172,8 +172,8 @@ cython_debug/
 .python-version
 gene-ontology-original.zip
 .continue/
-output/
-models/
+/output/
+/models/
 
 # Uv
 uv.lock
