@@ -168,11 +168,12 @@ cython_debug/
 .vscode/
 
 # Data
-data/
+/data/
 .python-version
 gene-ontology-original.zip
 .continue/
-output/
+/output/
+/models/
 
 # Uv
 uv.lock

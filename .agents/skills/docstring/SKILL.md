@@ -1,3 +1,8 @@
+---
+name: docstring
+description: Generate Google-style Python docstrings from source code.
+---
+
 # Skill: Python Docstring Generator
 
 ## Description

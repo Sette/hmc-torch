@@ -158,6 +158,36 @@ def get_dataset_paths(dataset_path="./data"):
                 "HMC_data_arff/datasets_FUN/spo_FUN/spo_FUN.test.arff",
             ),
         ),
+        "church_FUN": (
+            False,
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.train.arff",
+            ),
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.valid.arff",
+            ),
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/church_FUN/church_FUN.test.arff",
+            ),
+        ),
+        "pheno_FUN": (
+            False,
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.train.arff",
+            ),
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.valid.arff",
+            ),
+            os.path.join(
+                dataset_path,
+                "HMC_data_arff/datasets_FUN/pheno_FUN/pheno_FUN.test.arff",
+            ),
+        ),
         "cellcycle_GO": (
             True,
             os.path.join(
@@ -245,6 +275,18 @@ def get_dataset_paths(dataset_path="./data"):
             os.path.join(
                 dataset_path,
                 "HMC_data_arff/datasets_GO/gasch2_GO/gasch2_GO.test.arff",
+            ),
+        ),
+        "pheno_GO": (
+            True,
+            os.path.join(
+                dataset_path, "HMC_data_arff/datasets_GO/pheno_GO/pheno_GO.train.arff"
+            ),
+            os.path.join(
+                dataset_path, "HMC_data_arff/datasets_GO/pheno_GO/pheno_GO.valid.arff"
+            ),
+            os.path.join(
+                dataset_path, "HMC_data_arff/datasets_GO/pheno_GO/pheno_GO.test.arff"
             ),
         ),
         "seq_GO": (

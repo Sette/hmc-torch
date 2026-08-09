@@ -1,13 +1,8 @@
-"""
-This module defines the Args dataclass for configuring and launching
-the training and hyperparameter optimization of a Hierarchical Multi-label
-Classification (HMC) model.
-"""
+"""Argparse + dataclass configuration for hmc-torch (ArXiv and WOS)."""
 
 import argparse
-import json
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Optional
+from typing import ClassVar
 
 from hmc.datasets.registry import DatasetRegistry
 
@@ -17,94 +12,39 @@ class DatasetConfig:
     """Dataset-specific configuration."""
 
     dataset_path: str
-    dataset_name: Optional[str] = None
-    use_sample: bool = False
-    save_torch_dataset: bool = True
-    dataset_type: str = "arff"
+    dataset_name: str | None = None
+    arxiv_model_name: str = "allenai/specter2_base"
+    arxiv_max_records: int = 50_000
+    model_cache_dir: str = "./models"
 
 
 @dataclass
-class TrainingConfig:  # pylint: disable=too-many-instance-attributes
+class TrainingConfig:
     """Training loop and optimization settings."""
 
-    batch_size: int = 64
+    batch_size: int = 32
     non_lin: str = "relu"
-    device: str = "cpu"
-    epochs: int = 2000
-    epochs_attention: int = 100
-    epochs_level: int = 2000
+    device: str = "cuda"
+    epochs: int = 50
     seed: int = 0
-    focal_loss: bool = False
-    warmup: bool = False
-    n_warmup_epochs: int = 50
-    n_warmup_epochs_increment: int = 50
-    parent_conditioning: str = "false"
-    early_metric: str = "avg-score"
-    predict_test: bool = True
-    level_model_type: str = "mlp"
-    active_levels: Optional[list[int]] = None
-    encoder_block: bool = False
-    patience: int = 5
-    patience_score: int = 20
-    epochs_to_evaluate: int = 20
-    epochs_to_test: int = 20
-    best_threshold: bool = True
+    best_threshold: bool = False
+    use_contrastive_loss: bool = False
+    lambda_contrastive: float = 0.1
+    lr_transformer: float = 2e-5
 
 
 @dataclass
-class HyperparameterConfig:
-    """Hyperparameters used when HPO is disabled."""
+class Args:
+    """Configuration for HMC model training (ArXiv and WOS datasets)."""
 
-    lr_values: Optional[list[float]] = None
-    dropout_values: Optional[list[float]] = None
-    hidden_dims: Optional[Any] = None
-    num_layers_values: Optional[list[int]] = None
-    weight_decay_values: Optional[list[float]] = None
-
-
-@dataclass
-class HpoConfig:
-    """Hyperparameter optimisation settings."""
-
-    hpo: bool = False
-    hpo_by_level: bool = True
-    n_trials: Optional[int] = None
-
-
-@dataclass
-class Args:  # pylint: disable=too-many-instance-attributes
-    """Configuration for HMC model training and hyperparameter optimization.
-
-    Flat attribute access (e.g. ``args.epochs``) is transparently delegated to
-    the grouped sub-configs (``training``, ``hyperparams``, ``hpo_config``) via
-    ``__getattr__`` / ``__setattr__``, so all existing call-sites work without
-    modification and no boilerplate properties are needed.
-    """
-
-    # Required
     dataset: DatasetConfig
     output_path: str
-
-    # Dataset registry (static lookup tables — dimensions, default lrs, epochs)
     registry: DatasetRegistry = field(default_factory=DatasetRegistry)
-
-    # Job identification
     job_id: str = "none"
     method: str = "global"
-
-    # Grouped sub-configs
     training: TrainingConfig = field(default_factory=TrainingConfig)
-    hyperparams: HyperparameterConfig = field(default_factory=HyperparameterConfig)
-    hpo_config: HpoConfig = field(default_factory=HpoConfig)
-
-    # Paths
     results_path: str = "./results/"
 
-    # ------------------------------------------------------------------ #
-    # Dynamic delegation — no boilerplate properties needed               #
-    # ------------------------------------------------------------------ #
-
-    # Fields that live directly on Args (not delegated to sub-configs)
     _DIRECT_FIELDS: ClassVar[frozenset] = frozenset(
         {
             "dataset",
@@ -113,35 +53,25 @@ class Args:  # pylint: disable=too-many-instance-attributes
             "job_id",
             "method",
             "training",
-            "hyperparams",
-            "hpo_config",
             "results_path",
         }
     )
 
     def __getattr__(self, name: str):
-        # Called only when normal attribute lookup fails (i.e. name is not a
-        # direct field).  Search the sub-configs in order.
-        for sub in ("training", "hyperparams", "hpo_config"):
-            # Guard against infinite recursion during __init__
+        for sub in ("dataset", "training"):
             try:
                 cfg = object.__getattribute__(self, sub)
             except AttributeError:
                 continue
             if hasattr(cfg, name):
                 return getattr(cfg, name)
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
-    def __setattr__(self, name: str, value) -> None:
-        # Direct fields and any ad-hoc runtime attributes (e.g. args.model,
-        # args.hmc_dataset) are stored on self as usual.
+    def __setattr__(self, name: str, value):
         if name in Args._DIRECT_FIELDS or name.startswith("_"):
             object.__setattr__(self, name, value)
             return
-        # If the name belongs to a sub-config, delegate there.
-        for sub in ("training", "hyperparams", "hpo_config"):
+        for sub in ("dataset", "training"):
             try:
                 cfg = object.__getattribute__(self, sub)
             except AttributeError:
@@ -149,7 +79,6 @@ class Args:  # pylint: disable=too-many-instance-attributes
             if hasattr(cfg, name):
                 setattr(cfg, name, value)
                 return
-        # Otherwise store as a regular ad-hoc attribute on self.
         object.__setattr__(self, name, value)
 
 
@@ -158,434 +87,69 @@ def _str_to_bool(v: str) -> bool:
 
 
 def get_parser() -> argparse.ArgumentParser:
-    """
-    Create and return an argument parser for the HMC model.
+    """Build and return the argument parser for HMC training."""
+    parser = argparse.ArgumentParser(description="Train an HMC model.")
 
-    Returns:
-        argparse.ArgumentParser: Configured argument parser.
-    """
-    parser = argparse.ArgumentParser(
-        description="Train a Hierarchical Multi-label Classification model."
-    )
-
+    parser.add_argument("--job_id", type=str, default="none")
+    parser.add_argument("--dataset_name", type=str, default=None)
+    parser.add_argument("--dataset_path", type=str, required=True)
+    parser.add_argument("--output_path", type=str, required=True)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--arxiv_model_name", type=str, default="allenai/specter2_base")
+    parser.add_argument("--arxiv_max_records", type=int, default=50_000)
+    parser.add_argument("--model_cache_dir", type=str, default="./models")
     parser.add_argument(
-        "--job_id",
-        type=str,
-        default="none",
-        required=False,
-        help="Job id for trainer job.",
+        "--use_contrastive_loss", type=str, default="false", choices=["true", "false"]
     )
-
+    parser.add_argument("--lambda_contrastive", type=float, default=0.1)
     parser.add_argument(
-        "--dataset_name",
-        type=str,
-        required=False,
-        default=None,
-        help="Dataset name to be used.",
+        "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
     )
-
-    parser.add_argument(
-        "--use_sample",
-        type=str,
-        default="false",
-        choices=["true", "false"],
-        metavar="USE_SAMPLE",
-        required=False,
-        help="Enable or disable to use a sample of data (for tests). \
-                Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--save_torch_dataset",
-        type=str,
-        default="true",
-        choices=["true", "false"],
-        metavar="USE_SAMPLE",
-        required=False,
-        help="Enable or disable to use save torch dataset. \
-                    Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--dataset_path",
-        type=str,
-        required=True,
-        help="Path to data and metadata files.",
-    )
-
-    parser.add_argument(
-        "--output_path",
-        type=str,
-        required=True,
-        help="Path to save models.",
-    )
-
-    parser.add_argument(
-        "--n_trials",
-        type=int,
-        required=False,
-        help="n_trials for hpo.",
-    )
-
-    parser.add_argument(
-        "--best_threshold",
-        type=str,
-        default="true",
-        choices=["true", "false"],
-        metavar="best_threshold",
-        required=False,
-        help="Enable or disable to use find the best thesholds. \
-                        Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=64,
-        required=False,
-        help="Batch size for training.",
-    )
-
-    parser.add_argument(
-        "--dataset_type",
-        type=str,
-        choices=["csv", "torch", "arff"],
-        default="arff",
-        metavar="DATASET_TYPE",
-        required=False,
-        help="Type of dataset to load.",
-    )
-
-    parser.add_argument(
-        "--non_lin",
-        type=str,
-        default="relu",
-        choices=["relu", "tanh", "sigmoid"],
-        metavar="NON_LIN",
-        required=False,
-        help="Non-linearity function.",
-    )
-
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
-        choices=["cpu", "cuda"],
-        metavar="DEVICE",
-        required=False,
-        help='Device to use (e.g., "cpu" or "cuda").',
-    )
-
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=2000,
-        metavar="EPOCHS",
-        required=False,
-        help="Total number of training epochs.",
-    )
-
-    parser.add_argument(
-        "--epochs_attention",
-        type=int,
-        default=100,
-        metavar="EPOCHS_ATTENTION",
-        required=False,
-        help="Total number of training epochs for attention.",
-    )
-
-    parser.add_argument(
-        "--epochs_level",
-        type=int,
-        default=2000,
-        metavar="EPOCHS_LEVEL",
-        required=False,
-        help="Total number of training epochs for level.",
-    )
-
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Random seed for reproducibility.",
-    )
-
+    parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--method",
         type=str,
         default="global",
         choices=[
             "global",
+            "globalGNN",
+            "globalE2E",
+            "globalSOTA",
             "local",
-            "globalLM",
-            "global_baseline",
-            "local_constraint",
-            "local_hat",
-            "local_tabat",
-            "local_test",
+            "localE2E",
+            "tabular_gbdt",
+            "tabular_mlp",
         ],
-        metavar="METHOD",
-        required=False,
-        help="Method type to use.",
     )
-
     parser.add_argument(
-        "--focal_loss",
-        type=str,
-        default="false",
-        choices=["true", "false"],
-        metavar="FOCAL_LOSS",
-        required=False,
-        help="Enable or disable Focal Loss. \
-            Use 'true' to enable and 'false' to disable.",
+        "--best_threshold", type=str, default="false", choices=["true", "false"]
     )
-
-    parser.add_argument(
-        "--warmup",
-        type=str,
-        default="false",
-        choices=["true", "false"],
-        metavar="WARMUP",
-        required=False,
-        help="Enable or disable learning rate warmup. \
-            Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--n_warmup_epochs",
-        type=int,
-        default=50,
-        required=False,
-        metavar="N_WARMUP_EPOCHS",
-    )
-
-    parser.add_argument(
-        "--n_warmup_epochs_increment",
-        type=int,
-        default=50,
-        required=False,
-        metavar="N_WARMUP_EPOCHS_INCREMENT",
-    )
-
-    parser.add_argument(
-        "--hpo",
-        type=str,
-        default="false",
-        choices=["true", "false"],
-        metavar="HPO",
-        required=False,
-        help="Enable or disable Hyperparameter Optimization (HPO). \
-            Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--hpo_by_level",
-        type=str,
-        default="true",
-        choices=["true", "false"],
-        metavar="HPO_BY_LEVEL",
-        required=False,
-        help="Enable or disable HPO by level. \
-            Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--parent_conditioning",
-        type=str,
-        default="false",
-        choices=["residual", "soft", "teacher_forcing", "none"],
-        metavar="PARENT_CONDITIONING",
-        required=False,
-        help="Select or disable parent conditioning. \
-            Use 'residual' or 'soft' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--results_path",
-        type=str,
-        default="./results/",
-        metavar="RESULTS_PATH",
-        required=False,
-        help="Path to save results.",
-    )
-
-    parser.add_argument(
-        "--early_metric",
-        type=str,
-        default="avg-score",
-        choices=["f1-score", "avg-score"],
-        metavar="EARLY_METRIC",
-        required=False,
-        help="Metric to use for early stopping.",
-    )
-
-    parser.add_argument(
-        "--predict_test",
-        type=str,
-        default="true",
-        choices=["true", "false"],
-        metavar="PREDICT_TEST",
-        required=False,
-        help="Enable or disable prediction on test set after training. \
-            Use 'true' to enable and 'false' to disable.",
-    )
-
-    parser.add_argument(
-        "--level_model_type",
-        type=str,
-        default="mlp",
-        choices=["mlp", "attention", "gcn", "gat"],
-        metavar="LEVEL_MODEL_TYPE",
-        required=False,
-        help="Specific model type to use at each level.",
-    )
-
-    parser.add_argument(
-        "--active_levels",
-        type=int,
-        nargs="+",
-        default=None,
-        required=False,
-        metavar="ACTIVE_LEVELS",
-    )
-
-    parser.add_argument(
-        "--lr_values",
-        type=float,
-        nargs="+",
-        required=False,
-        help="List of values for the learning rate (used when HPO is disabled).",
-    )
-
-    parser.add_argument(
-        "--dropout_values",
-        type=float,
-        nargs="+",
-        required=False,
-        metavar="DROPOUT",
-        help="List of values for dropout (used when HPO is disabled).",
-    )
-
-    parser.add_argument(
-        "--hidden_dims",
-        type=json.loads,
-        required=False,
-        metavar="HIDDEN_DIMS",
-        help="List (or list of lists) of hidden neurons. "
-        "Can be passed as JSON when HPO is enabled (e.g. '[[128,64],[256]]').",
-    )
-
-    parser.add_argument(
-        "--num_layers_values",
-        type=int,
-        nargs="+",
-        required=False,
-        metavar="NUM_LAYERS",
-        help="List of values for the number of layers (used when HPO is disabled).",
-    )
-
-    parser.add_argument(
-        "--weight_decay_values",
-        type=float,
-        nargs="+",
-        required=False,
-        metavar="WEIGHT_DECAY",
-        help="List of values for weight decay (used when HPO is disabled).",
-    )
-
-    parser.add_argument(
-        "--patience",
-        type=int,
-        default=5,
-        metavar="PATIENCE",
-        required=False,
-        help="Number of epochs with no improvement after which training will be stopped.",
-    )
-
-    parser.add_argument(
-        "--encoder_block",
-        type=bool,
-        default=False,
-        metavar="ENCODER_BLOCK",
-        required=False,
-        help="Active Encoder Block in the model.",
-    )
-
-    parser.add_argument(
-        "--patience_score",
-        type=int,
-        default=20,
-        metavar="PATIENCE_SCORE",
-        required=False,
-        help="Number of epochs with no improvement after which training will be stopped.",
-    )
-
-    parser.add_argument(
-        "--epochs_to_evaluate",
-        type=int,
-        default=20,
-        metavar="EPOCHS_TO_EVALUATE",
-        required=False,
-        help="Number of epochs to evaluate the model during training.",
-    )
-
-    parser.add_argument(
-        "--epochs_to_test",
-        type=int,
-        default=20,
-        metavar="EPOCHS_TO_TEST",
-        required=False,
-        help="Number of epochs to test the model during training.",
-    )
-
+    parser.add_argument("--results_path", type=str, default="./results/")
     return parser
 
 
 def parse_args() -> Args:
-    """Parse CLI arguments and return a typed Args dataclass."""
+    """Parse CLI arguments and return an Args dataclass."""
     ns = get_parser().parse_args()
     dataset = DatasetConfig(
         dataset_path=ns.dataset_path,
         dataset_name=ns.dataset_name,
-        use_sample=_str_to_bool(ns.use_sample),
-        save_torch_dataset=_str_to_bool(ns.save_torch_dataset),
-        dataset_type=ns.dataset_type,
+        arxiv_model_name=ns.arxiv_model_name,
+        arxiv_max_records=ns.arxiv_max_records,
+        model_cache_dir=ns.model_cache_dir,
     )
     training = TrainingConfig(
         batch_size=ns.batch_size,
         non_lin=ns.non_lin,
         device=ns.device,
         epochs=ns.epochs,
-        epochs_attention=ns.epochs_attention,
-        epochs_level=ns.epochs_level,
         seed=ns.seed,
-        focal_loss=_str_to_bool(ns.focal_loss),
-        warmup=_str_to_bool(ns.warmup),
-        n_warmup_epochs=ns.n_warmup_epochs,
-        n_warmup_epochs_increment=ns.n_warmup_epochs_increment,
-        parent_conditioning=ns.parent_conditioning,
-        early_metric=ns.early_metric,
-        predict_test=_str_to_bool(ns.predict_test),
-        level_model_type=ns.level_model_type,
-        active_levels=ns.active_levels,
-        encoder_block=ns.encoder_block,
-        patience=ns.patience,
-        patience_score=ns.patience_score,
-        epochs_to_evaluate=ns.epochs_to_evaluate,
-        epochs_to_test=ns.epochs_to_test,
         best_threshold=_str_to_bool(ns.best_threshold),
-    )
-    hpo_config = HpoConfig(
-        hpo=_str_to_bool(ns.hpo),
-        hpo_by_level=_str_to_bool(ns.hpo_by_level),
-        n_trials=ns.n_trials,
-    )
-    hyperparams = HyperparameterConfig(
-        lr_values=ns.lr_values,
-        dropout_values=ns.dropout_values,
-        hidden_dims=ns.hidden_dims,
-        num_layers_values=ns.num_layers_values,
-        weight_decay_values=ns.weight_decay_values,
+        use_contrastive_loss=_str_to_bool(ns.use_contrastive_loss),
+        lambda_contrastive=ns.lambda_contrastive,
+        lr_transformer=ns.lr_transformer,
     )
     return Args(
         dataset=dataset,
@@ -593,6 +157,4 @@ def parse_args() -> Args:
         job_id=ns.job_id,
         method=ns.method,
         training=training,
-        hpo_config=hpo_config,
-        hyperparams=hyperparams,
     )

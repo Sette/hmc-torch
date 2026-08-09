@@ -13,7 +13,6 @@ $EPOCHS_TO_EVALUATE = 20
 $OUTPUT_PATH = "results"
 $METHOD = "local"
 $SEED = 0
-$DATASET_TYPE = "arff"
 $HPO = "false"
 $N_TRIALS = 30
 $JOB_ID = "false"
@@ -40,7 +39,6 @@ function Show-Usage {
     Write-Host "  -save_torch_dataset <yes/no> Save torch dataset (default: $SAVE_TORCH_DATASET)"
     Write-Host "  -dataset_path <path>     Dataset path (default: $DATASET_PATH)"
     Write-Host "  -seed <num>              Random seed (default: $SEED)"
-    Write-Host "  -dataset_type <type>     Dataset type (default: $DATASET_TYPE)"
     Write-Host "  -batch_size <num>        Batch size (default: $BATCH_SIZE)"
     Write-Host "  -lr_values <values>      Learning rates"
     Write-Host "  -dropout_values <values> Dropout rates"
@@ -75,7 +73,6 @@ for ($i = 0; $i -lt $args.Count; $i++) {
         "-save_torch_dataset" { $SAVE_TORCH_DATASET = $args[++$i] }
         "-dataset_path" { $DATASET_PATH = $args[++$i]; $env:DATASET_PATH = $DATASET_PATH }
         "-seed" { $SEED = $args[++$i] }
-        "-dataset_type" { $DATASET_TYPE = $args[++$i] }
         "-batch_size" { $BATCH_SIZE = $args[++$i] }
         "-lr_values" { $LR_VALUES = $args[++$i] -split ',' }
         "-dropout_values" { $DROPOUT_VALUES = $args[++$i] -split ',' }
@@ -108,7 +105,6 @@ $cmd = "python -m hmc.main " +
     "--use_sample $USE_SAMPLE " +
     "--save_torch_dataset $SAVE_TORCH_DATASET " +
     "--batch_size $BATCH_SIZE " +
-    "--dataset_type $DATASET_TYPE " +
     "--non_lin $NON_LIN " +
     "--device $DEVICE " +
     "--epochs $EPOCHS " +
@@ -135,9 +131,9 @@ if ($DATASET -eq "all") {
 
         Write-Host "Using dataset_name: $dataset_local"
         Write-Host "Using hidden dimensions: $HIDDEN_DIMS"
-        
+
         $cmd_dataset = $cmd
-        
+
         if ($ACTIVE_LEVELS) {
             $cmd_dataset += " --active_levels $($ACTIVE_LEVELS -join ' ')"
         }
@@ -153,9 +149,9 @@ if ($DATASET -eq "all") {
         Write-Host "Starting experiment for dataset: $dataset_local"
         $cmd_dataset += " --dataset_name $dataset_local"
         Write-Host "Running: $cmd_dataset"
-        
+
         $process = Start-Process -FilePath "python" -ArgumentList ($cmd_dataset -replace '^python ') -NoNewWindow -PassThru
-        
+
         try {
             $process.WaitForExit()
         }
@@ -166,7 +162,7 @@ if ($DATASET -eq "all") {
 }
 else {
     Write-Host "Using specific dataset_name: $DATASET_NAME"
-    
+
     # Extração de parâmetros do config.yaml
     $HIDDEN_DIMS = (yq -j ".datasets_params.$DATASET_NAME.hidden_dims" config.yaml | jq -c .)
     $LR_VALUES = (yq ".datasets_params.$DATASET_NAME.lr_values[]" config.yaml) -split "`n"
@@ -191,9 +187,9 @@ else {
     }
 
     Write-Host $cmd
-    
+
     $process = Start-Process -FilePath "python" -ArgumentList ($cmd -replace '^python ') -NoNewWindow -PassThru
-    
+
     try {
         $process.WaitForExit()
     }

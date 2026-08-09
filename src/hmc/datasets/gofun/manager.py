@@ -1,0 +1,343 @@
+"""
+This module provides functionality to manage hierarchical multi-label datasets.
+"""
+
+import logging
+from collections import defaultdict
+
+import networkx as nx
+import numpy as np
+import torch
+
+from hmc.datasets.gofun.dataset_arff import HMCDatasetArff
+from hmc.utils.datasets.paths import to_skip
+from hmc.utils.path.files import __load_json__
+
+# Set a logger config
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+
+
+class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
+    """
+    Manages hierarchical multi-label datasets, \
+    including loading features (X), labels (Y),
+    and optionally applying input scaling and hierarchical structure.
+
+    Parameters:
+    - dataset (tuple): Tuple containing paths to \
+        (train_csv, valid_csv, test_csv, labels_json, _).
+    - output_path (str, optional): Path to store processed outputs. Default is 'data'.
+    - device (str, optional): Computation device ('cpu' or 'cuda'). \
+        Default is 'cpu'.
+    - is_local (bool, optional): Whether to use local_classifier \
+        hierarchy. Default is False.
+    - is_global (bool, optional): Whether to use global hierarchy. \
+        Default is False.
+    - input_scaler (bool, optional): Whether to apply input scaling
+    (imputation + standardization). Default is True.
+
+    """
+
+    def __init__(self, **kwargs):
+        self.dataset_values = {
+            "test": None,
+            "train": None,
+            "valid": None,
+            "to_eval": None,
+            "max_depth": None,
+            "r_matrix": None,
+            "g_t": None,
+            "is_go": None,
+            "train_file": None,
+            "valid_file": None,
+            "test_file": None,
+            "levels": {},
+            "levels_size": {},
+            "nodes_idx": {},
+            "local_nodes_idx": {},
+            "edge_index": {},
+            "all_matrix_r": {},
+            "hierarchy_map": {},
+            "labels": [],
+            "nodes": [],
+            "a": np.array([]),
+            "g": nx.DiGraph(),
+            # Initialize attributes
+            "to_skip": to_skip,
+            "device": kwargs["device"],
+            "dataset": kwargs["dataset"],
+            "dataset_type": kwargs["dataset_type"],
+            "is_global": kwargs["is_global"],
+        }
+
+        # Direct attributes initialised here; populated by load_arff_data
+        self.a = np.array([])
+        self.edge_index = {}
+        self.to_eval = None
+        self.nodes_idx = {}
+        self.local_nodes_idx = {}
+        self.max_depth = None
+        self.levels = {}
+        self.levels_size = {}
+        self.hierarchy_map = {}
+
+        if kwargs["dataset_type"] == "arff":
+            ds = kwargs["dataset"]
+            n = len(ds)
+            if n == 3:
+                # No validation split (e.g. enron_others, diatoms_others)
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+                self.dataset_values["valid_file"] = self.dataset_values["test_file"]
+            elif n == 4:
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["valid_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+            else:
+                raise ValueError(f"Expected dataset tuple of length 3 or 4, got {n}")
+            self.load_arff_data()
+
+    def load_structure_from_json(self, labels_json):
+        """
+        Load the hierarchy structure from a JSON file.
+        Args:
+            labels_json (str): Path to the JSON file containing the hierarchy structure.
+        """
+        # Load labels JSON
+        self.dataset_values["labels"] = __load_json__(labels_json)
+        for cat in self.dataset_values["labels"]:
+            terms = cat.split("/")
+            if self.dataset_values["is_global"]:
+                self.dataset_values["g"].add_edge(terms[1], terms[0])
+            else:
+                if len(terms) == 1:
+                    self.dataset_values["g"].add_edge(terms[0], "root")
+                else:
+                    for i in range(2, len(terms) + 1):
+                        self.dataset_values["g"].add_edge(
+                            ".".join(terms[:i]), ".".join(terms[: i - 1])
+                        )
+
+        self.dataset_values["nodes"] = sorted(
+            self.dataset_values["g"].nodes(),
+            key=lambda x: (
+                (nx.shortest_path_length(self.dataset_values["g"], x, "root"), x)
+                if self.dataset_values["is_global"]
+                else (len(x.split(".")), x)
+            ),
+        )
+        self.dataset_values["nodes_idx"] = dict(
+            zip(self.dataset_values["nodes"], range(len(self.dataset_values["nodes"])))
+        )
+        self.dataset_values["g_t"] = self.dataset_values["g"].reverse()
+
+        self.dataset_values["a"] = nx.to_numpy_array(
+            self.dataset_values["g"], nodelist=self.dataset_values["nodes"]
+        )
+
+    def get_hierarchy_levels(self):
+        """
+        Returns a dictionary with nodes grouped by level in the hierarchy.
+        """
+        self.dataset_values["levels_size"] = defaultdict(int)
+        self.dataset_values["levels"] = defaultdict(list)
+        for label in self.dataset_values["nodes"]:
+            level = label.count(".")
+            self.dataset_values["levels"][level].append(label)
+            self.dataset_values["levels_size"][level] += 1
+
+        self.dataset_values["max_depth"] = len(self.dataset_values["levels_size"])
+        for idx, level_nodes in self.dataset_values["levels"].items():
+            self.dataset_values["local_nodes_idx"][idx] = {
+                node: i for i, node in enumerate(level_nodes)
+            }
+
+    def compute_r_matrix(self, edges_matrix):
+        """
+        Compute matrix of ancestors R, named matrix_r
+        Given n classes, R is an (n x n) matrix where R_ij = 1 \
+        if class i is ancestor of class j
+        Args:
+            edges_matrix (np.ndarray): Matrix of edges.
+        Returns:
+            np.ndarray: Matrix of ancestors.
+        """
+        matrix_r = np.zeros(edges_matrix.shape)
+        np.fill_diagonal(matrix_r, 1)
+        g = nx.DiGraph(edges_matrix)
+        for i in range(len(edges_matrix)):
+            descendants = list(nx.descendants(g, i))
+            if descendants:
+                matrix_r[i, descendants] = 1
+        matrix_r = torch.tensor(matrix_r)
+        # Transpose to get the ancestors for each node
+        matrix_r = matrix_r.transpose(1, 0)
+        matrix_r = matrix_r.unsqueeze(0)
+        return matrix_r
+
+    def compute_r_matrix_local(self):
+        """
+        Compute the list with local matrix of ancestors R, named matrix_r
+        Given n classes, R is an (n x n) matrix where R_ij = 1 \
+        if class i is ancestor of class j
+        """
+        for idx, edges_matrix in self.dataset_values["edge_index"].items():
+            self.dataset_values["all_matrix_r"][idx] = self.compute_r_matrix(
+                edges_matrix
+            )
+            logging.info(
+                "Computed matrix R for level %d with shape %s",
+                idx,
+                self.dataset_values["all_matrix_r"][idx].shape,
+            )
+
+    def transform_labels(self, dataset_labels):
+        """
+        Transform labels to binary vectors.
+        Args:
+            dataset_labels (list): List of labels.
+        Returns:
+            list: List of binary vectors.
+        """
+        y_ = []
+        y = []
+        for labels in dataset_labels:
+            if self.dataset_values["is_global"]:
+                y_ = np.zeros(len(self.dataset_values["nodes"]))
+            else:
+                sorted_keys = sorted(self.dataset_values["levels_size"].keys())
+                y_ = [
+                    np.zeros(self.dataset_values["levels_size"].get(key))
+                    for key in sorted_keys
+                ]
+            for node in labels.split("@"):
+                if self.dataset_values["is_global"]:
+                    y_[
+                        [
+                            self.dataset_values["nodes_idx"].get(a)
+                            for a in self.dataset_values["g_t"].ancestors(node)
+                        ]
+                    ] = 1
+                    y_[self.dataset_values["nodes_idx"][node]] = 1
+
+                if not self.dataset_values["is_global"]:
+                    depth = nx.shortest_path_length(
+                        self.dataset_values["g_t"], "root"
+                    ).get(node)
+                    y_[depth][
+                        self.dataset_values["local_nodes_idx"][depth].get(node)
+                    ] = 1
+                    for ancestor in self.dataset_values["g_t"].ancestors(node):
+                        if ancestor != "root":
+                            depth = nx.shortest_path_length(
+                                self.dataset_values["g_t"], "root"
+                            ).get(ancestor)
+                            y_[depth][
+                                self.dataset_values["local_nodes_idx"][depth].get(
+                                    ancestor
+                                )
+                            ] = 1
+
+            if self.dataset_values["is_global"]:
+                y.append(y_)
+            else:
+                y.append([np.stack(y) for y in y_])
+        if self.dataset_values["is_global"]:
+            y = np.stack(y)
+        return y
+
+    def load_arff_data(self):
+        """
+        Load features and labels from ARFF, and optionally a hierarchy graph from JSON.
+        """
+        logging.info("Loading dataset from %s", self.dataset_values["train_file"])
+        self.dataset_values["train"] = HMCDatasetArff(
+            self.dataset_values["train_file"], is_go=self.dataset_values["is_go"]
+        )
+
+        valid_file = self.dataset_values["valid_file"]
+        test_file = self.dataset_values["test_file"]
+
+        if valid_file and valid_file != test_file:
+            logging.info("Loading dataset from %s", valid_file)
+            self.dataset_values["valid"] = HMCDatasetArff(
+                valid_file, is_go=self.dataset_values["is_go"]
+            )
+        else:
+            # No separate validation split: reuse test as validation placeholder
+            logging.info("No separate validation split; reusing test as validation")
+            self.dataset_values["valid"] = None  # will be handled downstream
+
+        logging.info("Loading dataset from %s", test_file)
+        self.dataset_values["test"] = HMCDatasetArff(
+            test_file, is_go=self.dataset_values["is_go"]
+        )
+
+        # When valid is None, use test as validation for training
+        if self.dataset_values["valid"] is None:
+            self.dataset_values["valid"] = self.dataset_values["test"]
+        self.a = self.dataset_values["train"].a
+        self.edge_index = self.dataset_values["train"].edge_index
+        # self.r_matrix = self.compute_r_matrix(self.a)
+        # self.compute_r_matrix_local()
+        self.build_hierarchy_map()
+        self.to_eval = self.dataset_values["train"].to_eval
+
+        # Expose hierarchy attributes directly (also kept in dataset_values for
+        # backward compatibility)
+        train = self.dataset_values["train"]
+        self.nodes_idx = train.nodes_idx
+        self.local_nodes_idx = train.local_nodes_idx
+        self.max_depth = train.max_depth
+        self.levels = train.levels
+        self.levels_size = train.levels_size
+
+        self.dataset_values["nodes"] = train.g.nodes()
+        self.dataset_values["g_t"] = train.g.copy()
+        self.dataset_values["nodes_idx"] = self.nodes_idx
+        self.dataset_values["local_nodes_idx"] = self.local_nodes_idx
+        self.dataset_values["max_depth"] = self.max_depth
+        self.dataset_values["levels"] = self.levels
+        self.dataset_values["levels_size"] = self.levels_size
+
+    def build_hierarchy_map(self):
+        """
+        Builds the hierarchy map.
+        """
+        for parent in self.dataset_values["train"].g.nodes():
+            children = list(self.dataset_values["train"].g.successors(parent))
+            if children:
+                self.dataset_values["hierarchy_map"][parent] = children
+        self.hierarchy_map = self.dataset_values["hierarchy_map"]  # already in __init__
+
+    @property
+    def input_dim(self) -> int:
+        """int: Number of input features (columns in the ARFF feature matrix)."""
+        return self.dataset_values["train"].x.shape[1]
+
+    @property
+    def output_dim(self) -> int:
+        """int: Total number of output nodes (classes) in the hierarchy."""
+        return len(self.dataset_values["train"].terms)
+
+    def get_datasets(self):
+        """
+        Return the datasets.
+        Returns:
+            tuple: (train, valid, test)
+        """
+        return (
+            self.dataset_values["train"],
+            self.dataset_values["valid"],
+            self.dataset_values["test"],
+        )

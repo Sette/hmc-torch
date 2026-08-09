@@ -281,6 +281,54 @@ class WeightedMultiLabelFocalLoss(nn.Module):
         return focal_loss
 
 
+def global_contrastive_loss(
+    doc_embeddings: torch.Tensor,
+    labels_global: torch.Tensor,
+    temperature: float = 0.07,
+) -> torch.Tensor:
+    """InfoNCE hierarchical contrastive loss for global HMC training (Step 4).
+
+    Two documents sharing at least one active label are treated as a positive
+    pair; all other pairs within the batch are negatives.  Using label overlap
+    as the positive signal means the loss naturally respects the hierarchy:
+    papers under the same sub-tree cluster together.
+
+    Args:
+        doc_embeddings: (B, D) document embeddings (raw, before normalisation).
+        labels_global:  (B, N) binary global label matrix (float).
+        temperature:    InfoNCE temperature τ.  Lower → sharper distribution.
+
+    Returns:
+        Scalar contrastive loss, or 0 when no positive pair exists in the batch.
+    """
+    B = doc_embeddings.size(0)
+    if B < 2:
+        return torch.tensor(0.0, device=doc_embeddings.device, requires_grad=True)
+
+    emb = F.normalize(doc_embeddings.float(), dim=1)  # (B, D)
+    sim = (emb @ emb.T) / temperature  # (B, B)
+
+    with torch.no_grad():
+        overlap = labels_global.float() @ labels_global.float().T  # (B, B)
+        pos_mask = overlap.bool()
+        pos_mask.fill_diagonal_(False)
+        diag = torch.eye(B, dtype=torch.bool, device=doc_embeddings.device)
+
+    if not pos_mask.any():
+        return torch.tensor(0.0, device=doc_embeddings.device, requires_grad=True)
+
+    # Numerically stable exponentials (subtract row max before exp)
+    sim_stable = sim - sim.max(dim=1, keepdim=True).values.detach()
+    exp_sim = torch.exp(sim_stable)
+
+    numer = (exp_sim * pos_mask.float()).sum(dim=1)  # (B,) — sum over positives
+    denom = (exp_sim * (~diag).float()).sum(dim=1)  # (B,) — sum over all except self
+
+    has_pos = pos_mask.any(dim=1)
+    loss = -torch.log((numer[has_pos] + 1e-9) / (denom[has_pos] + 1e-9)).mean()
+    return loss
+
+
 def hierarchical_consistency_loss(logits_dict, class_hierarchy):
     """
     Calculates the hierarchical consistency loss.

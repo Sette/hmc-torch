@@ -10,7 +10,7 @@ This module provides:
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 import psutil
@@ -18,7 +18,7 @@ import torch
 from sklearn.metrics import precision_recall_fscore_support
 from tqdm import tqdm
 
-from hmc.utils.dataset.labels import local_to_global_predictions
+from hmc.utils.datasets.labels import local_to_global_predictions
 from hmc.utils.metrics.calculate_metrics import calculate_metrics
 
 
@@ -32,7 +32,7 @@ def create_job_id_name(prefix="job"):
     Returns:
         str: A unique job ID string.
     """
-    now = datetime.now()
+    now = datetime.now(tz=UTC)
     job_id = f"{prefix}_{now.strftime('%Y%m%d_%H%M%S')}"
     return job_id
 
@@ -53,7 +53,7 @@ def end_timer(start):
 def log_gpu_memory(device):
     """Log GPU memory information."""
     result = {}
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and str(device).startswith("cuda"):
         prop = torch.cuda.get_device_properties(device)
         total_mib = prop.total_memory / (1024**2)  # Total em MiB
 
@@ -78,7 +78,8 @@ def log_gpu_memory(device):
             }
         )
 
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return result
 
 

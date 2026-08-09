@@ -4,7 +4,6 @@ This module contains the base class for hierarchical models.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
 
 import torch
 from torch import nn
@@ -23,10 +22,10 @@ class HierarchicalModel(nn.Module, ABC):
 
     def __init__(
         self,
-        levels_size: List[int],
+        levels_size: list[int],
         input_size: int,
         results_path: str,
-        active_levels: Optional[List[int]] = None,
+        active_levels: list[int] | None = None,
     ):
         """
         Initialize the hierarchical model.
@@ -63,7 +62,7 @@ class HierarchicalModel(nn.Module, ABC):
         )
 
     @staticmethod
-    def _validate_inputs(input_size: int, levels_size: List[int], results_path: str):
+    def _validate_inputs(input_size: int, levels_size: list[int], results_path: str):
         """Validate input parameters."""
         if not input_size or input_size <= 0:
             raise ValueError(f"Invalid input_size: {input_size}")
@@ -73,7 +72,7 @@ class HierarchicalModel(nn.Module, ABC):
             raise ValueError("results_path is required")
 
     @abstractmethod
-    def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> dict[int, torch.Tensor]:
         """
         Forward pass through the model.
 

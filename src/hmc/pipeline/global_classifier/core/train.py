@@ -12,10 +12,11 @@ from torch import nn
 from tqdm import tqdm
 
 from hmc.models.global_classifier.constraint.model import get_constr_out
-from hmc.utils.dataset.labels import global_to_local_predictions
+from hmc.utils.datasets.labels import global_to_local_predictions
 from hmc.utils.path.files import create_dir
 from hmc.utils.path.output import save_dict_to_json
 from hmc.utils.train.job import find_global_best_threshold, log_system_info
+from hmc.utils.train.losses import global_contrastive_loss
 
 
 @dataclass
@@ -31,6 +32,10 @@ class EvaluationDataDTO:
 
 def _run_training_loop(model, args, optimizer, criterion, to_eval):
     """Execute the training loop and return (usage, total_time)."""
+    is_gnn = args.method == "globalGNN"
+    use_contrastive = getattr(args, "use_contrastive_loss", False) and is_gnn
+    lambda_c = getattr(args, "lambda_contrastive", 0.1)
+
     start_train = time.perf_counter()
     for _ in range(args.epochs):
         model.train()
@@ -38,12 +43,23 @@ def _run_training_loop(model, args, optimizer, criterion, to_eval):
             x = x.to(args.device)
             labels = labels.to(args.device)
             optimizer.zero_grad()
-            output = model(x.float())
+
+            if use_contrastive:
+                output, doc_emb = model(x.float(), return_embeddings=True)
+            else:
+                output = model(x.float())
+                doc_emb = None
+
+            # MC-loss: enforces hierarchical constraints during training
             constr_output = get_constr_out(output, args.r_matrix)
             train_output = labels * output.double()
             train_output = get_constr_out(train_output, args.r_matrix)
             train_output = (1 - labels) * constr_output.double() + labels * train_output
-            loss = criterion(train_output[:, to_eval], labels[:, to_eval])
+            loss = criterion(train_output[:, to_eval].float(), labels[:, to_eval])
+
+            if use_contrastive and doc_emb is not None:
+                loss = loss + lambda_c * global_contrastive_loss(doc_emb, labels)
+
             loss.backward()
             optimizer.step()
     usage = log_system_info(args.device)

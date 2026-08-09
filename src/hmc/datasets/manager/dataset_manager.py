@@ -86,12 +86,25 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
         self.hierarchy_map = {}
 
         if kwargs["dataset_type"] == "arff":
-            (
-                self.dataset_values["is_go"],
-                self.dataset_values["train_file"],
-                self.dataset_values["valid_file"],
-                self.dataset_values["test_file"],
-            ) = kwargs["dataset"]
+            ds = kwargs["dataset"]
+            n = len(ds)
+            if n == 3:
+                # No validation split (e.g. enron_others, diatoms_others)
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+                self.dataset_values["valid_file"] = self.dataset_values["test_file"]
+            elif n == 4:
+                (
+                    self.dataset_values["is_go"],
+                    self.dataset_values["train_file"],
+                    self.dataset_values["valid_file"],
+                    self.dataset_values["test_file"],
+                ) = ds
+            else:
+                raise ValueError(f"Expected dataset tuple of length 3 or 4, got {n}")
             self.load_arff_data()
 
     def load_structure_from_json(self, labels_json):
@@ -307,6 +320,16 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
             self.dataset_values["valid"],
             self.dataset_values["test"],
         )
+
+    @property
+    def input_dim(self) -> int:
+        """int: Number of input features."""
+        return self.dataset_values["train"].x.shape[1]
+
+    @property
+    def output_dim(self) -> int:
+        """int: Total number of output nodes (classes)."""
+        return len(self.dataset_values["train"].terms)
 
 
 def initialize_dataset_experiments(

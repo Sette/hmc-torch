@@ -1,34 +1,49 @@
+VERSION="0.0.9"
 
-VERSION="0.0.7"
+export PYTHONPATH=src
+
+# ── Datasets ────────────────────────────────────────────────────────
+
+download-arxiv:
+	python -m hmc.datasets.arxiv.download_arxiv --output_dir ./data
+
+download-wos:
+	python -m hmc.datasets.wos.download_wos --output_dir ./data/wos
+
+download-aapd:
+	python -m hmc.datasets.aapd.download_aapd --output_dir ./data/aapd
+
+download-rcv1:
+	python -m hmc.datasets.rcv1.download_rcv1 --output_dir ./data/rcv1
+
+download-eurlex:
+	python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
+
+download-all:
+	python -m hmc.datasets.download_all --continue-on-error
+
+# ── Lint / Test / Run ───────────────────────────────────────────────
 
 lint-check:
 	@echo "--> Running linter check"
-	autopep8 --in-place --recursive src
-	flake8 src/
-	black --check src/
-	ruff check src/
-	isort -c src/
-	pylint src/
+	uv run flake8 src/
+	uv run ruff format --check src/
+	uv run ruff check src/
+	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/' | grep -v '^notebooks/')
 
 pre-commit:
 	@echo "--> Running pre-commit"
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 lint:
 	@echo "--> Running linter"
-	autopep8 --in-place --recursive src
-	flake8 src/
-	black src/
-	ruff format src/
-	ruff check src/ --fix
-	isort src/
-	pylint $(git ls-files '*.py')
-
-dvc:
-	@dvc pull
+	uv run flake8 src/
+	uv run ruff format src/
+	uv run ruff check src/
+	uv run pylint $$(git ls-files '*.py' | grep -v '^experiments/' | grep -v '^tests/'| grep -v '^notebooks/')
 
 run:
-	./run.sh --device cuda --dataset_name seq_FUN --output_path output --method local --epochs_to_evaluate 10 
+	./run.sh --device cuda --dataset_name wos --method global --output_path output
 
 test:
 	@echo "--> Running Test"

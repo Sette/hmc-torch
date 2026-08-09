@@ -1,9 +1,8 @@
 """
-Main module for training and hyperparameter optimization of the HMC model.
+Main module for training HMC models.
 
-This module orchestrates the entire training pipeline, handling argument parsing,
-configuration, dataset loading, model training, and evaluation. It serves as the
-entry point for running experiments with different methods and configurations.
+Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN),
+local, localE2E, tabular_gbdt, tabular_mlp.
 """
 
 import logging
@@ -16,32 +15,35 @@ import numpy as np
 import torch
 
 from hmc.arguments import parse_args
-from hmc.pipeline.global_classifier.main import train_global
-from hmc.pipeline.local_classifier.main import main_local
+from hmc.pipeline.global_classifier.main import (
+    train_global,
+    train_global_e2e,
+    train_global_sota,
+)
+from hmc.pipeline.local_classifier.main import train_local, train_local_e2e
 from hmc.utils.train.job import create_job_id_name
 
-# Set a logger config
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 
-def main() -> dict:
-    """
-    Main training function (entrypoint).
+def main(args=None) -> dict:
+    """Main training function (entrypoint).
+
+    Args:
+        args: Pre-built :class:`Args` object.  If ``None``, args are
+            parsed from the command line via :func:`parse_args`.
 
     Returns:
-        dict: Score dictionary with keys such as ``"f1score"``, ``"precision"``,
-        ``"recall"``, and ``"avg_precision"``.
+        Dictionary with training metrics.
     """
-    # Training settings
-    args = parse_args()
-    print(f"Learning rates: {args.lr_values}")
+    if args is None:
+        args = parse_args()
     args.score = 0.0
 
     # Set seed
@@ -52,7 +54,6 @@ def main() -> dict:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # Verifica quantas GPUs estão disponíveis
     num_gpus = torch.cuda.device_count()
     print(f"Total de GPUs disponíveis: {num_gpus}")
 
@@ -63,20 +64,42 @@ def main() -> dict:
     args.results_path = os.path.join(
         args.output_path,
         "train",
-        "local",
+        args.method,
         args.dataset.dataset_name,
         args.job_id,
     )
 
     match args.method:
-        case "local" | "local_tabat" | "local_hat" | "local_test":
-            logging.info("Local method selected")
-            main_local(args)
-        case "global" | "global_baseline":
-            logging.info("Global method selected")
+        case "global" | "global_baseline" | "globalGNN" | "globalLM":
+            logging.info("Global classifier (frozen embeddings)")
             train_global(args.dataset.dataset_name, args)
+        case "globalE2E":
+            logging.info("Global E2E (fine-tuned transformer)")
+            train_global_e2e(args.dataset.dataset_name, args)
+        case "globalSOTA":
+            logging.info("Global SOTA (transformer + label GCN)")
+            train_global_sota(args.dataset.dataset_name, args)
+        case "local":
+            logging.info("Local classifier (frozen, one MLP per level)")
+            train_local(args.dataset.dataset_name, args)
+        case "localE2E":
+            logging.info("Local E2E (fine-tuned transformer + per-level MLPs)")
+            train_local_e2e(args.dataset.dataset_name, args)
+        case "tabular_gbdt":
+            logging.info("Tabular GBDT One-vs-Rest baseline")
+            from hmc.pipeline.tabular.main import train_gbdt  # pylint: disable=import-outside-toplevel
+
+            train_gbdt(args.dataset.dataset_name, args)
+        case "tabular_mlp":
+            logging.info("Tabular Residual MLP baseline")
+            from hmc.pipeline.tabular.main import train_tabular_mlp  # pylint: disable=import-outside-toplevel
+
+            train_tabular_mlp(args.dataset.dataset_name, args)
         case _:
-            print("Invalid option for method. Please select a valid method.")
+            print(
+                f"Unknown method '{args.method}'. "
+                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp"
+            )
 
     score: dict = args.score if isinstance(args.score, dict) else {}
     return score

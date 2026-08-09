@@ -1,240 +1,268 @@
-# HMC Torch
+<p align="center">
+  <h1 align="center">🔥 HMC-Torch</h1>
+  <p align="center"><strong>A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints</strong></p>
+</p>
 
-Hierarchical Multi-Label Classification (HMC) network implemented in PyTorch.
-
-Supports two classification strategies — **global** (single model for all labels) and **local** (one model per hierarchy level) — with optional hyperparameter optimization via Optuna.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Datasets](#datasets)
-- [Running](#running)
-- [Configuration](#configuration)
-- [Testing](#testing)
+<p align="center">
+  <a href="https://pypi.org/project/hmc-torch/"><img src="https://img.shields.io/pypi/v/hmc-torch?color=blue" alt="PyPI"></a>
+  <a href="https://pypi.org/project/hmc-torch/"><img src="https://img.shields.io/pypi/pyversions/hmc-torch" alt="Python"></a>
+  <a href="https://github.com/Sette/hmc-torch/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <a href="https://pypi.org/project/hmc-torch/"><img src="https://img.shields.io/pypi/dm/hmc-torch" alt="Downloads"></a>
+</p>
 
 ---
 
-## Overview
+**HMC-Torch** is a modular, extensible platform for Hierarchical Multi-Label Classification (HMC)
+that integrates the **R-matrix constraint** — originally proposed by
+[Giunchiglia & Lukasiewicz (2018, NeurIPS)](https://papers.nips.cc/paper_files/paper/2018/hash/08aacd96e9e26e79b77e4f65b9c0aa33-Abstract.html) —
+as a reusable, first-class architectural component.
 
-HMC problems involve predicting labels that are organized in a hierarchy (e.g., Gene Ontology). This project benchmarks two approaches:
-
-| Method | Description |
-|---|---|
-| `global` | C-HMCNN: single MLP constrained by a hierarchy matrix (R-matrix) |
-| `global_baseline` | Same model without hierarchical constraint enforcement |
-| `local` | One MLP per hierarchy level, trained jointly with early stopping |
-| `local_test` | Local model in inference-only mode |
+> 📄 **Paper**: *HMC-Torch: A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints* (Bruno Sette, UFSCar, 2026)
 
 ---
 
-## Project Structure
+## ✨ Key Features
 
-```
-hmc-torch/
-├── src/hmc/
-│   ├── arguments.py                   # Args dataclass + argparse CLI (parse_args)
-│   ├── main.py                        # Entry point — routes to global or local pipeline
-│   ├── env.py                         # Environment variables
-│   │
-│   ├── datasets/
-│   │   ├── dataset_torch.py           # PyTorch dataset wrapper
-│   │   ├── gofun/
-│   │   │   └── dataset_arff.py        # ARFF file loader (Gene Ontology / FUN)
-│   │   └── manager/
-│   │       └── dataset_manager.py     # initialize_dataset_experiments — main loader entry
-│   │
-│   ├── models/
-│   │   ├── base.py                    # Base model class
-│   │   ├── global_classifier/
-│   │   │   └── constraint/
-│   │   │       ├── model.py           # ConstrainedModel, ConstrainedLightningModel
-│   │   │       └── utils.py           # get_constr_out — applies R-matrix constraint
-│   │   └── local_classifier/
-│   │       ├── baseline/
-│   │       │   └── model.py           # HMCLocalModel — per-level MLP ensemble
-│   │       └── networks.py            # Shared network building blocks
-│   │
-│   ├── pipeline/
-│   │   ├── global_classifier/
-│   │   │   ├── main.py                # train_global() — setup, data loading, fit
-│   │   │   └── core/
-│   │   │       └── train.py           # train_step, test_step, get_local_scores
-│   │   └── local_classifier/
-│   │       ├── main.py                # main_local(), train_local(), test_local()
-│   │       ├── core/
-│   │       │   ├── train.py           # train_step — progressive level training
-│   │       │   ├── validate.py        # validate_step — per-level metrics + early stopping
-│   │       │   └── test.py            # test_step — threshold search + final scores
-│   │       └── hpo/
-│   │           └── hpo_local.py       # optimize_hyperparameters — Optuna study per level
-│   │
-│   └── utils/
-│       ├── dataset/
-│       │   ├── labels.py              # Label conversion (local↔global), binarization
-│       │   └── convert_hpo_json.py    # HPO result format conversion
-│       ├── metrics/
-│       │   └── calculate_metrics.py   # precision, recall, f1, avg precision
-│       ├── path/
-│       │   ├── files.py               # create_dir
-│       │   └── output.py              # save_dict_to_json
-│       ├── predict/
-│       │   └── metrics.py
-│       └── train/
-│           ├── early_stopping.py      # check_early_stopping_normalized, check_loss
-│           ├── job.py                 # create_job_id_name, timers, threshold search
-│           └── losses.py              # compute_loss, focal loss, hierarchical loss
-│
-├── tests/
-│   ├── conftest.py
-│   └── train_global_test.py           # Integration test for global pipeline
-│
-├── config.yaml                        # HPO-tuned hyperparameters per dataset
-├── run.sh                             # Main training script (reads config.yaml via yq)
-├── run.ps1                            # Windows equivalent
-├── Makefile                           # lint, test, build targets
-├── pyproject.toml                     # Project metadata and dependencies (uv)
-└── uv.lock                            # Locked dependency tree
-```
+- 🔌 **Modular pipeline**: `DatasetAdapter → FeatureEncoder → HierarchicalHead → Calibrator → Reconciler`
+- 🧱 **R-Matrix as infrastructure**: reusable ancestor-closure constraint for training + inference
+- 🌳 **Explicit hierarchy modeling**: Tree (FunCat) and DAG (Gene Ontology) with type-specific reconciliation
+- 📊 **25+ datasets across 5 domains**: scientific text, genomics, email, microscopy, medical imaging
+- 🧬 **Multi-modal**: tabular, text (transformers), protein sequences, images
+- ⚡ **GPU-accelerated**: 14× training speedup
+- 📦 **Plugin system**: register your own datasets without modifying the package
+- 🔁 **Reproducible**: experiment manifests with git SHA, seeds, and dependency versions
 
 ---
 
-## Installation
-
-The project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+## 📦 Installation
 
 ```bash
-# Install uv (if not already installed)
-pip install uv
+pip install hmc-torch
+```
 
-# Install all dependencies including dev tools
+For optional features:
+
+```bash
+pip install "hmc-torch[vision]"      # Image models (timm)
+pip install "hmc-torch[protein]"     # Protein models (fair-esm)
+pip install "hmc-torch[expression]"  # Expression autoencoders
+```
+
+### From source
+
+```bash
+git clone https://github.com/Sette/hmc-torch.git
+cd hmc-torch
 uv sync --all-groups
-```
-
-Set the Python path before running:
-
-```bash
 export PYTHONPATH=src
 ```
 
 ---
 
-## Datasets
+## 🚀 Quick Start
 
-Datasets follow the naming convention `{data}_{ontology}`, e.g. `seq_FUN`, `expr_GO`.
+### Python API
 
-**Supported datasets:**
+```python
+import hmc
 
-| Group | Datasets |
+# Train a global classifier with R-matrix constraint
+results = hmc.train("wos", method="globalE2E", device="cuda", epochs=5)
+
+# Train a tabular baseline
+results = hmc.train("cellcycle_FUN", method="tabular_mlp", device="cuda", epochs=100)
+```
+
+### CLI
+
+```bash
+# Frozen embeddings baseline
+python -m hmc.main --dataset_name wos --method global --device cuda \
+  --dataset_path ./data --output_path ./output
+
+# Fine-tuned transformer (SOTA)
+python -m hmc.main --dataset_name arxiv --method globalE2E --device cuda \
+  --dataset_path ./data --epochs 50 --batch_size 32 --output_path ./output
+
+# Tabular baseline
+python -m hmc.main --dataset_name cellcycle_FUN --method tabular_mlp --device cuda \
+  --dataset_path ./data --output_path ./output
+```
+
+---
+
+## 🗂️ Supported Datasets
+
+### Built-in datasets (25+)
+
+| Domain | Datasets | Modality | Hierarchy | Classes |
+|---|---|---|---|---|
+| **Scientific Text** | ArXiv, WOS | Text (SPECTER2) | Tree | 141–156 |
+| **Genomics (FunCat)** | cellcycle, church, derisi, eisen, expr, gasch1, gasch2, pheno, seq, spo | Tabular | Tree | ~499 |
+| **Genomics (GO)** | cellcycle, derisi, eisen, expr, gasch1, gasch2, pheno, seq, spo | Tabular | DAG | 3,570–4,130 |
+| **Email** | Enron | Tabular | Tree | 56 |
+| **Microscopy** | Diatoms | Tabular | Tree | 398 |
+| **Medical Imaging** | ImCLEF07a, ImCLEF07d | Tabular | Tree | 46–96 |
+| **Multi-label Text** | AAPD, RCV1, EURLex | Text | Tree | 54–3,993 |
+
+### Register your own dataset
+
+```python
+from hmc.data import DatasetRegistry, Split, DatasetBundle, Hierarchy
+
+# Option 1: Programmatic registration
+class MyDataset:
+    def get_datasets(self):
+        train = Split(features=X_train, labels=Y_train)
+        test = Split(features=X_test, labels=Y_test)
+        return train, None, test
+
+    @property
+    def hierarchy(self):
+        return TreeHierarchy.from_edges([("root", "child1"), ...])
+
+DatasetRegistry.register("my_data", lambda **kw: MyDataset(**kw))
+
+# Option 2: Entry points (for packages)
+# In your setup.cfg or pyproject.toml:
+# [project.entry-points."hmc_torch.datasets"]
+# my_data = "my_package:create_manager"
+```
+
+---
+
+## 🧠 Methods
+
+| Method | Description |
 |---|---|
-| FUN / GO | `cellcycle`, `derisi`, `eisen`, `expr`, `gasch1`, `gasch2`, `seq`, `spo` |
-| Others | `diatoms`, `enron`, `imclef07a`, `imclef07d` |
-
-**Download from Kaggle:**
-
-```bash
-pip install kaggle
-kaggle datasets download brunosette/gene-ontology-original
-mkdir -p data
-unzip gene-ontology-original.zip -d data/
-```
-
-Or via curl:
-
-```bash
-curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
-  -o gene-ontology-original.zip \
-  https://www.kaggle.com/api/v1/datasets/download/brunosette/gene-ontology-original
-mkdir -p data && unzip gene-ontology-original.zip -d data/
-```
+| `global` | Frozen embeddings + MLP + R-matrix constraint |
+| `globalE2E` | End-to-end fine-tuned transformer + MLP + R-matrix |
+| `globalSOTA` | E2E + GCN label-graph encoder (HiAGM-style) |
+| `local` | Frozen embeddings, one MLP per hierarchy level |
+| `localE2E` | Fine-tuned transformer + per-level MLPs |
+| `tabular_gbdt` | Gradient Boosting One-vs-Rest baseline |
+| `tabular_mlp` | Residual MLP baseline for tabular data |
 
 ---
 
-## Running
+## 📊 Results
 
-### Using `run.sh`
+### Text Benchmarks (Micro-F1)
 
-The script reads per-dataset hyperparameters from `config.yaml` automatically.
-
-```bash
-chmod +x run.sh
-
-# Train local classifier on a single dataset (CPU)
-./run.sh --dataset_name seq_FUN --method local --device cpu
-
-# Train on all datasets
-./run.sh --dataset_name all --method local --device cuda
-
-# Train global classifier
-./run.sh --dataset_name seq_FUN --method global --device cuda
-```
-
-**Common options:**
-
-| Option | Default | Description |
+| Method | ArXiv | WOS |
 |---|---|---|
-| `--dataset_name` | `seq_FUN` | Dataset name or `all` |
-| `--method` | `local` | `local`, `local_test`, `global`, `global_baseline` |
-| `--device` | `cpu` | `cpu` or `cuda` |
-| `--epochs` | `4000` | Training epochs |
-| `--hpo` | `false` | Enable Optuna HPO (`true`/`false`) |
-| `--n_trials` | `30` | HPO trials per level |
-| `--output_path` | `./results` | Where to save models and scores |
-| `--epochs_to_evaluate` | `20` | Validation frequency |
-| `--warmup` | `false` | Progressive level activation |
+| HiAGM (Zhou+, ACL'20) | 0.5950 | 0.8604 |
+| HTC-infoMAX | — | 0.8720 |
+| **HMC-Torch (frozen)** | **0.7295** | 0.7515 |
+| **HMC-Torch (E2E)** | — | **0.8743** |
 
-### Direct Python invocation
+> 🏆 **New SOTA on ArXiv** (+13.5 pts over HiAGM) and **WOS** (+0.2 pts over HTC-infoMAX)
 
-```bash
-python -m hmc.main \
-  --dataset_path ./data \
-  --output_path ./results \
-  --dataset_name seq_FUN \
-  --method local \
-  --device cpu \
-  --epochs 2000 \
-  --lr_values 0.001 0.0001 0.0005 0.001 0.0002 0.00005 \
-  --dropout_values 0.3 0.4 0.5 0.3 0.4 0.5 \
-  --hidden_dims "[[512],[256],[128],[256],[128],[64]]" \
-  --num_layers_values 1 1 1 1 1 2 \
-  --weight_decay_values 1e-4 1e-4 1e-4 1e-4 1e-4 1e-4
+### FunCat Genomic Benchmarks (AUPRC)
+
+| Dataset | HMCN-F | C-HMCNN | HMC-Torch (GBDT) | HMC-Torch (MLP) |
+|---|---|---|---|---|
+| cellcycle_FUN | 0.235 | 0.248 | 0.253 | 0.255 |
+| seq_FUN | 0.291 | 0.299 | 0.306 | **0.307** |
+| spo_FUN | 0.228 | 0.228 | 0.229 | 0.229 |
+
+> 🏆 **Beats HMCN-F on seq_FUN** (0.307 vs 0.291)
+
+### Gene Ontology (Block-Diagonal R-Matrix)
+
+AUPRC improves on **all 9 GO datasets** (avg +0.0055) with zero hierarchy violations, using
+$O(N)$ memory instead of $O(N^2)$ (>1,400× reduction).
+
+### GPU Speedup
+
+| Configuration | CPU | GPU | Speedup |
+|---|---|---|---|
+| global (FunCat avg) | 16.7s | 1.2s | **14×** |
+| tabular_mlp (FunCat avg) | 5.3s | 2.0s | 2.7× |
+
+---
+
+## 🧬 Architecture
+
+```
+DatasetAdapter  →  FeatureEncoder  →  HierarchicalHead  →  Calibrator  →  Reconciler
+    ↓                    ↓                    ↓                ↓              ↓
+DatasetBundle     fit/transform       GlobalSigmoidHead   Platt Scaling   Bottom-up
+  + Hierarchy     (tabular, text,     LocalLevelHead      Temperature     max-prop
+  + Splits         protein, vision)   TreePathHead
 ```
 
-### Using `make`
+### R-Matrix Constraint
 
-```bash
-make run    # runs run.sh with default settings (seq_FUN, local, cuda)
-make test   # runs pytest with coverage
-make lint   # autopep8 + black + ruff + isort + pylint
+The ancestor closure matrix $R_{ij} = 1$ iff class $i$ is an ancestor of $j$. Applied at:
+
+1. **Training**: $\mathcal{L}_{\text{hier}} = \max(0, p_j - p_i + \gamma)$ for all ancestor pairs
+2. **Inference**: $p_i^{\text{rec}} = \max(p_i, \max_{j: \text{child}(i,j)} p_j^{\text{rec}})$
+
+### Block-Diagonal R-Matrix (Sparse)
+
+For large DAGs (4,000+ classes), the dense $R$ matrix requires $>65$ MB.
+Our sparse approximation uses graph traversal ($O(N+E)$ memory) with zero hierarchy violations.
+
+---
+
+## 📁 Project Structure
+
+```
+src/hmc/
+├── data/              # Data contracts (DatasetBundle, Split, Hierarchy)
+├── datasets/          # Built-in dataset implementations
+│   ├── arxiv/         # ArXiv (JSONL + SPECTER2)
+│   ├── wos/           # WOS (Web of Science)
+│   ├── gofun/         # FunCat + GO (ARFF tabular)
+│   ├── aapd/          # Arxiv Academic Paper Dataset
+│   ├── rcv1/          # Reuters Corpus Volume 1
+│   └── eurlex/        # EUR-Lex documents
+├── features/          # Feature encoders (text, tabular, vision, protein)
+├── models/            # HMC model components
+│   ├── global_classifier/  # Global heads + R-matrix
+│   ├── local_classifier/   # Per-level local heads
+│   ├── hierarchical/       # Sparse R-matrix, label GCN
+│   └── tabular/            # GBDT + MLP baselines
+├── pipeline/          # Training pipelines
+└── utils/             # Metrics, manifests, caching
 ```
 
 ---
 
-## Configuration
+## 🤝 Contributing
 
-`config.yaml` stores HPO-tuned hyperparameters for each dataset. `run.sh` reads these values using `yq` and passes them to the CLI.
+Contributions welcome! Areas we'd love help with:
 
-To add a new dataset, append a new entry to `config.yaml`:
+- New dataset adapters
+- Additional feature encoders (genomics, graphs)
+- New hierarchical heads and reconciliation strategies
+- Documentation and tutorials
 
-```yaml
-datasets_params:
-  my_dataset_FUN:
-    hidden_dims: [[256], [128], [64]]
-    lr_values: [0.001, 0.0005, 0.0002]
-    dropout_values: [0.3, 0.4, 0.5]
-    num_layers_values: [1, 1, 1]
-    weight_decay_values: [1e-4, 1e-4, 1e-4]
+```bash
+git clone https://github.com/Sette/hmc-torch.git
+cd hmc-torch
+uv sync --all-groups
+make test
+make lint
 ```
 
 ---
 
-## Testing
+## 📚 Citation
 
-```bash
-pytest --verbose --cov=. tests/
+```bibtex
+@article{sette2026hmctorch,
+  title   = {HMC-Torch: A Modular Platform for Hierarchical Multi-Label
+             Classification with R-Matrix Constraints},
+  author  = {Bruno Sette},
+  journal = {arXiv preprint},
+  year    = {2026},
+}
 ```
 
-The integration test in `tests/train_global_test.py` runs the full global pipeline on `seq_FUN` with mocked `sys.argv` and validates output metrics.
+---
+
+## 📄 License
+
+MIT © [Bruno Sette](https://github.com/Sette)

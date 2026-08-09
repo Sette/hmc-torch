@@ -1,0 +1,27 @@
+# Example configuration for tabular GBDT baseline on seq_FUN
+# Usage: python -m hmc.main --config configs/seq_fun_tabular_gbdt.yaml
+
+experiment:
+  name: "seq_FUN-gbdt-baseline"
+  description: "HistGradientBoosting One-vs-Rest on seq_FUN"
+
+dataset:
+  name: "seq_FUN"
+  path: "./data"
+
+method: "tabular_gbdt"
+
+training:
+  device: "cpu"
+  epochs: 100
+  batch_size: 32
+  seed: 42
+  tabular_gbdt_backend: "histgb"
+
+output:
+  path: "./output"
+  results_path: "./results"
+
+encoder: "tabular_mlp"      # not used for gbdt, shown for reference
+head: "global_sigmoid"      # not used for gbdt
+reconcile: "ancestor_max"

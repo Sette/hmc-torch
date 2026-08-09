@@ -1,11 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "hmc-torch"
-version = "0.0.8"
+version = "0.0.9"
 
-description = "Hierarchical Multi-Label Classification Network in Pytorch"
-authors = [{ name = "sette", email = "brunosilvasette@gmail.com" }]
+description = "A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints"
+authors = [{ name = "Bruno Sette", email = "brunosilvasette@gmail.com" }]
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
+license = { text = "MIT" }
+keywords = [
+    "hierarchical-multi-label-classification",
+    "hmc",
+    "deep-learning",
+    "pytorch",
+    "r-matrix",
+    "hierarchical-classification",
+    "multi-label",
+    "gene-ontology",
+    "text-classification",
+    "genomics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Text Processing",
+]
 dependencies = [
     "tqdm==4.67.3",
     "numpy==2.4.3",
@@ -22,7 +52,25 @@ dependencies = [
     "logging==0.4.9.6",
     "torch-geometric==2.7.0",
     "transformers==5.3.0",
+    "kagglehub>=1.0.2",
 ]
+
+[project.optional-dependencies]
+tabfm = ["tabfm[pytorch]"]
+vision = ["timm", "opencv-python-headless"]
+protein = ["fair-esm"]
+expression = ["scipy"]
+
+[project.urls]
+Homepage = "https://github.com/Sette/hmc-torch"
+Repository = "https://github.com/Sette/hmc-torch"
+Documentation = "https://github.com/Sette/hmc-torch#readme"
+"Issues" = "https://github.com/Sette/hmc-torch/issues"
+
+[project.entry-points."hmc_torch.datasets"]
+# Built-in datasets are auto-registered on import.
+# External packages can register custom datasets here:
+# my_dataset = "my_package.my_module:create_manager"
 
 [dependency-groups]
 dev = [
@@ -39,6 +87,7 @@ dev = [
     "setuptools>=82.0.1",
     "ruff>=0.15.8",
     "pytest-cov>=7.1.0",
+    "kaggle>=2.1.2",
 ]
 
 [tool.uv]
@@ -64,7 +113,41 @@ include = ["src/hmc"]
 "src/hmc" = "hmc"
 
 [tool.pylint.main]
-# Garante que o Pylint encontre seus módulos dentro de src
 init-hook = "import sys; sys.path.append('src')"
-# Ativa a descoberta automática de módulos e pacotes
 recursive = true
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.basic]
+# Short conventional names and single uppercase letters for ML (X=features, Y=labels)
+good-names = "X,Y,lr,i,j,k,f,e,ex,fp,id"
+# Allow any lowercase-starting name (any length) + uppercase-prefixed ML names (X_embed, Y_global)
+variable-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
+argument-rgx = "^([a-z_][a-z0-9_]{0,30}|[A-Z][A-Za-z0-9_]*)$"
+
+[tool.pylint.design]
+max-args = 10
+max-positional-arguments = 10
+max-locals = 36
+max-attributes = 20
+max-statements = 70
+min-public-methods = 0
+
+[tool.pylint."messages control"]
+disable = [
+    "R0801",   # duplicate-code: expected across dataset managers with shared patterns
+]
+
+[tool.ruff]
+exclude = ["experiments/"]
+force-exclude = true
+
+[tool.ruff.lint]
+ignore = [
+    "LOG015",  # project uses root logger pattern widely
+    "BLE001",  # blind except: acceptable in download/fallback code
+    "S110",    # try-except-pass: acceptable in optional dependency handling
+    "PLW1510", # subprocess.run without explicit check (handled via git wrappers)
+    "I001",    # isort ordering: ruff format already handles import sorting
+]
