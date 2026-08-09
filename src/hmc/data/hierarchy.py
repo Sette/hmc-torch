@@ -106,6 +106,62 @@ class Hierarchy(ABC):
         return r.transpose(1, 0)
 
     @property
+    def to_eval(self) -> list[bool]:
+        """Boolean mask over :attr:`nodes`: ``True`` for evaluable classes.
+
+        Excludes root nodes (nodes with zero parents).  For a tree there is
+        a single root (``"root"``); for a DAG there may be multiple root
+        terms (e.g. the three GO root concepts).
+        """
+        # A root node has no parents in the child→parent graph.
+        roots = {n for n in self._graph.nodes() if self._graph.out_degree(n) == 0}
+        return [node not in roots for node in self.nodes]
+
+    @property
+    def edge_index(self) -> dict[int, np.ndarray]:
+        """Per-level parent→child adjacency matrices for the label GCN.
+
+        Returns:
+            Dict ``{depth: matrix}`` where *depth* is the child level
+            (1-indexed, i.e. depth 1 = transition from level 0 → level 1).
+            ``matrix`` has shape ``(n_parents_level[depth-1],
+            n_children_level[depth])`` and ``matrix[i, j] == 1`` iff
+            parent *i* is a direct parent of child *j*.
+
+        Only edges that connect **consecutive** depth levels are included;
+        edges that skip levels (possible in DAGs) are not represented here.
+        """
+        result: dict[int, np.ndarray] = {}
+        for depth in range(1, self.max_depth):
+            prev_nodes = self.levels.get(depth - 1, [])
+            curr_nodes = self.levels.get(depth, [])
+            if not prev_nodes or not curr_nodes:
+                continue
+            matrix = np.zeros((len(prev_nodes), len(curr_nodes)), dtype=np.float32)
+            parent_map = {node: i for i, node in enumerate(prev_nodes)}
+            child_map = {node: i for i, node in enumerate(curr_nodes)}
+            for child in curr_nodes:
+                for parent in self.parents(child):
+                    if parent in parent_map:
+                        matrix[parent_map[parent], child_map[child]] = 1.0
+            result[depth] = matrix
+        return result
+
+    @property
+    def local_nodes_idx(self) -> dict[int, dict[str, int]]:
+        """Per-level mapping from node name to its *local* index.
+
+        Returns:
+            Dict ``{depth: {node_name: local_index}}``.  Local indices are
+            zero-based within each depth level.  Level 0 (root level) is
+            included.
+        """
+        return {
+            depth: {node: i for i, node in enumerate(nodes)}
+            for depth, nodes in self.levels.items()
+        }
+
+    @property
     @abstractmethod
     def is_dag(self) -> bool:
         """``True`` for DAG hierarchies (multi-parent possible)."""
@@ -161,6 +217,73 @@ class Hierarchy(ABC):
                         f"but ancestor '{ancestor}' (idx={anc_idx}) is not"
                     )
         return violations
+
+    # ------------------------------------------------------------------
+    # Label encoding
+    # ------------------------------------------------------------------
+
+    def encode_labels(self, labels: list[str]) -> tuple[np.ndarray, list[np.ndarray]]:
+        """Convert dot-separated label strings to global + per-level matrices.
+
+        This is the inverse of parsing — it takes human-readable hierarchical
+        labels and produces the binary matrices that HMC models consume.
+
+        Args:
+            labels: List of space-separated category strings, one per sample.
+                Each category must be a full dot-separated path that matches
+                a node in the hierarchy (e.g. ``"cs.AI"``, not ``"AI"``).
+
+        Returns:
+            ``(Y_global, Y_local)`` where:
+
+            * **Y_global** — ``(n_samples, n_nodes)`` float32 binary matrix.
+              Every activated label has **all its ancestors** automatically
+              set to 1, guaranteeing hierarchical consistency.
+            * **Y_local** — ``list[np.ndarray]``, one matrix per depth level
+              (level 0 = root **included**).  Each matrix has shape
+              ``(n_samples, n_nodes_at_level)``.
+
+        Example:
+            >>> h = TreeHierarchy.from_graph(g)  # cs→root, cs.AI→cs, stat→root, stat.ML→stat
+            >>> Yg, Yl = h.encode_labels(["cs.AI", "stat.ML cs.LG"])
+            >>> # Y_global[0] has bits for root, cs, cs.AI all set to 1
+            >>> # Y_local[0][0] has root active; Y_local[1][0] has cs active;
+            >>> # Y_local[2][0] has cs.AI active
+
+        Tip:
+            Most pipelines expect *Y_local* **without** the root level.
+            Simply slice it off::
+
+                Y_local_no_root = Y_local[1:]
+        """
+        n = len(labels)
+        n_nodes = self.n_nodes
+        Y_global = np.zeros((n, n_nodes), dtype=np.float32)
+
+        # Pre-allocate one matrix per depth level
+        Y_local = [
+            np.zeros((n, len(level_nodes)), dtype=np.float32)
+            for _, level_nodes in sorted(self.levels.items())
+        ]
+
+        node_idx = self.node_index
+        local_idx = self.local_nodes_idx
+
+        for i, label_str in enumerate(labels):
+            if not label_str or not label_str.strip():
+                continue
+            for cat in label_str.split():
+                if cat not in node_idx:
+                    continue
+                # Activate the label and all its ancestors
+                for ancestor in self.ancestors(cat) | {cat}:
+                    g_idx = node_idx[ancestor]
+                    Y_global[i, g_idx] = 1.0
+                    depth = self.node_levels[ancestor]
+                    l_idx = local_idx[depth][ancestor]
+                    Y_local[depth][i, l_idx] = 1.0
+
+        return Y_global, Y_local
 
     # ------------------------------------------------------------------
     # Helpers

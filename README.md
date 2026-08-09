@@ -107,27 +107,139 @@ python -m hmc.main --dataset_name cellcycle_FUN --method tabular_mlp --device cu
 
 ### Register your own dataset
 
-```python
-from hmc.data import DatasetRegistry, Split, DatasetBundle, Hierarchy
+The framework derives everything it needs — adjacency matrix, level sizes,
+edge indices, input/output dimensions — **from your labels**.  Your only
+job is to supply the raw data and make sure the labels encode the hierarchy
+in a way the framework can parse.
 
-# Option 1: Programmatic registration
-class MyDataset:
-    def get_datasets(self):
-        train = Split(features=X_train, labels=Y_train)
-        test = Split(features=X_test, labels=Y_test)
-        return train, None, test
+**1. Pick a label format**
 
-    @property
-    def hierarchy(self):
-        return TreeHierarchy.from_edges([("root", "child1"), ...])
+Labels must follow a **dot-separated path notation** where each segment is
+one level of the hierarchy.  For example, a paper tagged as ``cs.AI`` and
+``stat.ML`` belongs to both *Artificial Intelligence* (under *Computer
+Science*) and *Machine Learning* (under *Statistics*):
 
-DatasetRegistry.register("my_data", lambda **kw: MyDataset(**kw))
-
-# Option 2: Entry points (for packages)
-# In your setup.cfg or pyproject.toml:
-# [project.entry-points."hmc_torch.datasets"]
-# my_data = "my_package:create_manager"
 ```
+root
+├── cs          (level 1 — area)
+│   └── cs.AI   (level 2 — subcategory)
+└── stat        (level 1 — area)
+    └── stat.ML (level 2 — subcategory)
+```
+
+The same convention works for any tree-shaped taxonomy —
+``A.A1.B1``, ``medicine.cardiology``, ``physics.optics.lasers``, etc.
+
+**2. Build the hierarchy** from your label strings using
+:class:`~hmc.data.hierarchy.TreeHierarchy.from_graph`:
+
+```python
+import networkx as nx
+from hmc.data.hierarchy import TreeHierarchy
+
+# Scan your data for unique labels, split on ".", and add child→parent edges
+g = nx.DiGraph()
+g.add_edge("cs", "root")
+g.add_edge("cs.AI", "cs")
+g.add_edge("stat", "root")
+g.add_edge("stat.ML", "stat")
+# ... for every label in your dataset
+
+hierarchy = TreeHierarchy.from_graph(g)
+# → hierarchy.a, hierarchy.edge_index, hierarchy.to_eval, hierarchy.local_nodes_idx
+#   are all computed automatically — nothing else to do.
+```
+
+**3. Encode labels** with a single call:
+
+```python
+Y_global, Y_local = hierarchy.encode_labels(
+    ["cs.AI", "stat.ML cs.LG"]       # one string per sample (space-separated)
+)
+# Y_global: (n_samples, n_nodes) — ancestors automatically activated
+# Y_local:  list of (n_samples, n_level_nodes) per depth level
+```
+
+**4. Wire everything into your manager** (the full ``__init__`` pattern):
+
+```python
+class MyManager:
+    def __init__(self, data_path, ...):
+        # (a) Load raw data and collect unique labels
+        texts, label_strings = load_my_data(data_path)
+
+        # (b) Build hierarchy
+        g = build_digraph_from_labels(label_strings)
+        h = TreeHierarchy.from_graph(g)
+
+        # (c) Compute features
+        X = compute_features(texts)
+
+        # (d) Encode labels
+        Y_global, Y_local_all = h.encode_labels(label_strings)
+        Y_local = Y_local_all[1:]   # drop root level (pipeline convention)
+
+        # (e) Create splits
+        X_train, X_val, X_test, Yg_train, ... = split_data(X, Y_global, Y_local)
+
+        # (f) Expose — copy from hierarchy + splits
+        self.input_dim = X.shape[1]
+        self.output_dim = h.n_nodes
+        self.levels_size = {k-1: v for k, v in h.level_sizes.items() if k > 0}
+        self.max_depth = len(self.levels_size)
+        self.a = h.adjacency
+        self.edge_index = h.edge_index       # ← now provided by TreeHierarchy
+        self.nodes_idx = h.node_index
+        self.local_nodes_idx = h.local_nodes_idx  # ← now provided
+        self.to_eval = h.to_eval             # ← now provided
+        self.hierarchy_map = {}
+
+        self._train = Split(X_train, Yg_train, Y_local_train)
+        self._valid = Split(X_val, Yg_val, Y_local_val)
+        self._test = Split(X_test, Yg_test, Y_local_test)
+
+    def get_datasets(self):
+        return self._train, self._valid, self._test
+```
+
+The built-in managers follow this exact same pattern — they're a good
+reference if you want to see a production version:
+
+| Manager | File |
+|---|---|
+| `ArXivManager` | `src/hmc/datasets/arxiv/manager.py` |
+| `WOSManager` | `src/hmc/datasets/wos/manager.py` |
+| `HMCDatasetManager` | `src/hmc/datasets/gofun/manager.py` |
+
+**5. Register** your manager — no need to modify any package source:
+
+```python
+from hmc.data import DatasetRegistry
+
+DatasetRegistry.register(
+    "my_data",
+    lambda **kw: MyManager(**kw),
+    defaults={"hidden_dim": 256, "lr": 1e-4, "epochs": 50, "dropout": 0.3},
+)
+
+# Use it anywhere
+manager = DatasetRegistry.get("my_data", device="cuda", dataset_path="./data")
+train, valid, test = manager.get_datasets()
+
+import hmc
+hmc.train(dataset_name="my_data", method="globalE2E", device="cuda", epochs=50)
+```
+
+If you ship your manager as a pip-installable package, register it
+automatically via ``pyproject.toml``:
+
+```toml
+[project.entry-points."hmc_torch.datasets"]
+my_data = "my_package.manager:create_manager"
+```
+
+The entry-point target must be a callable that accepts ``**kwargs`` and
+returns a manager instance.
 
 ---
 
