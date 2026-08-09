@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hmc-torch"
-version = "0.0.9"
+version = "0.0.10"
 
 description = "A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints"
 authors = [{ name = "Bruno Sette", email = "brunosilvasette@gmail.com" }]
