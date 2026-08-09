@@ -53,6 +53,17 @@ class WOSManager:
         self._data_dir = Path(data_dir)
         self._cache_dir = Path(cache_dir) if cache_dir else None
         self._load_features = load_features
+        # Initialized in _fit()
+        self.levels_size: dict = {}
+        self.max_depth: int = 0
+        self.a: np.ndarray = np.array([])
+        self.edge_index: dict = {}
+        self.nodes_idx: dict = {}
+        self.local_nodes_idx: dict = {}
+        self.to_eval: list = []
+        self.hierarchy_map: dict = {}
+        self.input_dim: int = 0
+        self.output_dim: int = 0
         self._fit()
 
     # ------------------------------------------------------------------

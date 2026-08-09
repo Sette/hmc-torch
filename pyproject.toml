@@ -136,8 +136,6 @@ min-public-methods = 0
 
 [tool.pylint."messages control"]
 disable = [
-    "E1101",   # no-member: numpy/torch dynamic attributes cause false positives
-    "W0201",   # attribute-defined-outside-init: intentional lazy initialization pattern
     "R0801",   # duplicate-code: expected across dataset managers with shared patterns
 ]
 
