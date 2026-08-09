@@ -112,6 +112,29 @@ edge indices, input/output dimensions — **from your labels**.  Your only
 job is to supply the raw data and make sure the labels encode the hierarchy
 in a way the framework can parse.
 
+**Minimal example — just data + labels:**
+
+```python
+from hmc.utils import build_digraph_from_labels
+from hmc.data.hierarchy import TreeHierarchy
+
+# 1. Your data
+texts = ["paper about deep learning", "paper about transformers", ...]
+label_strs = ["cs.AI cs.LG", "cs.CL", ...]   # one string per sample (space-separated)
+
+# 2. Build hierarchy from labels (one-liner)
+h = TreeHierarchy.from_graph(build_digraph_from_labels(label_strs))
+
+# 3. Encode labels (ancestors auto-activated)
+Y_global, Y_local = h.encode_labels(label_strs)
+Y_local = Y_local[1:]  # drop root level
+
+# 4. Compute features, create splits, and train — see full example below.
+```
+
+The rest of this section walks through each step in detail and shows how
+to package everything into a reusable manager.
+
 **1. Pick a label format**
 
 Labels must follow a **dot-separated path notation** where each segment is
@@ -130,25 +153,27 @@ root
 The same convention works for any tree-shaped taxonomy —
 ``A.A1.B1``, ``medicine.cardiology``, ``physics.optics.lasers``, etc.
 
-**2. Build the hierarchy** from your label strings using
-:class:`~hmc.data.hierarchy.TreeHierarchy.from_graph`:
+**2. Build the hierarchy** — just collect your unique labels and pass them to
+:func:`~hmc.utils.build_digraph_from_labels`:
 
 ```python
-import networkx as nx
+from hmc.utils import build_digraph_from_labels
 from hmc.data.hierarchy import TreeHierarchy
 
-# Scan your data for unique labels, split on ".", and add child→parent edges
-g = nx.DiGraph()
-g.add_edge("cs", "root")
-g.add_edge("cs.AI", "cs")
-g.add_edge("stat", "root")
-g.add_edge("stat.ML", "stat")
-# ... for every label in your dataset
+# Collect all unique labels from your data
+all_labels = ["cs", "cs.AI", "cs.LG", "stat", "stat.ML"]
+
+# One-liner: build the child→parent graph from label strings
+g = build_digraph_from_labels(all_labels)
 
 hierarchy = TreeHierarchy.from_graph(g)
 # → hierarchy.a, hierarchy.edge_index, hierarchy.to_eval, hierarchy.local_nodes_idx
 #   are all computed automatically — nothing else to do.
 ```
+
+The function infers intermediate nodes, handles duplicates, and supports
+custom separators (``sep="/"``) and root names.  That's it — **you only
+need your data and your labels**; the framework derives everything else.
 
 **3. Encode labels** with a single call:
 
