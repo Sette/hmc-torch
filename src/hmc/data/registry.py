@@ -30,23 +30,25 @@ Science*) and *Machine Learning* (under *Statistics*)::
 The same convention works for any tree-shaped taxonomy —
 ``A.A1.B1``, ``medicine.cardiology``, ``physics.optics.lasers``, etc.
 
-**2. Build the hierarchy** from your label strings using
-:func:`TreeHierarchy.from_graph() <hmc.data.hierarchy.TreeHierarchy.from_graph>`:
+**2. Build the hierarchy** — just collect unique labels and call
+:func:`build_digraph_from_labels() <hmc.utils.build_digraph_from_labels>`:
 
     .. code-block:: python
 
-        import networkx as nx
+        from hmc.utils import build_digraph_from_labels
         from hmc.data.hierarchy import TreeHierarchy
 
-        # Scan your data for unique labels, split on ".", add child→parent edges
-        g = nx.DiGraph()
-        g.add_edge("cs", "root")
-        g.add_edge("cs.AI", "cs")
-        g.add_edge("stat", "root")
-        g.add_edge("stat.ML", "stat")
-        # ... for every label in your dataset
+        # Collect all unique labels from your data
+        all_labels = ["cs", "cs.AI", "cs.LG", "stat", "stat.ML"]
+
+        # One-liner: build the child→parent graph from label strings
+        g = build_digraph_from_labels(all_labels)
 
         hierarchy = TreeHierarchy.from_graph(g)
+
+The function infers intermediate nodes, handles duplicates, and supports
+custom separators (``sep="/"``) and root names.  That's it — **you only
+need your data and your labels**; the framework derives everything else.
 
 At this point ``hierarchy`` already exposes every attribute the pipeline
 needs — ``.a``, ``.edge_index``, ``.to_eval``, ``.local_nodes_idx``,

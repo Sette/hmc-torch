@@ -13,8 +13,13 @@ Quick start::
     # Train a model
     results = hmc.train("wos", method="globalE2E", device="cuda", epochs=5)
 
-    # Register a custom dataset
+    # Register a custom dataset — just data + labels
+    from hmc.utils import build_digraph_from_labels
+    from hmc.data.hierarchy import TreeHierarchy
     from hmc.data import DatasetRegistry
+
+    h = TreeHierarchy.from_graph(build_digraph_from_labels(my_labels))
+    # ... wrap in a manager and register (see README for full example)
 
     @DatasetRegistry.register("my_data", defaults={"hidden_dim": 256})
     def make_my_data(**kwargs):

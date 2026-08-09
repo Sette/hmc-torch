@@ -87,7 +87,33 @@ Ambos usam embeddings de transformer (SPECTER2-base por padrão, configurável v
 
 ---
 
-## Adicionando um novo dataset (texto + transformer)
+## Adicionando um novo dataset
+
+### Usando dados próprios (sem modificar o pacote)
+
+Use `build_digraph_from_labels` + `TreeHierarchy.from_graph` — o framework
+deriva tudo (adjacência, levels, edge_index, dimensões) das labels:
+
+```python
+from hmc.utils import build_digraph_from_labels
+from hmc.data.hierarchy import TreeHierarchy
+from hmc.data import DatasetRegistry, Split
+
+# 1. Seus dados
+texts, label_strs = load_seus_dados()  # label_strs: ["cs.AI", "stat.ML cs.LG", ...]
+
+# 2. Hierarquia derivada das labels
+h = TreeHierarchy.from_graph(build_digraph_from_labels(label_strs))
+
+# 3. Features + encode
+X = seu_encoder(texts)  # shape (n, d)
+Y_global, Y_local_all = h.encode_labels(label_strs)
+Y_local = Y_local_all[1:]  # drop root
+
+# 4. Splits + manager (ver README.md "Register your own dataset")
+```
+
+### Adicionando um dataset built-in (texto + transformer)
 
 1. Criar manager em `datasets/<nome>/manager.py` implementando:
    - `get_datasets()` → (train, valid, test) com `.x`, `.y`, `.y_local`, `.samples`

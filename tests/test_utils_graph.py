@@ -3,7 +3,7 @@
 import networkx as nx
 import pytest
 
-from hmc.utils.graph import build_digraph_from_labels
+from hmc.utils import build_digraph_from_labels
 
 
 class TestBuildDigraphFromLabels:
