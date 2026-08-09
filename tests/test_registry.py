@@ -2,7 +2,27 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
+
+
+# ---------------------------------------------------------------------------
+# Helpers — skip integration tests when data files are missing (CI/CD)
+# ---------------------------------------------------------------------------
+
+_DATA_CHECKS: dict[str, str] = {
+    "arxiv": "./data/arxiv/arxiv-metadata-oai-snapshot.json",
+    "wos": "./data/wos",
+}
+
+
+def _data_available(dataset_name: str) -> bool:
+    """Return True if the required data files/directories exist."""
+    path = _DATA_CHECKS.get(dataset_name)
+    if path is None:
+        return False
+    return os.path.exists(path)
 
 
 class TestDatasetRegistry:
@@ -104,6 +124,12 @@ class TestProtocolCompliance:
     )
     def test_manager_satisfies_protocol(self, dataset_name):
         """Built-in manager instances pass protocol check."""
+        if not _data_available(dataset_name):
+            pytest.skip(
+                f"Data files for '{dataset_name}' not found "
+                f"({_DATA_CHECKS[dataset_name]}). Run download first."
+            )
+
         from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
         manager = initialize_dataset_experiments(
