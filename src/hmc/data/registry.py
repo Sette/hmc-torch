@@ -1,28 +1,127 @@
 """Dataset registry with plugin support for HMC-Torch.
 
 Provides a central registry where dataset managers are registered by name.
-Built-in datasets auto-register on import.  External packages can register
+Built-in datasets (arxiv, wos, aapd, rcv1, eurlex, and GoFun ARFF variants)
+auto-register on import.  External packages or downstream users can register
 custom datasets via entry points or programmatic registration.
 
-Entry points
-------------
-Add to your ``pyproject.toml``:
+---------------------------------------------------------------------
+Quick start — register your own dataset
+---------------------------------------------------------------------
+
+The framework derives everything it needs — adjacency matrix, level sizes,
+edge indices, input/output dimensions — **from your labels**.  Your only
+job is to supply the raw data and make sure the labels encode the hierarchy
+in a way the framework can parse.
+
+**1. Pick a label format**
+
+Labels must follow a **dot-separated path notation** where each segment is
+one level of the hierarchy.  For example, a paper tagged as ``cs.AI`` and
+``stat.ML`` belongs to both *Artificial Intelligence* (under *Computer
+Science*) and *Machine Learning* (under *Statistics*)::
+
+    root
+    ├── cs          (level 1 — area)
+    │   └── cs.AI   (level 2 — subcategory)
+    └── stat        (level 1 — area)
+        └── stat.ML (level 2 — subcategory)
+
+The same convention works for any tree-shaped taxonomy —
+``A.A1.B1``, ``medicine.cardiology``, ``physics.optics.lasers``, etc.
+
+**2. Build the hierarchy** from your label strings using
+:func:`TreeHierarchy.from_graph() <hmc.data.hierarchy.TreeHierarchy.from_graph>`:
+
+    .. code-block:: python
+
+        import networkx as nx
+        from hmc.data.hierarchy import TreeHierarchy
+
+        # Scan your data for unique labels, split on ".", add child→parent edges
+        g = nx.DiGraph()
+        g.add_edge("cs", "root")
+        g.add_edge("cs.AI", "cs")
+        g.add_edge("stat", "root")
+        g.add_edge("stat.ML", "stat")
+        # ... for every label in your dataset
+
+        hierarchy = TreeHierarchy.from_graph(g)
+
+At this point ``hierarchy`` already exposes every attribute the pipeline
+needs — ``.a``, ``.edge_index``, ``.to_eval``, ``.local_nodes_idx``,
+``.level_sizes``, … — all computed from the graph structure.
+
+**3. Encode labels** with a single call:
+
+    .. code-block:: python
+
+        Y_global, Y_local = hierarchy.encode_labels(
+            ["cs.AI", "stat.ML cs.LG"]    # one string per sample (space-separated)
+        )
+        # Y_global: (n_samples, n_nodes) — ancestors automatically activated
+        # Y_local:  list of (n_samples, n_level_nodes) per depth level
+
+**4. Wire everything into your manager.**  Every built-in manager follows
+the same pattern inside its ``__init__``:
+
+    a. **Load** raw data and collect unique label strings.
+    b. **Build hierarchy** with :func:`TreeHierarchy.from_graph`.
+    c. **Compute features** (transformer embeddings, hand-crafted vectors, …).
+    d. **Encode labels** with :meth:`Hierarchy.encode_labels`.
+    e. **Create splits** (train/valid/test).
+    f. **Expose** — copy from hierarchy + splits to plain instance attributes
+       (``self.input_dim``, ``self.a``, ``self.edge_index``,
+       ``self.get_datasets``, …).
+
+The built-in managers are a good reference for a production version:
+
+    ===================  ===========================================  ==============================
+    Manager              File                                        Good for…
+    ===================  ===========================================  ==============================
+    ``ArXivManager``     :mod:`hmc.datasets.arxiv.manager`           Single JSONL + dot-sep labels
+    ``WOSManager``       :mod:`hmc.datasets.wos.manager`             Pre-split JSONL + prebuilt hier
+    ``HMCDatasetManager``:mod:`hmc.datasets.gofun.manager`           Tabular ARFF + prebuilt hier
+    ===================  ===========================================  ==============================
+
+**5. Register** — no need to modify any package source:
+
+    .. code-block:: python
+
+        from hmc.data import DatasetRegistry
+
+        DatasetRegistry.register(
+            "my_data",
+            lambda **kw: MyManager(**kw),
+            defaults={"hidden_dim": 256, "lr": 1e-4, "epochs": 50, "dropout": 0.3},
+        )
+
+**Use it** anywhere in the framework:
+
+    .. code-block:: python
+
+        manager = DatasetRegistry.get("my_data", device="cuda", dataset_path="./data")
+        train, valid, test = manager.get_datasets()
+
+        import hmc
+        hmc.train(dataset_name="my_data", method="globalE2E", device="cuda", epochs=50)
+
+---------------------------------------------------------------------
+Entry points (for external packages)
+---------------------------------------------------------------------
+
+If you ship your manager as a pip-installable package, register it
+automatically via ``pyproject.toml`` so users don't need to call
+:meth:`DatasetRegistry.register` themselves:
 
 .. code-block:: toml
 
     [project.entry-points."hmc_torch.datasets"]
     my_data = "my_package.manager:create_manager"
 
-Programmatic registration
--------------------------
-.. code-block:: python
-
-    from hmc.data import DatasetRegistry
-
-    DatasetRegistry.register("my_data", lambda **kw: MyManager(**kw),
-                             defaults={"hidden_dim": 256, "lr": 1e-4, ...})
-
-    manager = DatasetRegistry.get("my_data", device="cuda", ...)
+The entry-point target (``create_manager`` above) must be a callable that
+accepts ``**kwargs`` and returns a manager instance — exactly like the
+factory you'd pass to :meth:`DatasetRegistry.register`.
 """
 
 from __future__ import annotations
@@ -312,35 +411,44 @@ class DatasetRegistry:
     ):
         """Register a dataset manager factory.
 
-        Supports two calling conventions:
+        Supports three calling conventions:
 
-        1. **Direct call**::
+        1. **Direct call** — pass both *name* and *factory*::
 
                DatasetRegistry.register("my_data", create_manager,
                                         defaults={"hidden_dim": 256})
 
-        2. **Decorator**::
+        2. **Decorator with arguments** — pass *name* but omit *factory*; returns
+           a decorator that will register the decorated class/function::
 
                @DatasetRegistry.register("my_data", defaults={"hidden_dim": 256})
                class MyManager:
                    ...
 
-               @DatasetRegistry.register  # uses __name__ as dataset name
+        3. **Bare decorator** — pass only *factory*; the dataset name is
+           inferred from ``factory.__name__``::
+
+               @DatasetRegistry.register
                def make_my_data(**kw): ...
 
         Args:
-            name: Unique dataset identifier.  Inferred from
-                ``factory.__name__`` when used as a bare decorator.
-            factory: Callable that receives keyword arguments and returns
-                a manager instance.  When ``None``, returns a decorator.
-            defaults: Optional dictionary of default hyperparameters.
+            name: Unique dataset identifier (e.g. ``"my_data"``).  Inferred
+                from ``factory.__name__`` when used as a bare decorator.
+            factory: Callable that receives ``**kwargs`` and returns a manager
+                instance.  When *factory* is omitted (``None``) the method
+                acts as a decorator and returns a wrapper that will call
+                :meth:`_do_register` later.
+            defaults: Optional dictionary of default hyperparameters
+                (``hidden_dim``, ``lr``, ``epochs``, ``dropout``, etc.).
 
         Returns:
-            The *factory* when called directly, or a decorator when
-            *factory* is ``None``.
+            | Direct call: returns *factory* unchanged.
+            | Decorator call: returns a decorator function ``(fn) -> fn``
+              that registers *fn* and returns it unchanged.
 
         Raises:
             ValueError: If *name* is already registered.
+            TypeError: If the arguments don't match any supported convention.
         """
         # Decorator-with-arguments path: @register("name", defaults=...)
         if factory is None and name is not None and isinstance(name, str):
@@ -401,16 +509,30 @@ class DatasetRegistry:
     def get(cls, name: str, **kwargs) -> Any:
         """Instantiate a dataset manager by name.
 
+        This is the primary way to obtain a ready-to-use dataset manager.
+        It calls the registered factory with *kwargs* and returns the
+        resulting manager instance.
+
         Args:
-            name: Dataset identifier.
-            **kwargs: Forwarded to the manager factory (e.g. ``device``,
-                ``dataset_path``, ``is_global``, ``model_name``, …).
+            name: Dataset identifier (e.g. ``"wos"``, ``"my_data"``).
+            **kwargs: Forwarded to the manager factory.  Common arguments:
+
+                - ``device`` — torch device (``"cpu"``, ``"cuda"``).
+                - ``dataset_path`` — root directory for dataset files.
+                - ``model_name`` — HuggingFace transformer name (text datasets).
+                - ``max_records`` — cap on records to load.
+                - ``cache_dir`` — directory for feature cache.
+                - ``load_features`` — whether to compute transformer embeddings.
 
         Returns:
-            A manager instance satisfying :class:`DatasetManagerProtocol`.
+            A manager instance.  Every manager exposes at least these
+            attributes: ``input_dim``, ``output_dim``, ``levels_size``,
+            ``max_depth``, ``a``, ``edge_index``, ``nodes_idx``,
+            ``to_eval``, ``hierarchy_map``, and ``get_datasets()``.
 
         Raises:
-            KeyError: If *name* is not registered.
+            ValueError: If *name* is not registered.  The error message
+                includes the list of available datasets.
         """
         cls._ensure_entry_points()
         if name not in cls._managers:
