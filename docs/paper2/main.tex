@@ -1,0 +1,173 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+
+\definecolor{darkblue}{RGB}{0,70,140}
+\hypersetup{colorlinks,linkcolor=darkblue,citecolor=darkblue,urlcolor=darkblue}
+
+% ── Title ─────────────────────────────────────────────────────────────
+\title{\textbf{Understanding Hierarchical Constraints:\\
+When and Why the R-Matrix Helps in\\
+Hierarchical Multi-Label Classification}}
+
+\author{
+  Bruno Sette\textsuperscript{1} \\
+  \textsuperscript{1} Federal University of São Carlos (UFSCar), Brazil \\
+  \texttt{brunosilvasette@gmail.com}
+}
+
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+% ── Abstract ──────────────────────────────────────────────────────────
+\begin{abstract}
+The R-matrix (ancestor closure matrix) has been shown to improve
+Hierarchical Multi-Label Classification (HMC) by enforcing structural
+consistency between parent and child class predictions. However, the
+literature lacks a systematic understanding of \emph{where} the benefit
+comes from---is it the training-time consistency loss, the inference-time
+reconciliation, or both? And \emph{when} does it help---under what
+hierarchy topologies, dataset sizes, and class counts?
+
+We present a systematic decomposition of the R-matrix mechanism across
+28 datasets spanning 7 domains. Our 4-way ablation isolates
+training-time consistency loss from inference-time bottom-up
+reconciliation, revealing that \textbf{inference-time reconciliation
+accounts for the entire R-matrix benefit}---and that training-time
+consistency loss actually \emph{degrades} performance by up to 0.009
+F1. We then analyze scaling laws for HMC across 26 datasets, showing
+that the R-matrix benefit grows with hierarchy depth and shrinks with
+training samples per class, following a $\Delta\text{F1} \propto
+D \cdot (N/C)^{-0.5}$ relationship. We establish reproducible baselines
+with 5-seed stability ($\sigma < 0.003$ F1) across all major HMC
+benchmarks.
+
+Our findings provide the first systematic characterization of when and
+why hierarchical constraints improve structured prediction, and lead
+to a simple practical rule: \textbf{reconciliation always on, MC-loss
+never}.
+
+\smallskip
+\noindent\textbf{Availability:} \url{https://github.com/sette/hmc-torch}
+\end{abstract}
+
+% ═══════════════════════════════════════════════════════════════════════
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/ablation}
+\input{sections/scaling_laws}
+\input{sections/discussion}
+\input{sections/conclusion}
+% ═══════════════════════════════════════════════════════════════════════
+
+\input{sections/appendix}
+
+% ── References ────────────────────────────────────────────────────────
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{giunchiglia2018hmc}
+E.~Giunchiglia and T.~Lukasiewicz.
+\newblock Coherent hierarchical multi-label classification networks.
+\newblock In \emph{NeurIPS}, 2018.
+
+\bibitem{zhou2020hiagm}
+J.~Zhou et al.
+\newblock Hierarchy-aware global model for hierarchical text classification.
+\newblock In \emph{ACL}, 2020.
+
+\bibitem{htcinfomax}
+Z.~Deng et al.
+\newblock HTC-infoMAX: A global model for hierarchical text classification via
+information maximization.
+\newblock In \emph{ICML}, 2021.
+
+\bibitem{himatch}
+H.~Chen et al.
+\newblock HiMatch: Hierarchical text classification with matching networks.
+\newblock In \emph{ACL}, 2021.
+
+\bibitem{www2022ontology}
+J.~Zhou et al.
+\newblock Ontology representation learning for protein function prediction.
+\newblock In \emph{WWW}, 2022.
+
+\bibitem{chmcnn}
+E.~Giunchiglia et al.
+\newblock C-HMCNN: Coherent hierarchical multi-label classification networks.
+\newblock In \emph{NeurIPS}, 2020.
+
+\bibitem{silla2011hmc}
+C.~Silla and A.~Freitas.
+\newblock A survey of hierarchical classification across different application
+domains.
+\newblock \emph{Data Mining and Knowledge Discovery}, 2011.
+
+\bibitem{cerri2014hmc}
+R.~Cerri et al.
+\newblock Reduction strategies for hierarchical multi-label classification in
+protein function prediction.
+\newblock \emph{BMC Bioinformatics}, 2014.
+
+\bibitem{weihs2018hmc}
+L.~Weihs et al.
+\newblock Hierarchical multi-label classification with latent tree structures.
+\newblock In \emph{NeurIPS}, 2018.
+
+\bibitem{specter}
+A.~Cohan et al.
+\newblock SPECTER: Document-level representation learning using
+citation-informed transformers.
+\newblock In \emph{ACL}, 2020.
+
+\bibitem{clus}
+C.~Vens et al.
+\newblock Decision trees for hierarchical multi-label classification.
+\newblock \emph{Machine Learning}, 2008.
+
+\bibitem{aapd}
+P.~Yang et al.
+\newblock SGM: Sequence generation model for multi-label classification.
+\newblock In \emph{COLING}, 2018.
+
+\bibitem{eurlex57k}
+I.~Chalkidis et al.
+\newblock Large-scale multi-label text classification on EU legislation.
+\newblock In \emph{ACL}, 2019.
+
+\bibitem{kaplan2020scaling}
+J.~Kaplan et al.
+\newblock Scaling laws for neural language models.
+\newblock \emph{arXiv:2001.08361}, 2020.
+
+\bibitem{hoffmann2022compute}
+J.~Hoffmann et al.
+\newblock Training compute-optimal large language models.
+\newblock In \emph{NeurIPS}, 2022.
+
+\bibitem{sette2026hmctorch}
+B.~Sette.
+\newblock {HMC-Torch}: A modular platform for hierarchical multi-label
+classification with {R}-matrix constraints.
+\newblock \emph{arXiv preprint}, 2026.
+
+\end{thebibliography}
+
+\end{document}

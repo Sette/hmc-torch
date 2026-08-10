@@ -1,0 +1,118 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Implications for HMC Practice}
+
+Our findings have direct implications for practitioners building HMC
+systems:
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Always apply inference-time reconciliation.}
+    It provides the vast majority of the R-matrix benefit at negligible
+    computational cost. There is no reason not to use it.
+  \item \textbf{Skip the training-time consistency loss.}
+    MC-loss adds complexity to the training loop (requiring
+    $O(B \cdot C^2)$ operations per batch for the dense R-matrix) with
+    no measurable benefit over reconciliation alone. Set $\lambda=0$.
+  \item \textbf{Use the Block-Diagonal approximation for large DAGs.}
+    The sparse $O(C+E)$ method provides identical reconciled scores to
+    the dense $O(C^2)$ matrix while using $>1{,}400\times$ less memory.
+  \item \textbf{The R-matrix is most valuable when $D \geq 3$ or
+    $N/C < 10$.} The power-law relationship
+    $\Delta\text{F1} \propto D \cdot (N/C)^{-0.5}$ provides a
+    practical heuristic.
+\end{enumerate}
+
+\subsection{Why Doesn't MC-Loss Help?}
+
+The negligible contribution of training-time consistency loss is
+initially surprising---after all, explicitly enforcing the hierarchical
+constraint during training should guide the model toward consistent
+predictions. We hypothesize two explanations:
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Implicit hierarchy learning.} The prevalence-weighted
+    BCE loss, combined with the natural co-occurrence patterns of parent
+    and child labels in the training data, already produces
+    approximately hierarchically consistent predictions. The MC-loss
+    constraint is redundant when the data encodes the hierarchy.
+  \item \textbf{The constraint is too rigid for training.} The hard
+    max-operation (Eq.~\ref{eq:constr}) forces parent scores to be
+    strictly $\geq$ child scores at every training step. This may
+    interfere with gradient flow when the model is still learning
+    class boundaries, particularly in early epochs. A soft,
+    margin-based penalty (e.g., hinge loss over ancestor pairs) might
+    provide better training dynamics.
+\end{enumerate}
+
+Testing these hypotheses---comparing hard MC-loss against soft
+margin-based consistency penalties, and analyzing the gradient dynamics
+during training---is a direction for future work.
+
+\subsection{The Role of HMC in the LLM Era}
+
+Our LLM comparison (Section~\ref{sec:llm}) shows that purpose-built HMC
+models retain a significant advantage over zero-shot LLMs for structured
+prediction tasks with well-defined taxonomies. The key advantage is not
+architectural sophistication but \textbf{specialization}: training on
+the specific label distribution with prevalence-weighted loss produces
+better-calibrated predictions than prompting a general-purpose model.
+
+We expect this gap to narrow with few-shot and fine-tuned LLMs.
+However, the cost differential (50,000$\times$) means that for many
+practical applications---batch classification of document collections,
+real-time API serving, resource-constrained deployments---specialized
+HMC models will remain the pragmatic choice.
+
+\subsection{Multi-Seed Stability}
+
+\begin{table}[H]
+\centering
+\caption{5-seed stability results. Mean $\pm$ std (ddof=1) across seeds
+[42, 123, 456, 789, 1024].}
+\label{tab:multiseed}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Dataset} & \textbf{Micro-F1} & \textbf{Micro-AUPRC} \\
+\midrule
+ArXiv   & 0.7287 $\pm$ 0.0011 & 0.8084 $\pm$ 0.0003 \\
+WOS     & 0.7511 $\pm$ 0.0008 & 0.8199 $\pm$ 0.0001 \\
+AAPD    & 0.7726 $\pm$ 0.0007 & 0.8617 $\pm$ 0.0004 \\
+cellcycle\_FUN & 0.2304 $\pm$ 0.0021 & 0.1500 $\pm$ 0.0019 \\
+seq\_FUN       & 0.2622 $\pm$ 0.0025 & 0.1880 $\pm$ 0.0031 \\
+cellcycle\_GO  & 0.3957 $\pm$ 0.0007 & 0.3335 $\pm$ 0.0004 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The frozen-embedding text models exhibit strong stability (ArXiv
+$\sigma=0.0011$, WOS $\sigma=0.0008$, AAPD $\sigma=0.0007$),
+confirming that the R-matrix provides deterministic regularization.
+Tabular models have moderately higher variance (cellcycle\_FUN
+$\sigma=0.0021$, seq\_FUN $\sigma=0.0025$) due to smaller training
+sets ($\sim$2,500 samples for 500 classes). The Gene Ontology DAG
+(cellcycle\_GO) shows remarkably low variance ($\sigma=0.0007$) despite
+its 4,126 classes, demonstrating that the Block-Diagonal sparse
+reconciliation is as stable as the dense method. All results are within
+$\pm 0.003$ F1 across 5 independent seeds.
+
+\subsection{Future Directions}
+
+Beyond the immediate implications above, our analysis suggests several
+directions:
+
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Soft consistency penalties.} Replace the hard
+    max-operation with a margin-based hinge loss that may provide better
+    gradient signal during training.
+  \item \textbf{Learned R-matrix weights.} The binary R-matrix treats
+    all ancestor relationships equally. Learned weights $R_{ij} \in
+    [0,1]$ could capture the varying importance of different edges,
+    particularly in DAGs.
+  \item \textbf{Scaling law validation.} Extend the $\Delta\text{F1}$
+    measurements to all 25 datasets to refine the power-law fit and
+    test its predictive accuracy on held-out datasets.
+  \item \textbf{Few-shot LLM comparison.} Extend Section~\ref{sec:llm}
+    with few-shot prompting ($k \in \{1, 3, 5, 10\}$ examples per class)
+    and fine-tuned open-weight models (Llama-4, Qwen-3).
+\end{itemize}

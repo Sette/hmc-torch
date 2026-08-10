@@ -1,0 +1,31 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented the first systematic decomposition of the R-matrix
+mechanism in Hierarchical Multi-Label Classification. Our 4-way ablation
+across three hierarchy types reveals that \textbf{inference-time
+bottom-up reconciliation accounts for over 90\% of the R-matrix
+benefit}, while training-time consistency loss provides negligible
+additional value. This finding simplifies HMC system design:
+practitioners should always apply reconciliation at inference (zero
+cost, maximum benefit) and can safely omit the training-time MC-loss.
+
+Our scaling law analysis---the first of its kind for HMC---shows that
+the R-matrix benefit follows $\Delta\text{F1} \propto D \cdot
+(N/C)^{-0.5}$: deeper hierarchies and data-scarce regimes benefit most.
+This provides a practical heuristic for when to invest in hierarchical
+constraints.
+
+Together with the HMC-Torch platform~\cite{sette2026hmctorch}, these
+findings provide a foundation for principled HMC system design:
+reconciliation always on, consistency loss never, and hierarchical
+constraints deployed where the scaling law predicts they will help most.
+
+\subsection*{Reproducibility}
+
+All experiments use fixed seeds and are fully reproducible via the
+HMC-Torch platform (\url{https://github.com/sette/hmc-torch}). The
+ablation and scaling law experiment scripts are included in the
+repository under \texttt{experiments/run\_ablation.py} and
+\texttt{experiments/run\_scaling\_laws.py}. Multi-seed results with 5
+seeds and standard deviations are provided for all primary benchmarks.

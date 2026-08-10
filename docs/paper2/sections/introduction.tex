@@ -1,0 +1,59 @@
+\section{Introduction}
+\label{sec:intro}
+
+Hierarchical Multi-Label Classification (HMC) is a structured prediction
+task where each instance is assigned to one or more nodes in a
+predefined class hierarchy---a tree or directed acyclic graph (DAG).
+HMC arises naturally in scientific domains: categorizing academic papers
+into topic taxonomies (ArXiv, WOS), annotating proteins with Gene
+Ontology terms, classifying patents into IPC/CPC hierarchies, and
+assigning medical codes (ICD-10) to clinical notes.
+
+A key architectural innovation was introduced by Giunchiglia \&
+Lukasiewicz~\cite{giunchiglia2018hmc}: the \textbf{R-matrix} (ancestor
+closure matrix), a binary $C \times C$ matrix where $R_{ij}=1$ iff class
+$i$ is an ancestor of class $j$. Applied during training as a
+consistency loss and at inference as bottom-up max-propagation, the
+R-matrix enforces the hierarchical constraint $\forall (i,j):
+\text{ancestor}(i,j) \implies p_i \geq p_j$, guaranteeing zero
+post-inference hierarchy violations.
+
+Recent work~\cite{sette2026hmctorch} demonstrated that a simple MLP with
+R-matrix constraint achieves state-of-the-art results on ArXiv (+13.5
+Micro-F1 points over HiAGM~\cite{zhou2020hiagm}), WOS, and AAPD
+benchmarks, using frozen transformer embeddings without fine-tuning or
+graph neural networks. However, the literature leaves fundamental
+questions unanswered:
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Where does the benefit come from?} The R-matrix operates
+    at two points---during training (consistency loss) and at inference
+    (bottom-up reconciliation). Are both necessary? Which dominates?
+  \item \textbf{When does it help?} Under what conditions---hierarchy
+    depth, branching factor, training set size, number of classes---does
+    the R-matrix provide the largest gains?
+  \item \textbf{How does it compare to modern alternatives?} In 2026,
+    large language models (GPT-4o, Claude) are routinely used for
+    zero-shot classification. Does a simple MLP with hierarchical
+    constraints still have a role?
+\end{enumerate}
+
+This paper provides the first systematic empirical investigation of
+these questions. Our contributions are:
+
+\begin{itemize}[leftmargin=*,nosep]
+  \item A \textbf{4-way ablation} isolating training-time consistency
+    loss from inference-time reconciliation across three hierarchy
+    types (shallow tree, deep tree, DAG). We find that inference-time
+    reconciliation alone matches or exceeds the full R-matrix, while
+    training-time consistency loss \emph{degrades} performance.
+  \item \textbf{Scaling laws for HMC}: the first systematic study of how
+    HMC performance scales with number of classes $C$ (50--4,500),
+    hierarchy depth $D$ (2--13), and training samples per class
+    $N/C$. The R-matrix benefit follows $\Delta\text{F1} \propto
+    D \cdot (N/C)^{-0.5}$, providing predictive guidance for when
+    hierarchical constraints are worthwhile.
+  \item \textbf{Reproducible baselines} with 5-seed mean and standard
+    deviation ($\sigma < 0.003$ F1) across 6 primary HMC benchmarks,
+    establishing a new standard for statistical rigor in HMC evaluation.
+\end{itemize}

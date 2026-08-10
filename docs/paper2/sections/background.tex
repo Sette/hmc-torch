@@ -1,0 +1,93 @@
+\section{Background and Experimental Setup}
+\label{sec:background}
+
+\subsection{The R-Matrix Mechanism}
+
+The R-matrix (ancestor closure matrix) is a binary $C \times C$ matrix
+where $R_{ij} = 1$ iff class $i$ is an ancestor of class $j$ (including
+$i = j$). It is derived from the transitive closure of the hierarchy
+adjacency matrix $A$:
+
+\begin{equation}
+R_{ij} = \begin{cases}
+1 & \text{if } i = j \text{ or } \exists \text{ path } i \rightarrow \ldots \rightarrow j \text{ in } A \\
+0 & \text{otherwise}
+\end{cases}
+\label{eq:rdef}
+\end{equation}
+
+The R-matrix operates at two distinct points in the HMC pipeline:
+
+\textbf{Mode 1: Training-time consistency loss (MC-loss).}
+Following~\cite{giunchiglia2018hmc}, the R-matrix is applied during
+training to constrain model outputs before computing the binary
+cross-entropy loss. For each batch, the raw logits $\mathbf{o} \in
+\mathbb{R}^{B \times C}$ are constrained via:
+
+\begin{equation}
+\mathbf{o}^{\text{constr}}_i = \max_{j: R_{ij}=1} \mathbf{o}_j
+\label{eq:constr}
+\end{equation}
+
+which ensures that the constrained output for class $i$ is the maximum
+score among itself and all its descendants. The BCE loss is then
+computed on a combination of constrained outputs for positive labels and
+raw outputs for negative labels.
+
+\textbf{Mode 2: Inference-time reconciliation.}
+At prediction time, the same bottom-up max-propagation is applied to the
+model's raw scores:
+
+\begin{equation}
+p_i^{\text{rec}} = \max\left(p_i,\; \max_{j \in \text{children}(i)} p_j^{\text{rec}}\right)
+\label{eq:reconcile}
+\end{equation}
+
+Processing levels from deepest to shallowest guarantees that $\forall
+(i,j): \text{ancestor}(i,j) \implies p_i^{\text{rec}} \geq
+p_j^{\text{rec}}$ with zero post-inference violations.
+
+\subsection{Datasets}
+
+We evaluate on three representative datasets covering distinct hierarchy
+types:
+
+\begin{table}[H]
+\centering
+\caption{Datasets used in the ablation study.}
+\label{tab:datasets}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Dataset} & \textbf{Hierarchy} & \textbf{Train} & \textbf{Test} &
+\textbf{Classes} & \textbf{Depth} \\
+\midrule
+ArXiv & Shallow tree & 40,982 & 10,245 & 157 & 2 \\
+cellcycle\_FUN & Deep tree & 2,476 & 1,281 & 500 & 4+ \\
+cellcycle\_GO & DAG & 2,474 & 1,280 & 4,126 & 13 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For the scaling laws analysis, we extend to all 25 built-in datasets
+spanning text (ArXiv, WOS, AAPD), tabular trees (10 FunCat datasets),
+Gene Ontology DAGs (9 datasets), and cross-domain tabular (Enron,
+Diatoms, ImCLEF). Full dataset statistics are in Appendix~\ref{sec:appendix}.
+
+\subsection{Experimental Configuration}
+
+All experiments use the HMC-Torch platform~\cite{sette2026hmctorch} with
+a 3-layer MLP (hidden dimension 512 for text, 256 for tabular), AdamW
+optimizer ($\beta_1=0.9, \beta_2=0.999$, weight decay $10^{-5}$,
+learning rate $10^{-4}$), and prevalence-weighted BCE loss. Text
+datasets use frozen SPECTER2-base embeddings (768 dimensions). Tabular
+datasets use standard-scaled features with mean imputation.
+
+For the DAG dataset (cellcycle\_GO), we use the Block-Diagonal R-Matrix
+sparse approximation~\cite{sette2026hmctorch} which achieves zero
+hierarchy violations in $O(C+E)$ memory without materializing the dense
+$O(C^2)$ matrix. All experiments use seed 42 unless otherwise noted, on
+an NVIDIA RTX 3060 (12GB).
+
+Metrics are micro-averaged F1 (with threshold sweep over $[0.1, 0.9]$
+step 0.05) and micro-averaged AUPRC, computed only over evaluable
+classes (excluding root nodes).
