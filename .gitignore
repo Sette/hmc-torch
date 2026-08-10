@@ -167,6 +167,18 @@ cython_debug/
 .idea/
 .vscode/
 
+# LaTeX build artifacts
+*.aux
+*.out
+*.log
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.xdv
+
 # Data
 /data/
 .python-version

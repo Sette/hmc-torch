@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Plot ablation results: grouped bar chart of 4 configs × 3 datasets.
+"""Ablation plot: grouped bars showing 4 configs across 3 datasets.
 
-Reads output/ablation/results.json and generates
-docs/hmc-paper/figures/fig_ablation.pdf
+Panel 1: ArXiv (shallow tree)
+Panel 2: cellcycle_FUN (deep tree)
+Panel 3: cellcycle_GO (DAG, sparse)
+
+Highlights reconciliation as the dominant mechanism.
+Output: docs/hmc-paper/figures/fig_ablation.pdf
 """
 
 from __future__ import annotations
@@ -16,91 +20,95 @@ import numpy as np
 
 matplotlib.use("Agg")
 
+plt.rcParams.update({
+    "font.family": "serif", "font.size": 10,
+    "axes.labelsize": 11, "axes.titlesize": 12,
+    "legend.fontsize": 9, "xtick.labelsize": 9, "ytick.labelsize": 9,
+})
+
+MODE_ORDER = ["bce_only", "consistency_loss", "reconciliation", "both"]
+MODE_LABELS = ["BCE\nonly", "Consistency\nloss", "Reconciliation", "Both\n(full R)"]
+COLORS = ["#d9d9d9", "#f4a582", "#0571b0", "#7fbf7b"]
+
+DATASET_CONFIG = {
+    "arxiv":          {"label": "ArXiv\n(shallow tree, D=2)",    "ylim": (0.71, 0.74)},
+    "cellcycle_FUN":  {"label": "cellcycle_FUN\n(deep tree, D=6)",  "ylim": (0.26, 0.29)},
+    "cellcycle_GO":   {"label": "cellcycle_GO\n(DAG, D=13, sparse)", "ylim": (0.38, 0.41)},
+}
+
 
 def load_results(path: str) -> dict:
-    """Load ablation results JSON."""
     with open(path) as f:
         return json.load(f)
 
 
 def plot_ablation(results: dict, out_path: str) -> None:
-    """Generate grouped bar chart comparing 4 ablation modes across datasets."""
-    mode_order = ["bce_only", "consistency_loss", "reconciliation", "both"]
-    mode_labels = ["BCE only", "Consistency\nloss", "Reconciliation", "Both"]
-    colors = ["#b0bec5", "#ffb74d", "#4fc3f7", "#1b5e20"]
+    datasets = [d for d in ["arxiv", "cellcycle_FUN", "cellcycle_GO"] if d in results]
+    n_ds = len(datasets)
+    n_modes = len(MODE_ORDER)
 
-    datasets = list(results.keys())
-    ds_labels: list[str] = []
-    for ds in datasets:
-        if "arxiv" in ds.lower():
-            ds_labels.append("ArXiv\n(shallow tree)")
-        elif "fun" in ds.lower():
-            ds_labels.append("cellcycle_FUN\n(deep tree)")
-        elif "go" in ds.lower():
-            ds_labels.append("cellcycle_GO\n(DAG)")
+    fig, axes = plt.subplots(1, n_ds, figsize=(4 * n_ds, 4.5), sharey=False)
 
-    n_modes = len(mode_order)
-    n_datasets = len(datasets)
-    x = np.arange(n_datasets)
-    width = 0.18
+    for ax_idx, ds_name in enumerate(datasets):
+        ax = axes[ax_idx] if n_ds > 1 else axes
+        ds_results = {r["mode"]: r for r in results[ds_name]}
+        cfg = DATASET_CONFIG.get(ds_name, {})
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+        x = np.arange(n_modes)
+        values = []
+        for mode in MODE_ORDER:
+            val = ds_results[mode]["f1"] if mode in ds_results else 0.0
+            values.append(val)
 
-    for i, (mode, label, color) in enumerate(
-        zip(mode_order, mode_labels, colors)
-    ):
-        values: list[float] = []
-        for ds in datasets:
-            ds_results = {r["mode"]: r for r in results[ds]}
-            values.append(ds_results[mode]["f1"])
-        offset = (i - n_modes / 2 + 0.5) * width
-        bars = ax.bar(x + offset, values, width, label=label, color=color,
-                      edgecolor="white", linewidth=0.5)
+        bars = ax.bar(x, values, color=COLORS, edgecolor="white", linewidth=0.6)
 
-        # Annotate with value
+        # Value on top
         for bar, val in zip(bars, values):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
-                    f"{val:.3f}", ha="center", va="bottom", fontsize=7)
+            offset = 0.0006 if ds_name == "arxiv" else 0.0008
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + offset,
+                    f"{val:.4f}", ha="center", va="bottom", fontsize=8,
+                    fontweight="bold")
 
-    ax.set_ylabel("Micro-F1")
-    ax.set_title("R-Matrix Ablation: Training vs Inference Contributions")
-    ax.set_xticks(x)
-    ax.set_xticklabels(ds_labels)
-    ax.legend(loc="lower right", fontsize=8)
-    ax.set_ylim(0, max(
-        max(r["f1"] for r in results[ds]) for ds in datasets
-    ) * 1.15)
-    ax.grid(axis="y", alpha=0.3)
+        # Highlight best and worst
+        best_idx = np.argmax(values)
+        bars[best_idx].set_edgecolor("#0571b0")
+        bars[best_idx].set_linewidth(2.0)
 
-    # Add delta annotations between key modes
-    for j, ds in enumerate(datasets):
-        ds_map = {r["mode"]: r for r in results[ds]}
-        rec_f1 = ds_map["reconciliation"]["f1"]
-        bce_f1 = ds_map["bce_only"]["f1"]
-        both_f1 = ds_map["both"]["f1"]
-        delta_rec = rec_f1 - bce_f1
-        delta_both = both_f1 - rec_f1
-        y_base = max(bce_f1, rec_f1, both_f1) + 0.04
-        ax.annotate(f"Δrec={delta_rec:+.3f}\nΔMC={delta_both:+.3f}",
-                    xy=(j, y_base), ha="center", fontsize=6,
-                    bbox=dict(boxstyle="round,pad=0.2", facecolor="lightyellow",
-                              alpha=0.8))
+        # Delta arrow: reconciliation vs bce_only
+        bce_val = values[0]
+        rec_val = values[2]
+        delta = rec_val - bce_val
+        if delta != 0:
+            y_mid = (bce_val + rec_val) / 2
+            ax.annotate(
+                f"$\\Delta$={delta:+.4f}", xy=(2.5, y_mid),
+                fontsize=8, ha="center", va="center",
+                color="#0571b0" if delta > 0 else "#d73027",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
+                          edgecolor="none", alpha=0.85),
+            )
 
-    plt.tight_layout()
+        ax.set_xticks(x)
+        ax.set_xticklabels(MODE_LABELS, fontsize=8)
+        ax.set_title(cfg.get("label", ds_name), fontsize=10)
+        ax.set_ylabel("Micro-F1")
+        ax.set_ylim(*cfg.get("ylim", (0, 1)))
+        ax.grid(axis="y", alpha=0.2)
+
+    fig.suptitle("R-Matrix Decomposition: Where Does the Benefit Come From?",
+                 fontsize=13, fontweight="bold", y=1.04)
+    plt.subplots_adjust(top=0.82, wspace=0.25)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
     print(f"Saved to {out_path}")
 
 
 def main() -> None:
-    results_path = "./output/ablation/results.json"
-    if not os.path.exists(results_path):
-        print(f"ERROR: {results_path} not found. Run experiments/run_ablation.py first.")
-        return
-
-    results = load_results(results_path)
-    out = "docs/hmc-paper/figures/fig_ablation.pdf"
-    plot_ablation(results, out)
+    path = "./output/ablation/results.json"
+    if not os.path.exists(path):
+        print(f"ERROR: {path} not found."); return
+    results = load_results(path)
+    plot_ablation(results, "docs/hmc-paper/figures/fig_ablation.pdf")
 
 
 if __name__ == "__main__":

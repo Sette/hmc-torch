@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Plot scaling laws: how HMC performance varies with hierarchy properties.
+"""Scaling laws for HMC: 3-panel figure for paper.
 
-Reads output/scaling_laws/results.json and generates 4 plots:
-  1. Micro-F1 vs n_classes (log scale), colored by modality
-  2. Micro-F1 vs max_depth
-  3. Train time vs n_classes × n_train
-  4. n_train/n_classes ratio histogram per modality
+Panel 1: Micro-F1 vs number of classes (log), colored by modality.
+Panel 2: Micro-F1 vs hierarchy depth.
+Panel 3: Training time vs problem size C×N (log-log) with power-law fit.
 
 Output: docs/hmc-paper/figures/fig_scaling_laws.pdf
 """
@@ -18,127 +16,113 @@ import os
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import ScalarFormatter
 
 matplotlib.use("Agg")
 
-MODALITY_COLORS = {
-    "text": "#1b5e20",
-    "tabular_tree": "#e65100",
-    "tabular_dag": "#0d47a1",
-    "tabular_other": "#6a1b9a",
-}
-MODALITY_MARKERS = {
-    "text": "o",
-    "tabular_tree": "s",
-    "tabular_dag": "D",
-    "tabular_other": "^",
+# Style
+plt.rcParams.update({
+    "font.family": "serif", "font.size": 10,
+    "axes.labelsize": 11, "axes.titlesize": 12,
+    "legend.fontsize": 8, "xtick.labelsize": 9, "ytick.labelsize": 9,
+})
+
+MODALITY_STYLE = {
+    "text":          {"color": "#1b7837", "marker": "o", "label": "Text (SPECTER2)"},
+    "tabular_tree":  {"color": "#e66101", "marker": "s", "label": "Tabular tree (FunCat)"},
+    "tabular_dag":   {"color": "#2166ac", "marker": "D", "label": "Tabular DAG (GO)"},
+    "tabular_other": {"color": "#762a83", "marker": "^", "label": "Other tabular"},
 }
 
 
 def load_results(path: str) -> list[dict]:
     with open(path) as f:
-        data = json.load(f)
-    return data.get("results", [])
+        return json.load(f).get("results", [])
 
 
 def plot_scaling_laws(results: list[dict], out_path: str) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
 
-    # Group by modality
-    modalities: dict[str, list[dict]] = {}
+    mods: dict[str, list[dict]] = {}
     for r in results:
-        mod = r.get("modality", "unknown")
-        modalities.setdefault(mod, []).append(r)
+        mods.setdefault(r.get("modality", "unknown"), []).append(r)
 
-    # ---- 1. F1 vs n_nodes ----
-    ax = axes[0, 0]
-    for mod, pts in modalities.items():
+    # ---- Panel 1: F1 vs n_nodes (log) ----
+    ax = axes[0]
+    for mod, pts in mods.items():
+        s = MODALITY_STYLE.get(mod, MODALITY_STYLE["text"])
         xs = [p["n_nodes"] for p in pts]
         ys = [p["f1"] for p in pts]
-        labels = [p["dataset"] for p in pts]
-        ax.scatter(xs, ys, c=MODALITY_COLORS.get(mod, "#999"),
-                   marker=MODALITY_MARKERS.get(mod, "o"),
-                   label=mod, s=60, edgecolors="white", linewidth=0.5)
-        for x, y, lbl in zip(xs, ys, labels):
-            ax.annotate(lbl, (x, y), fontsize=5, alpha=0.7,
-                        xytext=(3, 3), textcoords="offset points")
+        ax.scatter(xs, ys, c=s["color"], marker=s["marker"], label=s["label"],
+                   s=50, edgecolors="white", linewidth=0.4, zorder=5)
+        # Annotate only key outliers
+        for p in pts:
+            if p["f1"] > 0.70 or p["n_nodes"] > 3000 or p["dataset"] in ("diatoms_others",):
+                ax.annotate(p["dataset"], (p["n_nodes"], p["f1"]),
+                            fontsize=5, alpha=0.8, xytext=(4, 4),
+                            textcoords="offset points")
     ax.set_xscale("log")
-    ax.set_xlabel("Number of classes (log scale)")
+    ax.set_xlabel("Number of classes $C$")
     ax.set_ylabel("Micro-F1")
-    ax.set_title("F1 vs Hierarchy Size")
-    ax.legend(fontsize=7, loc="lower left")
-    ax.grid(alpha=0.3)
+    ax.set_title("(a) F1 vs Hierarchy Size")
+    ax.legend(fontsize=6, loc="lower left", framealpha=0.9)
+    ax.grid(alpha=0.25)
+    ax.set_ylim(-0.02, 0.88)
 
-    # ---- 2. F1 vs max_depth ----
-    ax = axes[0, 1]
-    for mod, pts in modalities.items():
+    # ---- Panel 2: F1 vs max_depth ----
+    ax = axes[1]
+    for mod, pts in mods.items():
+        s = MODALITY_STYLE.get(mod, MODALITY_STYLE["text"])
         xs = [p["max_depth"] for p in pts]
         ys = [p["f1"] for p in pts]
-        ax.scatter(xs, ys, c=MODALITY_COLORS.get(mod, "#999"),
-                   marker=MODALITY_MARKERS.get(mod, "o"),
-                   label=mod, s=60, edgecolors="white", linewidth=0.5)
-        for x, y, lbl in zip(xs, ys, [p["dataset"] for p in pts]):
-            ax.annotate(lbl, (x, y), fontsize=5, alpha=0.7,
-                        xytext=(3, 3), textcoords="offset points")
-    ax.set_xlabel("Max hierarchy depth")
+        ax.scatter(xs, ys, c=s["color"], marker=s["marker"], label=s["label"],
+                   s=50, edgecolors="white", linewidth=0.4, zorder=5)
+    ax.set_xlabel("Max hierarchy depth $D$")
     ax.set_ylabel("Micro-F1")
-    ax.set_title("F1 vs Hierarchy Depth")
-    ax.legend(fontsize=7)
-    ax.grid(alpha=0.3)
+    ax.set_title("(b) F1 vs Hierarchy Depth")
+    ax.legend(fontsize=6, loc="lower left", framealpha=0.9)
+    ax.grid(alpha=0.25)
+    ax.set_ylim(-0.02, 0.88)
 
-    # ---- 3. Time vs n_classes * n_train ----
-    ax = axes[1, 0]
-    for mod, pts in modalities.items():
+    # ---- Panel 3: Time vs C×N (log-log) with power-law fit ----
+    ax = axes[2]
+    for mod, pts in mods.items():
+        s = MODALITY_STYLE.get(mod, MODALITY_STYLE["text"])
         xs = [p["n_nodes"] * p["n_train"] for p in pts]
         ys = [p["time_s"] for p in pts]
-        ax.scatter(xs, ys, c=MODALITY_COLORS.get(mod, "#999"),
-                   marker=MODALITY_MARKERS.get(mod, "o"),
-                   label=mod, s=60, edgecolors="white", linewidth=0.5)
+        ax.scatter(xs, ys, c=s["color"], marker=s["marker"], label=s["label"],
+                   s=50, edgecolors="white", linewidth=0.4, zorder=5)
+
+    # Power-law fit
+    log_x = np.log([p["n_nodes"] * p["n_train"] for p in results])
+    log_y = np.log([p["time_s"] for p in results])
+    slope, intercept = np.polyfit(log_x, log_y, 1)
+    x_fit = np.logspace(min(log_x), max(log_x), 100)
+    y_fit = np.exp(intercept) * x_fit ** slope
+    ax.plot(x_fit, y_fit, "k--", linewidth=1.2, alpha=0.6,
+            label=f"$t \\propto (C \\times N)^{{{slope:.2f}}}$")
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("n_classes × n_train (log scale)")
-    ax.set_ylabel("Training time (s, log scale)")
-    ax.set_title("Training Time vs Problem Size")
-    ax.legend(fontsize=7)
-    ax.grid(alpha=0.3)
+    ax.set_xlabel("Problem size $C \\times N$")
+    ax.set_ylabel("Training time (s)")
+    ax.set_title("(c) Training Time vs Problem Size")
+    ax.legend(fontsize=6, loc="upper left", framealpha=0.9)
+    ax.grid(alpha=0.25)
 
-    # ---- 4. n_train / n_nodes histogram ----
-    ax = axes[1, 1]
-    ratios_by_mod: dict[str, list[float]] = {}
-    for mod, pts in modalities.items():
-        ratios_by_mod[mod] = [p["ratio"] for p in pts]
-    all_ratios = [r for v in ratios_by_mod.values() for r in v]
-    bins = np.logspace(np.log10(max(min(all_ratios), 0.1)),
-                       np.log10(max(all_ratios)), 15)
-    for mod, ratios in ratios_by_mod.items():
-        ax.hist(ratios, bins=bins, alpha=0.5,
-                color=MODALITY_COLORS.get(mod, "#999"), label=mod)
-    ax.set_xscale("log")
-    ax.set_xlabel("n_train / n_classes (log scale)")
-    ax.set_ylabel("Number of datasets")
-    ax.set_title("Data-per-Class Ratio by Modality")
-    ax.legend(fontsize=7)
-    ax.grid(alpha=0.3)
-
-    plt.suptitle("HMC Scaling Laws", fontsize=14, fontweight="bold", y=1.01)
     plt.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
     print(f"Saved to {out_path}")
 
 
 def main() -> None:
-    results_path = "./output/scaling_laws/results.json"
-    if not os.path.exists(results_path):
-        print(f"ERROR: {results_path} not found. "
-              f"Run experiments/run_scaling_laws.py first.")
-        return
-    results = load_results(results_path)
+    path = "./output/scaling_laws/results.json"
+    if not os.path.exists(path):
+        print(f"ERROR: {path} not found."); return
+    results = load_results(path)
     if not results:
-        print("No results found.")
-        return
-    out = "docs/hmc-paper/figures/fig_scaling_laws.pdf"
-    plot_scaling_laws(results, out)
+        print("No results."); return
+    plot_scaling_laws(results, "docs/hmc-paper/figures/fig_scaling_laws.pdf")
 
 
 if __name__ == "__main__":

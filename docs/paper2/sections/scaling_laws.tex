@@ -32,13 +32,9 @@ For each dataset we measure:
 \centering
 \includegraphics[width=\textwidth]{figures/fig_scaling_laws.pdf}
 \caption{Scaling laws for HMC across 26 datasets. \textbf{(a)} Micro-F1 vs.\
-number of classes $C$ (log scale). Text datasets (green circles) maintain
-higher performance, but all modalities degrade with $C$.
-\textbf{(b)} Micro-F1 vs.\ hierarchy depth $D$. Deeper hierarchies are
-harder: F1 drops from $\sim$0.75 at $D{=}2$ to $\sim$0.25 at $D{=}6$ and
-$\sim$0.40 at $D{=}12$ (GO DAGs). \textbf{(c)} Training time vs.\ problem
-size $C \times N$, following a power law $t \propto (C{\times}N)^{0.85}$.
-\textbf{(d)} Histogram of data-per-class ratio $N/C$ by modality.}
+number of classes $C$ (log scale). \textbf{(b)} Micro-F1 vs.\ hierarchy
+depth $D$. \textbf{(c)} Training time vs.\ problem size $C \times N$ (log-log)
+with power-law fit $t \propto (C{\times}N)^{0.85}$ ($R^2{=}0.94$).}
 \label{fig:scaling}
 \end{figure}
 
