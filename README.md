@@ -338,8 +338,11 @@ The ancestor closure matrix $R_{ij} = 1$ iff class $i$ is an ancestor of $j$. Ap
 
 ### Block-Diagonal R-Matrix (Sparse)
 
-For large DAGs (4,000+ classes), the dense $R$ matrix requires $>65$ MB.
-Our sparse approximation uses graph traversal ($O(N+E)$ memory) with zero hierarchy violations.
+For large DAGs (4,000+ classes), the dense $R$ matrix alone costs $>65$ MB
+($C^2 \times 4$ bytes) to store — and applying it to a batch of logits
+materializes a `batch × C × C` float64 tensor (≈8.7 GB at batch 64, exceeding
+GPU memory). Our sparse approximation uses graph traversal ($O(N+E)$ memory)
+with zero hierarchy violations.
 
 ---
 

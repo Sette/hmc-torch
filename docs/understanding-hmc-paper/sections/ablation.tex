@@ -33,7 +33,9 @@ cellcycle\_FUN (deep 4+ level tree, 500 classes), and cellcycle\_GO
 \begin{table}[H]
 \centering
 \caption{4-way ablation results. $\Delta$ = change from \texttt{bce\_only} baseline.
-\textbf{Bold}: best per dataset. ``---'' = infeasible (dense R OOM on 12\,GB GPU).}
+\textbf{Bold}: best per dataset. ``---'' = infeasible (dense R OOMs
+on the 12\,GB GPU: the batched $C\times C$ float64 constraint tensor
+exceeds memory).}
 \label{tab:ablation}
 \begin{tabular}{llcccc}
 \toprule
@@ -80,8 +82,9 @@ On ArXiv, reconciliation alone achieves \textbf{0.7303} Micro-F1---the
 best configuration overall, surpassing even the ``both'' configuration
 (0.7291). On cellcycle\_FUN, reconciliation matches the baseline
 (0.2734) while ``both'' provides a modest gain (+0.0028). On
-cellcycle\_GO, the dense R-matrix is infeasible (12\,GB GPU cannot
-allocate the $4126^2 \times \text{batch}$ tensor), requiring the
+cellcycle\_GO, the dense R-matrix is infeasible (the 12\,GB GPU cannot
+allocate the batch$\times 4126^2$ float64 constraint tensor,
+$\approx$8.7\,GB at batch 64), requiring the
 Block-Diagonal sparse approximation---which, however, produces no
 measurable gain on this dataset (0.3953 vs.\ 0.3955).
 
