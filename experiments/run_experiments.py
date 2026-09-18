@@ -187,7 +187,7 @@ def run_wos_experiments():
         os.makedirs(out_dir, exist_ok=True)
         np.savez_compressed(f"{out_dir}/scores_final.npz", scores=y_pred)
         with open(f"{out_dir}/metrics.json", "w") as f:
-            json.dump(metrics, f, indent=2)
+            json.dump(metrics, f, indent=2, default=float)
 
         results.append(
             {
@@ -322,7 +322,7 @@ def run_wos_experiments():
         os.makedirs(out_dir_l, exist_ok=True)
         np.savez_compressed(f"{out_dir_l}/scores_final.npz", scores=y_pred_l)
         with open(f"{out_dir_l}/metrics.json", "w") as f:
-            json.dump(metrics_l, f, indent=2)
+            json.dump(metrics_l, f, indent=2, default=float)
 
         results.append(
             {
@@ -635,7 +635,7 @@ if __name__ == "__main__":
     # Save and report
     os.makedirs("./output/experiments", exist_ok=True)
     with open("./output/experiments/comparison.json", "w") as f:
-        json.dump(all_results, f, indent=2)
+        json.dump(all_results, f, indent=2, default=float)
 
     print("\n\n" + "=" * 85)
     print("FINAL COMPARISON TABLE")

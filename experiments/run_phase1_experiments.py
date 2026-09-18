@@ -358,7 +358,7 @@ results = {
     "wos_summary": f"F1={np.mean(f1s_w):.4f}±{np.std(f1s_w):.4f}",
 }
 with open("./output/phase1/results.json", "w") as f:
-    json.dump(results, f, indent=2)
+    json.dump(results, f, indent=2, default=float)
 
 # Final report
 print("\n\n" + "=" * 70)

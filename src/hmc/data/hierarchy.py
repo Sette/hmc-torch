@@ -83,10 +83,11 @@ class Hierarchy(ABC):
     def r_matrix(self) -> np.ndarray:
         """Ancestor matrix **R** of shape ``(n_nodes, n_nodes)``.
 
-        ``R[i, j] == 1`` iff node *i* is an ancestor of node *j*
-        (or *i == j*).  Note: the matrix is **transposed** relative to
-        the original adjacency so that rows represent ancestors and
-        columns represent descendants.
+        ``R[i, j] == 1`` iff node *j* is an ancestor of node *i* (or *i == j*),
+        i.e. rows are descendants and columns are ancestors.  This is the layout
+        expected by ``HierarchicalConsistencyLoss``; the training pipeline builds
+        the transposed layout (rows = ancestors) in
+        ``pipeline/global_classifier/main.py``.
         """
         g_parent_to_child = self._graph.reverse()
         n = self.n_nodes
@@ -102,7 +103,7 @@ class Hierarchy(ABC):
                 descendant_indices = [node_idx[d] for d in descendants]
                 r[i, descendant_indices] = 1.0
 
-        # Transpose so row i = ancestors of node i
+        # Transpose so row i = descendants of node i (columns become ancestors)
         return r.transpose(1, 0)
 
     @property

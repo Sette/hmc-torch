@@ -281,5 +281,5 @@ for family in ["FUN", "GO"]:
 # Merge with existing results and save
 os.makedirs("./output/all_funcat_go", exist_ok=True)
 with open("./output/all_funcat_go/results.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/all_funcat_go/results.json")

@@ -380,5 +380,5 @@ for ds_name in ["cellcycle_GO", "eisen_GO"]:
 
 os.makedirs("./output/month2", exist_ok=True)
 with open("./output/month2/ontology_results.json", "w") as f:
-    json.dump(results, f, indent=2)
+    json.dump(results, f, indent=2, default=float)
 print("\nSaved to ./output/month2/ontology_results.json")

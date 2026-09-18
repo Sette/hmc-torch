@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-"""Download the AAPD (arXiv Academic Paper Dataset) CSV file.
+"""Download the AAPD dataset and convert it to the CSV the manager reads.
 
-The dataset is public and available from multiple sources.
-Default source: HuggingFace datasets hub (reliable, no auth needed).
+Source: Kaggle ``xiaojuanwang9/aapd-dataset`` -- a third-party re-packaging of
+the canonical AAPD (Yang et al., SGM): 55,840 arXiv abstracts over 54 labels
+across 9 areas, shipped as ``train.txt`` / ``val.txt`` / ``test.txt`` (two
+lines per document: the text, then its space-separated label codes) plus
+``label_to_index.json``.
+
+The manager reads a single CSV with ``title``, ``abstract`` and ``labels``
+columns and re-splits it itself, so this script concatenates the three splits
+into ``aapd.csv``.  The label set is the canonical one -- 54 labels over the
+older arXiv taxonomy -- not the 97-label variant some re-uploads carry.
 
 Usage:
     python -m hmc.datasets.aapd.download_aapd --output_dir ./data/aapd
 """
 
 import argparse
+import csv
+import json
 import logging
 import sys
 from pathlib import Path
@@ -18,73 +28,105 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-AAPD_EXPECTED_SIZE_MB = 150  # approximate
+KAGGLE_DATASET = "xiaojuanwang9/aapd-dataset"
+SPLIT_FILES = ("train.txt", "val.txt", "test.txt")
+LABELS_FILE = "label_to_index.json"
+CSV_NAME = "aapd.csv"
 
 
-def _download_kaggle(output_dir: Path) -> None:
-    """Download via kagglehub (preferred)."""
+def _download_kagglehub() -> Path:
+    """Fetch the dataset via kagglehub and return its directory."""
     import kagglehub  # pylint: disable=import-outside-toplevel
 
-    logger.info("Downloading AAPD from Kaggle via kagglehub …")
-    path = kagglehub.dataset_download("syedharoon312/aapd-arxiv-academic-paper-dataset")
-    logger.info("Downloaded to: %s", path)
-    _copy_csv(path, output_dir)
+    logger.info("Downloading %s via kagglehub …", KAGGLE_DATASET)
+    return Path(kagglehub.dataset_download(KAGGLE_DATASET))
 
 
-def _download_huggingface(output_dir: Path) -> None:
-    """Download via HuggingFace datasets."""
-    try:
-        from datasets import load_dataset  # pylint: disable=import-outside-toplevel
-    except ImportError:
-        logger.error("huggingface-datasets not installed. Run: pip install datasets")
-        sys.exit(1)
+def _find_source_dir(root: Path) -> Path:
+    """Return the directory holding the SGM files (the zip's layout varies)."""
+    for candidate in (root, *sorted(p for p in root.rglob("*") if p.is_dir())):
+        if all((candidate / name).is_file() for name in SPLIT_FILES):
+            return candidate
+    raise FileNotFoundError(
+        f"None of {SPLIT_FILES} found under {root}. Downloaded: "
+        f"{sorted(p.name for p in root.rglob('*'))[:10]}"
+    )
 
-    import csv as _csv  # pylint: disable=import-outside-toplevel
 
-    logger.info("Downloading AAPD from HuggingFace datasets …")
-    dataset = load_dataset("aapd", split="train")
-    logger.info("Loaded %d records from HuggingFace.", len(dataset))
+def _load_label_codes(source: Path) -> set:
+    """Read ``label_to_index.json`` (a name→index mapping)."""
+    data = json.loads((source / LABELS_FILE).read_text(encoding="utf-8"))
+    # Works for both a name→index mapping (keys) and a plain list of codes
+    codes = set(data)
+    if not codes:
+        raise ValueError(f"{LABELS_FILE} lists no labels")
+    return codes
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "aapd.csv"
 
-    with open(output_path, "w", encoding="utf-8", newline="") as f:
-        writer = _csv.writer(f)
+def _parse_splits(source: Path, codes: set) -> tuple[list, list]:
+    """Read the two-lines-per-document files into (texts, labels) lists."""
+    texts, labels = [], []
+    for name in SPLIT_FILES:
+        seen = len(texts)
+        lines = (source / name).read_text(encoding="utf-8").splitlines()
+        if len(lines) % 2 != 0:
+            raise ValueError(f"{name}: {len(lines)} lines — expected pairs")
+        for index in range(0, len(lines), 2):
+            text = lines[index].strip()
+            codes_line = lines[index + 1].strip()
+            if not text or not codes_line:
+                raise ValueError(f"{name}: empty text/labels at line {index + 1}")
+            unknown = [tok for tok in codes_line.split() if tok not in codes]
+            if unknown:
+                raise ValueError(
+                    f"{name} line {index + 2}: labels not in {LABELS_FILE}: "
+                    f"{unknown[:5]}"
+                )
+            texts.append(text)
+            labels.append(codes_line)
+        logger.info("  %s: %d documents", name, len(texts) - seen)
+    return texts, labels
+
+
+def _write_csv(output_dir: Path, texts: list, labels: list, codes: set) -> Path:
+    """Write the manager's CSV: title, abstract, labels."""
+    path = output_dir / CSV_NAME
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
         writer.writerow(["title", "abstract", "labels"])
-        for row in dataset:
-            title = row.get("title", "")
-            abstract = row.get("abstract", "")
-            labels = row.get("labels", [])
-            if isinstance(labels, list):
-                labels = " ".join(labels)
-            writer.writerow([title, abstract, labels])
+        for text, label in zip(texts, labels):
+            # The SGM release already joins title and abstract into one field.
+            writer.writerow(["", text, label])
+    areas = sorted({code.split(".")[0] for code in codes})
+    logger.info(
+        "Wrote %s: %d documents, %d labels in %d areas (%s)",
+        path,
+        len(texts),
+        len(codes),
+        len(areas),
+        ", ".join(areas),
+    )
+    return path
 
-    logger.info("Saved %d records to %s", len(dataset), output_path)
 
-
-def _copy_csv(src_dir: str, output_dir: Path) -> None:
-    """Copy CSV from a downloaded directory to the target output dir."""
-    import shutil  # pylint: disable=import-outside-toplevel
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    src_path = Path(src_dir)
-
-    # Find the CSV file in the downloaded directory
-    csv_files = list(src_path.rglob("*.csv"))
-    if not csv_files:
-        logger.warning("No CSV found in %s. Listing contents:", src_dir)
-        for f in sorted(src_path.rglob("*")):
-            logger.warning("  %s", f)
-        raise FileNotFoundError(f"No CSV files found in {src_dir}")
-
-    target = output_dir / "aapd.csv"
-    shutil.copy2(str(csv_files[0]), str(target))
-    logger.info("Copied %s → %s", csv_files[0], target)
+def _print_manual_instructions(output_dir: Path) -> None:
+    logger.error(
+        "Automatic download failed. Fetch the dataset manually:\n"
+        "\n"
+        "  1. Download %s from Kaggle:\n"
+        "       kaggle datasets download -d %s\n"
+        "  2. Point this script at the unpacked directory:\n"
+        "       python -m hmc.datasets.aapd.download_aapd --output_dir %s \\\n"
+        "           --source_dir /path/to/unpacked\n",
+        KAGGLE_DATASET,
+        KAGGLE_DATASET,
+        output_dir,
+    )
 
 
 def main() -> None:
-    """CLI entry point for AAPD dataset download."""
-    parser = argparse.ArgumentParser(description="Download AAPD dataset")
+    """CLI entry point for the AAPD dataset download."""
+    parser = argparse.ArgumentParser(description="Download the AAPD dataset")
     parser.add_argument(
         "--output_dir",
         type=str,
@@ -92,70 +134,38 @@ def main() -> None:
         help="Output directory (default: ./data/aapd)",
     )
     parser.add_argument(
-        "--method",
+        "--source_dir",
         type=str,
-        default="auto",
-        choices=["auto", "huggingface", "kaggle"],
-        help="Download method (default: auto = try huggingface first)",
+        default=None,
+        help="Use an already-unpacked copy of the Kaggle dataset",
     )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
-    output_path = output_dir / "aapd.csv"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = output_dir / CSV_NAME
 
-    if output_path.exists() and output_path.stat().st_size > 1024:
+    if csv_path.exists() and csv_path.stat().st_size > 1024:
         logger.info(
-            "AAPD CSV already exists at %s (%d bytes). Skipping download.",
-            output_path,
-            output_path.stat().st_size,
+            "%s already exists (%d bytes). Skipping.", csv_path, csv_path.stat().st_size
         )
         return
 
-    method = args.method
-
-    if method == "auto":
-        # Try HuggingFace first (simpler, no auth)
-        try:
-            _download_huggingface(output_dir)
-            return
-        except (OSError, ImportError) as exc:
-            logger.warning("HuggingFace download failed: %s", exc)
-        # Fallback to Kaggle
-        try:
-            _download_kaggle(output_dir)
-            return
-        except (OSError, ImportError) as exc:
-            logger.error("Kaggle download also failed: %s", exc)
-            _print_manual_instructions(output_dir)
-            sys.exit(1)
-    elif method == "huggingface":
-        _download_huggingface(output_dir)
-    elif method == "kaggle":
-        _download_kaggle(output_dir)
-
-    if output_path.exists():
-        size_mb = output_path.stat().st_size / (1024 * 1024)
-        logger.info("Done! AAPD dataset saved to %s (%.1f MB)", output_path, size_mb)
-    else:
-        logger.error("Download did not produce the expected file.")
+    try:
+        source = (
+            _find_source_dir(Path(args.source_dir))
+            if args.source_dir
+            else _find_source_dir(_download_kagglehub())
+        )
+        codes = _load_label_codes(source)
+        texts, labels = _parse_splits(source, codes)
+        _write_csv(output_dir, texts, labels, codes)
+    except (OSError, ImportError, ValueError, KeyError) as exc:
+        logger.error("Download failed: %s", exc)
+        _print_manual_instructions(output_dir)
         sys.exit(1)
 
-
-def _print_manual_instructions(output_dir: Path) -> None:
-    """Print manual download instructions."""
-    logger.error(
-        "Automatic download failed. Please download AAPD manually:\n"
-        "\n"
-        "  1. Visit https://paperswithcode.com/dataset/aapd\n"
-        "  2. Download the arxiv_academic_paper_dataset.csv file\n"
-        "  3. Place it at: %s/aapd.csv\n"
-        "\n"
-        "Alternatively, use the Kaggle CLI:\n"
-        "  kaggle datasets download syedharoon312/aapd-arxiv-academic-paper-dataset\n"
-        "  unzip aapd-arxiv-academic-paper-dataset.zip -d %s\n",
-        output_dir,
-        output_dir,
-    )
+    logger.info("Done! AAPD ready at %s", csv_path)
 
 
 if __name__ == "__main__":

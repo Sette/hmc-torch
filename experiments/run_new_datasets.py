@@ -61,7 +61,7 @@ def compute_metrics(y_true, y_pred, eval_mask):
 # ---------------------------------------------------------------------------
 
 
-def load_data(dataset_name):
+def load_data(dataset_name, max_records=0):
     """Load a text dataset via unified dispatch. Returns all needed arrays."""
     from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
@@ -70,6 +70,7 @@ def load_data(dataset_name):
         device="cpu",
         dataset_path="./data",
         is_global=True,
+        arxiv_max_records=max_records,
         model_cache_dir="./models",
     )
     train, valid, test = mgr.get_datasets()
@@ -216,14 +217,16 @@ def train_and_eval(
 # ---------------------------------------------------------------------------
 
 
-def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
+def run_dataset(
+    dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32, max_records=0
+):
     """Run full experiment (with-R + without-R ablation) on one dataset."""
     print(f"\n{'=' * 70}")
     print(f"DATASET: {dataset_name}")
     print(f"{'=' * 70}")
 
     X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes, input_dim, label_g = load_data(
-        dataset_name
+        dataset_name, max_records
     )
     print(
         f"  Train: {X_tr.shape}  Test: {X_te.shape}  "
@@ -326,7 +329,7 @@ def run_dataset(dataset_name, seeds, epochs=50, hidden_dim=512, batch_size=32):
     output_dir = f"./output/new_datasets/{dataset_name}"
     os.makedirs(output_dir, exist_ok=True)
     with open(f"{output_dir}/results.json", "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(results, f, indent=2, default=float)
     print(f"  Results saved to {output_dir}/results.json")
 
     return results
@@ -351,6 +354,12 @@ def main():
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--hidden_dim", type=int, default=512)
+    parser.add_argument(
+        "--max_records",
+        type=int,
+        default=0,
+        help="Truncate text datasets to N records (0 = all; AAPD holds 55,840)",
+    )
     args = parser.parse_args()
 
     seeds = [0, 42, 123][: args.seeds]
@@ -365,6 +374,7 @@ def main():
                 epochs=args.epochs,
                 hidden_dim=args.hidden_dim,
                 batch_size=args.batch_size,
+                max_records=args.max_records,
             )
         except FileNotFoundError as e:
             print(f"\n  SKIP {ds}: {e}")
@@ -395,7 +405,7 @@ def main():
 
     os.makedirs("./output/new_datasets", exist_ok=True)
     with open("./output/new_datasets/summary.json", "w") as f:
-        json.dump(all_results, f, indent=2)
+        json.dump(all_results, f, indent=2, default=float)
     print("\nCombined results saved to ./output/new_datasets/summary.json")
 
 

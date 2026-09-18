@@ -365,7 +365,7 @@ all_results["wos_summary"] = f"F1={np.mean(f1s):.4f}±{np.std(f1s):.4f}"
 
 os.makedirs("./output/week1", exist_ok=True)
 with open("./output/week1/multi_seed_results.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 
 # Report
 print("\n\n" + "=" * 70)

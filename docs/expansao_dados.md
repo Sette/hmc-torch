@@ -16,13 +16,14 @@ apenas 2 datasets de texto (ArXiv, WOS) entre 25 totais.
 
 | # | Dataset | Docs | Labels | Prof. | Domínio | Prioridade |
 |---|---------|------|--------|-------|---------|------------|
-| 1 | **AAPD** | 55,840 | 54 (6+48) | 2 níveis, tree | CS papers | ⭐ Fácil, já temos SPECTER2 |
+| 1 | **AAPD** | 55,840 | 97 (6+91) | 2 níveis, tree | CS papers | ⭐ Fácil, já temos SPECTER2 |
 | 2 | **RCV1-V2** | 804K → 50K | 103 | 4 níveis, tree | Notícias | ⭐⭐ Benchmark padrão |
 | 3 | **EUR-Lex 57K** | 57K | 4,271 | Profunda, tree | Legislação EU | ⭐⭐⭐ Testa sparse R |
 
 ### Por que estes?
 
-1. **AAPD** (arXiv Academic Paper Dataset): Papers do arXiv com 54 labels (6 áreas + 48 subáreas).
+1. **AAPD** (arXiv Academic Paper Dataset): Papers do arXiv com 97 labels (6 áreas + 91 subáreas)
+   no CSV usado aqui — o release canônico do SGM é mais grosso (54 labels, 6 + 48).
    Texto de título + abstract disponível publicamente. Pipeline idêntico ao ArXiv/WOS.
    Ideal como *aquecimento* — mesma família SPECTER2, hierarquia simples.
 

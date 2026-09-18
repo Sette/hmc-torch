@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compare tabular baselines vs global (MLP + R-matrix) — the existing SOTA method."""
 
+import argparse
 import json
 import os
 import sys
@@ -73,7 +74,7 @@ def build_r_matrix(adj, device="cpu"):
     return r
 
 
-DATASETS = [
+DEFAULT_DATASETS = [
     "cellcycle_FUN",
     "derisi_FUN",
     "eisen_FUN",
@@ -84,6 +85,23 @@ DATASETS = [
     "spo_FUN",
 ]
 
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument(
+    "--datasets",
+    default=None,
+    help="Comma-separated dataset names (default: the 8 FunCat datasets)",
+)
+_parser.add_argument(
+    "--device",
+    default="cpu",
+    choices=["cpu", "cuda"],
+    help="Device for the global model (default: cpu, matching the paper's FunCat runs)",
+)
+_args = _parser.parse_args()
+
+DATASETS = _args.datasets.split(",") if _args.datasets else DEFAULT_DATASETS
+DEVICE = torch.device(_args.device)
+
 all_results = []
 
 for ds_name in DATASETS:
@@ -92,7 +110,7 @@ for ds_name in DATASETS:
     X_tr, y_tr, X_te, y_te, eval_mask, adj, mgr = load_data(ds_name)
     n_nodes = y_tr.shape[1]
     n_feat = X_tr.shape[1]
-    r_matrix = build_r_matrix(adj)
+    r_matrix = build_r_matrix(adj, device=DEVICE)
     print(
         f"  Train: {X_tr.shape}  Test: {X_te.shape}  "
         f"Features: {n_feat}  Nodes: {n_nodes}  Eval: {eval_mask.sum()}"
@@ -129,7 +147,7 @@ for ds_name in DATASETS:
         },
         r_matrix=r_matrix,
         baseline_model=False,
-    )
+    ).to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
     crit = torch.nn.BCELoss()
 
@@ -140,8 +158,8 @@ for ds_name in DATASETS:
     for ep in range(epochs):
         total_loss = 0.0
         for bx, by in tr_ldr:
-            preds = model(bx)
-            loss = crit(preds, by)
+            preds = model(bx.to(DEVICE))
+            loss = crit(preds, by.to(DEVICE))
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -151,7 +169,7 @@ for ds_name in DATASETS:
 
     model.eval()
     with torch.no_grad():
-        scores_global = model(torch.tensor(X_te)).numpy()
+        scores_global = model(torch.tensor(X_te).to(DEVICE)).cpu().numpy()
 
     f1, au, p, r, thr = compute_metrics(y_te, scores_global, eval_mask)
     dur = time.time() - t0
@@ -179,7 +197,7 @@ for ds_name in DATASETS:
     os.makedirs(out_dir, exist_ok=True)
     np.savez_compressed(f"{out_dir}/scores_final.npz", scores=scores_global)
     with open(f"{out_dir}/metrics.json", "w") as f:
-        json.dump(all_results[-1], f, indent=2)
+        json.dump(all_results[-1], f, indent=2, default=float)
 
 # Load previous GBDT/MLP results
 try:
@@ -231,5 +249,5 @@ for method in ["global", "tabular_gbdt", "tabular_mlp"]:
     )
 
 with open("./output/experiments/sota_comparison.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/experiments/sota_comparison.json")

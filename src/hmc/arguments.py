@@ -30,6 +30,8 @@ class TrainingConfig:
     best_threshold: bool = False
     use_contrastive_loss: bool = False
     lambda_contrastive: float = 0.1
+    consistency_loss: str = "mc"
+    lambda_hier: float = 1.0
     lr_transformer: float = 2e-5
 
 
@@ -103,6 +105,20 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--lambda_contrastive", type=float, default=0.1)
     parser.add_argument(
+        "--consistency_loss",
+        type=str,
+        default="mc",
+        choices=["mc", "hinge", "none"],
+        help=(
+            "Training-time hierarchical constraint: 'mc' = masked-constrained "
+            "outputs (C-HMCNN style, default), 'hinge' = Eq. 2 penalty weighted "
+            "by --lambda_hier, 'none' = plain BCE with the constraint applied "
+            "only at inference (the recipe behind the reported results)."
+        ),
+    )
+    parser.add_argument("--lambda_hier", type=float, default=1.0)
+    parser.add_argument("--lr_transformer", type=float, default=2e-5)
+    parser.add_argument(
         "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
     )
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
@@ -149,6 +165,8 @@ def parse_args() -> Args:
         best_threshold=_str_to_bool(ns.best_threshold),
         use_contrastive_loss=_str_to_bool(ns.use_contrastive_loss),
         lambda_contrastive=ns.lambda_contrastive,
+        consistency_loss=ns.consistency_loss,
+        lambda_hier=ns.lambda_hier,
         lr_transformer=ns.lr_transformer,
     )
     return Args(

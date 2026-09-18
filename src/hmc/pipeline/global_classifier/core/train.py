@@ -30,11 +30,40 @@ class EvaluationDataDTO:
     to_eval: torch.Tensor
 
 
+def _resolve_consistency(args):
+    """Return ``(mode, hinge_criterion)`` for the requested training-time constraint.
+
+    ``args.consistency_loss`` selects how the hierarchy enters training:
+    ``"mc"`` mixes constrained outputs into the loss (C-HMCNN style, the
+    historical default), ``"hinge"`` adds the penalty of Eq. 2 of the paper as
+    an extra term weighted by ``args.lambda_hier``, and ``"none"`` trains on
+    plain BCE with the constraint applied only at inference -- the recipe
+    behind the reported experiments (lambda = 0).
+    """
+    mode = getattr(args, "consistency_loss", "mc")
+    if mode not in {"mc", "hinge", "none"}:
+        raise ValueError(f"Unknown consistency_loss: {mode!r}")
+    hinge = None
+    if mode == "hinge":
+        from hmc.models.hierarchical.losses import (  # pylint: disable=import-outside-toplevel
+            HierarchicalConsistencyLoss,
+        )
+
+        # HierarchicalConsistencyLoss masks pairs as [child, ancestor], whereas
+        # the pipeline's r_matrix (pipeline/global_classifier/main.py) is built as
+        # [ancestor, descendant] -- transpose so the penalty hits real violations.
+        hinge = HierarchicalConsistencyLoss(args.r_matrix.transpose(1, 2))
+    logging.info("Training-time consistency loss: %s", mode)
+    return mode, hinge
+
+
 def _run_training_loop(model, args, optimizer, criterion, to_eval):
     """Execute the training loop and return (usage, total_time)."""
     is_gnn = args.method == "globalGNN"
     use_contrastive = getattr(args, "use_contrastive_loss", False) and is_gnn
     lambda_c = getattr(args, "lambda_contrastive", 0.1)
+    lambda_hier = getattr(args, "lambda_hier", 1.0)
+    consistency, hier_criterion = _resolve_consistency(args)
 
     start_train = time.perf_counter()
     for _ in range(args.epochs):
@@ -50,12 +79,21 @@ def _run_training_loop(model, args, optimizer, criterion, to_eval):
                 output = model(x.float())
                 doc_emb = None
 
-            # MC-loss: enforces hierarchical constraints during training
-            constr_output = get_constr_out(output, args.r_matrix)
-            train_output = labels * output.double()
-            train_output = get_constr_out(train_output, args.r_matrix)
-            train_output = (1 - labels) * constr_output.double() + labels * train_output
+            if consistency == "mc":
+                # MC-loss: enforces hierarchical constraints during training
+                constr_output = get_constr_out(output, args.r_matrix)
+                train_output = labels * output.double()
+                train_output = get_constr_out(train_output, args.r_matrix)
+                train_output = (
+                    1 - labels
+                ) * constr_output.double() + labels * train_output
+            else:
+                train_output = output
+
             loss = criterion(train_output[:, to_eval].float(), labels[:, to_eval])
+
+            if hier_criterion is not None:
+                loss = loss + lambda_hier * hier_criterion(output)
 
             if use_contrastive and doc_emb is not None:
                 loss = loss + lambda_c * global_contrastive_loss(doc_emb, labels)

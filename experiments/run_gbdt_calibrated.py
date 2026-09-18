@@ -262,5 +262,5 @@ for method in [
     print(f"  {method:<18} avg F1={avg_f1:.4f}  avg AUPRC={avg_au:.4f}  wins={wins}/8")
 
 with open("./output/experiments/gbdt_platt_comparison.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/experiments/gbdt_platt_comparison.json")

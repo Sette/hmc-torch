@@ -378,5 +378,5 @@ for method in ["global", "gbdt_platt_r", "tabular_mlp"]:
     )
 
 with open("./output/experiments/gpu_comparison.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/experiments/gpu_comparison.json")

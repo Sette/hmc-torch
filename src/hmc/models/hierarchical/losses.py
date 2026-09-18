@@ -124,7 +124,10 @@ class HierarchicalConsistencyLoss(nn.Module):
         """
         Args:
             r_matrix: Ancestor matrix ``(1, n_nodes, n_nodes)`` where
-                ``r_matrix[0, i, j] = 1`` if *i* is ancestor of *j*.
+                ``r_matrix[0, i, j] = 1`` if *j* is an ancestor of *i* (rows are
+                children, columns are ancestors -- the layout produced by
+                ``Hierarchy.r_matrix``).  The pipeline's ``args.r_matrix`` uses
+                the opposite layout, so transpose it before passing it here.
             margin: Minimum gap enforced between parent and child score.
         """
         super().__init__()

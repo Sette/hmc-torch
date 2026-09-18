@@ -235,5 +235,5 @@ for r in all_results:
 
 os.makedirs("./output/go_experiments", exist_ok=True)
 with open("./output/go_experiments/results.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/go_experiments/results.json")
