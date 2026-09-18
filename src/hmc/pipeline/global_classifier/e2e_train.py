@@ -11,6 +11,7 @@ from hmc.models.global_classifier.constraint.model import get_constr_out
 from hmc.pipeline.global_classifier.core.train import (
     _compute_global_score,
     _compute_local_scores,
+    _resolve_consistency,
 )
 from hmc.utils.datasets.labels import global_to_local_predictions
 from hmc.utils.path.files import create_dir
@@ -23,12 +24,15 @@ def _to_device(token_batch: dict, device) -> dict:
 
 
 def _run_e2e_training_loop(model, args, optimizer, criterion) -> tuple:
-    """MC-loss training loop for E2E model.
+    """Hierarchy-aware training loop for the E2E model.
 
     DataLoader items: (token_dict, target_dict) where target_dict["global"]
-    is the global binary label tensor.
+    is the global binary label tensor.  ``args.consistency_loss`` selects the
+    training-time handling, as in the global classifier loop.
     """
     to_eval = args.to_eval.to(args.device)
+    lambda_hier = getattr(args, "lambda_hier", 1.0)
+    consistency, hier_criterion = _resolve_consistency(args)
     start = time.perf_counter()
 
     for epoch in range(args.epochs):
@@ -42,11 +46,21 @@ def _run_e2e_training_loop(model, args, optimizer, criterion) -> tuple:
             optimizer.zero_grad()
             output = model(**token_batch)
 
-            constr_output = get_constr_out(output, args.r_matrix)
-            train_output = labels * output.double()
-            train_output = get_constr_out(train_output, args.r_matrix)
-            train_output = (1 - labels) * constr_output.double() + labels * train_output
+            if consistency == "mc":
+                constr_output = get_constr_out(output, args.r_matrix)
+                train_output = labels * output.double()
+                train_output = get_constr_out(train_output, args.r_matrix)
+                train_output = (
+                    1 - labels
+                ) * constr_output.double() + labels * train_output
+            else:
+                train_output = output
+
             loss = criterion(train_output[:, to_eval].float(), labels[:, to_eval])
+
+            if hier_criterion is not None:
+                loss = loss + lambda_hier * hier_criterion(output)
+
             loss.backward()
             optimizer.step()
 

@@ -226,7 +226,7 @@ for ds_name in ALL_DS:
 # Save
 os.makedirs("./output/all_datasets", exist_ok=True)
 with open("./output/all_datasets/global_results.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 
 # Report
 print("\n\n" + "=" * 70)

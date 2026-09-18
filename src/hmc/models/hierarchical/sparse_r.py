@@ -1,15 +1,16 @@
-"""Sparse R-Matrix approximations for large hierarchies (GO: 4000+ classes).
+"""Sparse R-Matrix formulations for large hierarchies (GO: 4000+ classes).
 
 The dense R-matrix is O(N²) memory — infeasible for Gene Ontology.
-These sparse variants preserve hierarchical constraints with O(N) or
-O(N·K) memory, enabling R-matrix methods on previously inaccessible datasets.
+These graph-based variants preserve hierarchical constraints with
+O(C+E) memory, enabling R-matrix methods on previously inaccessible datasets.
 
 Classes
 -------
-BlockDiagonalR : One R-matrix per level, no cross-level ancestors.
-TopKR : Only the K nearest ancestors per node.
-ThresholdR : Keep ancestor relationships where the path length <= T.
-HybridR : Block-diagonal within level + top-K cross-level.
+BlockDiagonalR : Exact reconciliation by bottom-up traversal of the real graph
+    edges — mathematically identical to the dense R-matrix max propagation,
+    but O(C+E) memory instead of O(C²).
+TopKR : Approximate consistency loss keeping only the K nearest ancestors per
+    node; reconciliation still uses the full graph edges.
 """
 
 from __future__ import annotations

@@ -371,5 +371,5 @@ for method in ["global", "gbdt_platt_r", "tabular_mlp"]:
 
 os.makedirs("./output/gpu", exist_ok=True)
 with open("./output/gpu/comparison.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nSaved to ./output/gpu/comparison.json")

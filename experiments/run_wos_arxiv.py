@@ -276,5 +276,5 @@ for r in results:
             print(f"  {method:<22} {pub_f1:>10.4f}{diff}")
 
 with open("./output/wos_arxiv/results.json", "w") as f:
-    json.dump(results, f, indent=2)
+    json.dump(results, f, indent=2, default=float)
 print("\nSaved to ./output/wos_arxiv/results.json")

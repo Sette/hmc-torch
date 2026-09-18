@@ -5,6 +5,7 @@ Runs tabular_gbdt and tabular_mlp on each dataset.
 Saves artefacts and produces comparison table.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -111,7 +112,7 @@ def run_gbdt(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
         "n_nodes": y_tr.shape[1],
     }
     with open(f"{out_dir}/metrics.json", "w") as f:
-        json.dump(metrics_dict, f, indent=2)
+        json.dump(metrics_dict, f, indent=2, default=float)
 
     return {"method": "tabular_gbdt", "dataset": name, **metrics_dict}
 
@@ -122,7 +123,7 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
     from hmc.models.tabular.mlp import TabularMLPModel
 
     t0 = time.time()
-    device = torch.device("cpu")
+    device = torch.device(MLP_DEVICE)
     n_features = X_tr.shape[1]
     n_nodes = y_tr.shape[1]
 
@@ -168,7 +169,7 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
     all_preds = []
     with torch.no_grad():
         for bx, _ in te_ldr:
-            all_preds.append(model(bx).cpu().numpy())
+            all_preds.append(model(bx.to(device)).cpu().numpy())
     scores_raw = np.concatenate(all_preds, axis=0)
     scores = reconcile(scores_raw, hier, strategy="ancestor_max")
     f1, au, p, r, thr = compute_metrics(y_te, scores, eval_mask)
@@ -191,7 +192,7 @@ def run_mlp(name, X_tr, y_tr, X_te, y_te, eval_mask, hier):
         "n_nodes": n_nodes,
     }
     with open(f"{out_dir}/metrics.json", "w") as f:
-        json.dump(metrics_dict, f, indent=2)
+        json.dump(metrics_dict, f, indent=2, default=float)
 
     return {"method": "tabular_mlp", "dataset": name, **metrics_dict}
 
@@ -207,6 +208,29 @@ FUN_DATASETS = [
     "seq_FUN",
     "spo_FUN",
 ]
+
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument(
+    "--datasets",
+    default=None,
+    help="Comma-separated dataset names (default: the 8 FunCat datasets)",
+)
+_parser.add_argument(
+    "--methods",
+    default="tabular_gbdt,tabular_mlp",
+    help="Comma-separated subset of {tabular_gbdt, tabular_mlp}",
+)
+_parser.add_argument(
+    "--device",
+    default="cpu",
+    choices=["cpu", "cuda"],
+    help="Device for tabular_mlp (default: cpu, matching the paper's FunCat runs)",
+)
+_args = _parser.parse_args()
+
+FUN_DATASETS = _args.datasets.split(",") if _args.datasets else FUN_DATASETS
+METHODS = {name.strip() for name in _args.methods.split(",")}
+MLP_DEVICE = _args.device
 
 all_results = []
 
@@ -226,22 +250,24 @@ for ds_name in FUN_DATASETS:
         )
 
         # GBDT
-        print("  [GBDT] ", end="", flush=True)
-        r_gbdt = run_gbdt(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
-        all_results.append(r_gbdt)
-        print(
-            f"F1={r_gbdt['micro_f1']:.4f}  AUPRC={r_gbdt['auprc']:.4f}  "
-            f"nodes={r_gbdt['nodes_trained']}/{n_nodes}  time={r_gbdt['duration_s']:.1f}s"
-        )
+        if "tabular_gbdt" in METHODS:
+            print("  [GBDT] ", end="", flush=True)
+            r_gbdt = run_gbdt(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
+            all_results.append(r_gbdt)
+            print(
+                f"F1={r_gbdt['micro_f1']:.4f}  AUPRC={r_gbdt['auprc']:.4f}  "
+                f"nodes={r_gbdt['nodes_trained']}/{n_nodes}  time={r_gbdt['duration_s']:.1f}s"
+            )
 
         # MLP
-        print("  [MLP]  ", end="", flush=True)
-        r_mlp = run_mlp(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
-        all_results.append(r_mlp)
-        print(
-            f"F1={r_mlp['micro_f1']:.4f}  AUPRC={r_mlp['auprc']:.4f}  "
-            f"epochs={r_mlp.get('epochs', '?')}  time={r_mlp['duration_s']:.1f}s"
-        )
+        if "tabular_mlp" in METHODS:
+            print("  [MLP]  ", end="", flush=True)
+            r_mlp = run_mlp(ds_name, X_tr, y_tr, X_te, y_te, eval_mask, hier)
+            all_results.append(r_mlp)
+            print(
+                f"F1={r_mlp['micro_f1']:.4f}  AUPRC={r_mlp['auprc']:.4f}  "
+                f"epochs={r_mlp.get('epochs', '?')}  time={r_mlp['duration_s']:.1f}s"
+            )
 
     except Exception as e:
         print(f"  ERROR: {e}")
@@ -294,5 +320,5 @@ for method in ["tabular_gbdt", "tabular_mlp"]:
 # Save
 os.makedirs("./output/experiments", exist_ok=True)
 with open("./output/experiments/fun_matrix.json", "w") as f:
-    json.dump(all_results, f, indent=2)
+    json.dump(all_results, f, indent=2, default=float)
 print("\nFull results saved to ./output/experiments/fun_matrix.json")

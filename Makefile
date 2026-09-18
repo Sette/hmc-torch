@@ -19,6 +19,9 @@ download-rcv1:
 download-eurlex:
 	python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
 
+download-arff:
+	python -m hmc.datasets.gofun.download_gofun --output_dir ./data
+
 download-all:
 	python -m hmc.datasets.download_all --continue-on-error
 

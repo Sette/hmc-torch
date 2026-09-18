@@ -271,7 +271,7 @@ print("\nFigure 5 saved")
 
 os.makedirs("./output/week2", exist_ok=True)
 with open("./output/week2/per_level_metrics.json", "w") as f:
-    json.dump(all_levels, f, indent=2)
+    json.dump(all_levels, f, indent=2, default=float)
 print("\nPer-Level F1:")
 for ds, levels in all_levels.items():
     lvls = sorted(levels.keys())

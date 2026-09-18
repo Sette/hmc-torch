@@ -560,5 +560,5 @@ if __name__ == "__main__":
 
     os.makedirs("./results", exist_ok=True)
     with open("./results/comparison.json", "w") as f:
-        json.dump(out, f, indent=2)
+        json.dump(out, f, indent=2, default=float)
     print("Saved to ./results/comparison.json")

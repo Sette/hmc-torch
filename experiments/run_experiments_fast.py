@@ -58,7 +58,7 @@ def save_artefacts(out_dir, scores_raw, scores_final, metrics, config):
     np.savez_compressed(f"{out_dir}/scores_before_postprocess.npz", scores=scores_raw)
     np.savez_compressed(f"{out_dir}/scores_final.npz", scores=scores_final)
     with open(f"{out_dir}/metrics.json", "w") as f:
-        json.dump(metrics, f, indent=2)
+        json.dump(metrics, f, indent=2, default=float)
     with open(f"{out_dir}/run-config.json", "w") as f:
         json.dump(config, f, indent=2, default=str)
 
@@ -362,5 +362,5 @@ for r in sorted(results, key=lambda x: -x["micro_f1"]):
 print("-" * 75)
 
 with open(f"{base_dir}/comparison.json", "w") as f:
-    json.dump(results, f, indent=2)
+    json.dump(results, f, indent=2, default=float)
 print(f"\nArtefacts saved to {base_dir}/")

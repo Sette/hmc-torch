@@ -42,6 +42,14 @@ AVAILABLE = {
         "description": "EU legislation with EUROVOC hierarchy (~4K labels)",
         "size": "~300 MB",
     },
+    "arff": {
+        "module": "hmc.datasets.gofun.download_gofun",
+        "description": "FunCat + Gene Ontology ARFF benchmarks (HMC_data_arff)",
+        "size": "~25 MB",
+        # Writes <output_dir>/HMC_data_arff/, the layout the managers expect,
+        # so it must not get the usual <output_dir>/<group> subdirectory.
+        "use_base_dir": True,
+    },
 }
 
 
@@ -75,8 +83,13 @@ def main():
 
     success = fail = 0
     for g in groups:
-        group_output_dir = str(Path(args.output_dir) / g)
-        ok = _run_module(AVAILABLE[g]["module"], group_output_dir)
+        entry = AVAILABLE[g]
+        group_output_dir = (
+            args.output_dir
+            if entry.get("use_base_dir")
+            else str(Path(args.output_dir) / g)
+        )
+        ok = _run_module(entry["module"], group_output_dir)
         if ok:
             success += 1
         else:

@@ -4,7 +4,12 @@ AAPD (arXiv Academic Paper Dataset) structures.
 The AAPD dataset is a standard HTC benchmark with a 2-level hierarchy:
   - Root
     - 6 top-level fields: cs, math, physics, stat, q-bio, q-fin
-    - 48 sub-fields (e.g. cs.AI, cs.CL, math.OC, physics.optics, ...)
+    - 91 sub-fields (e.g. cs.AI, cs.CL, math.OC, physics.optics, ...)
+
+That is 97 labels / 98 nodes including the root, which is the row reported
+for AAPD in the paper.  The canonical SGM release of AAPD is coarser
+(54 labels, 6 + 48); the CSV used here carries the full set of arXiv
+categories actually present in the corpus.
 
 Each paper has one or more sub-field labels, and the hierarchy propagates
 upward: a paper labelled ``cs.CL`` also belongs to ``cs``.
@@ -126,7 +131,7 @@ AAPD_AREAS: dict[str, list[str]] = {
     ],
 }
 
-# Flattened list: all 54 labels (6 top-level + 48 sub-fields)
+# Flattened list: all 97 labels (6 top-level fields + 91 sub-fields)
 AAPD_ALL_LABELS: list[str] = []
 for _area, _subs in AAPD_AREAS.items():
     AAPD_ALL_LABELS.append(_area)
@@ -161,7 +166,7 @@ class AAPDSplit:
 
 
 class AAPDHierarchyManager:
-    """Manages the AAPD label hierarchy: root → 6 areas → 48 sub-fields.
+    """Manages the AAPD label hierarchy: root → 6 areas → 91 sub-fields.
 
     Exposes the same interface as ``ArXivHierarchyManager`` for label
     encoding and hierarchy attribute access.
@@ -185,9 +190,12 @@ class AAPDHierarchyManager:
         """Build the hierarchy from a list of observed label strings.
 
         Labels are expected to be space-separated sub-field codes
-        (e.g. ``"cs.CL math.OC"``).  The hierarchy is constructed from
-        the known AAPD taxonomy; any label not in the predefined set is
-        added as a top-level node under root.
+        (e.g. ``"cs.CL math.OC"``).  The hierarchy is derived from the
+        labels themselves: the prefix before the first ``"."`` becomes the
+        parent area (``cs.CL`` → ``cs``), and labels without a dot are
+        treated as top-level areas.  ``AAPD_AREAS`` is a reference list of
+        the expected taxonomy, not an input — areas absent from the data
+        simply do not appear in the graph.
         """
         mgr = cls()
         mgr._build_graphs(set(labels))

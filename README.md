@@ -87,7 +87,44 @@ python -m hmc.main --dataset_name arxiv --method globalE2E --device cuda \
 # Tabular baseline
 python -m hmc.main --dataset_name cellcycle_FUN --method tabular_mlp --device cuda \
   --dataset_path ./data --output_path ./output
+
+# Reproduce the paper's recipe: plain BCE + inference-time reconciliation
+python -m hmc.main --dataset_name wos --method global --consistency_loss none \
+  --dataset_path ./data --output_path ./output
 ```
+
+**Training-time hierarchy handling** (`--consistency_loss`, for `global` and `globalE2E`):
+
+| Value | Training loss | Constraint applied |
+|---|---|---|
+| `mc` (default) | constrained outputs mixed into the loss (C-HMCNN style) | training + inference |
+| `hinge` | paper's Eq. 2 added with weight `--lambda_hier` | training + inference |
+| `none` | plain BCE | inference only |
+
+The constraint is always applied at inference (`get_constr_out`); the flag only
+changes what happens during training. The numbers reported in the paper use
+`none`, so pass it to reproduce them.
+
+### Data
+
+```bash
+make download-all      # every dataset
+make download-arff     # FunCat + Gene Ontology ARFF benchmarks (GoFun family)
+make download-arxiv    # ArXiv metadata snapshot (Kaggle)
+make download-wos      # Web of Science abstracts
+make download-aapd     # AAPD
+make download-rcv1     # RCV1-V2
+make download-eurlex   # EUR-Lex 57K
+```
+
+The tabular benchmarks land in `data/HMC_data_arff/` (the layout
+`hmc.utils.datasets.paths` expects, covering the 10 `*_FUN`, the 9 `*_GO` and
+the `*_others` datasets); the text datasets each get their own `data/<name>/`.
+
+RCV1-V2 is gated (NIST license), so `make download-rcv1` prints how to prepare
+the files from the corpus you obtain; the other targets download from public
+mirrors. For a pipeline smoke test only, `python -m
+hmc.datasets.rcv1.download_rcv1 --sample` installs the ~10-document HiAGM files.
 
 ---
 
@@ -103,7 +140,7 @@ python -m hmc.main --dataset_name cellcycle_FUN --method tabular_mlp --device cu
 | **Email** | Enron | Tabular | Tree | 56 |
 | **Microscopy** | Diatoms | Tabular | Tree | 398 |
 | **Medical Imaging** | ImCLEF07a, ImCLEF07d | Tabular | Tree | 46–96 |
-| **Multi-label Text** | AAPD, RCV1, EURLex | Text | Tree | 54–3,993 |
+| **Multi-label Text** | AAPD, RCV1, EURLex | Text | Tree | 97–3,993 |
 
 ### Register your own dataset
 

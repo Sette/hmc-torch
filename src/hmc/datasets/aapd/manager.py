@@ -24,7 +24,8 @@ class AAPDManager:
     """HMCDatasetManager-compatible manager for AAPD hierarchical text data.
 
     Text features are SPECTER2 embeddings extracted from title + abstract.
-    Labels follow a 2-level taxonomy: 6 top-level areas → 48 sub-fields.
+    Labels follow a 2-level taxonomy: 6 top-level areas → 91 sub-fields
+    (97 labels, 98 nodes including the root).
 
     Exposed attributes (same interface as ArXivManager / WOSManager):
         levels_size (dict): {level_idx: n_classes} for active training levels.
