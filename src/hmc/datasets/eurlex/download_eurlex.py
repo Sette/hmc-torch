@@ -135,7 +135,13 @@ def main() -> None:
     if method in {"auto", "huggingface"}:
         try:
             _download_huggingface(output_dir)
-        except (OSError, ImportError, RuntimeError, ValueError, urllib.error.URLError) as exc:
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            urllib.error.URLError,
+        ) as exc:
             logger.error("EUR-Lex download failed: %s", exc)
             raise SystemExit(1) from exc
 

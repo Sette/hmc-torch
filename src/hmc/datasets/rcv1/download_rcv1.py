@@ -190,7 +190,9 @@ def _run_upstream_preprocessing(
     preprocess = data_dir / "preprocess_rcv1.py"
     convert = data_dir / "data_rcv1.py"
     if not preprocess.is_file() or not convert.is_file():
-        raise FileNotFoundError(f"HBGL RCV1 preprocessing scripts missing in {data_dir}")
+        raise FileNotFoundError(
+            f"HBGL RCV1 preprocessing scripts missing in {data_dir}"
+        )
     for filename in ("rcv1.tar.xz", "lyrl2004_tokens_train.dat"):
         source = raw_dir / filename
         if not source.is_file():
