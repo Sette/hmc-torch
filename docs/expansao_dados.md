@@ -1,6 +1,6 @@
 # Expansão de Dados — Novos Datasets Textuais para HMC-Torch
 
-**Data:** 2026-08-04 | **Branch:** `release/0.0.9`
+**Data original:** 2026-08-04 | **Status atualizado:** adapters implementados; download e experimentos precisam ser verificados por fonte/dataset.
 
 ---
 
@@ -42,40 +42,22 @@ apenas 2 datasets de texto (ArXiv, WOS) entre 25 totais.
 ### Passo 1: AAPD (dataset mais simples)
 
 ```
-[ ] 1.1 Criar src/hmc/datasets/aapd/__init__.py
-[ ] 1.2 Criar src/hmc/datasets/aapd/dataset_aapd.py — hierarchy manager + split class
-[ ] 1.3 Criar src/hmc/datasets/aapd/manager.py — AAPDManager (seguir ArXivManager)
-[ ] 1.4 Criar src/hmc/datasets/aapd/download_aapd.py — download script
-[ ] 1.5 Adicionar dispatch "aapd" em src/hmc/datasets/dataset_manager.py
-[ ] 1.6 Adicionar aapd_defaults em src/hmc/datasets/registry.py
-[ ] 1.7 Adicionar download-aapd no Makefile
-[ ] 1.8 Testar: python -m hmc.main --dataset_name aapd --method global --device cuda
+[x] 1.1–1.7 Adapter, manager, downloader, dispatch, defaults e alvo Makefile implementados.
+[ ] 1.8 Validar treino com corpus completo: `python -m hmc.main --dataset_name aapd --method global --device cuda`
 ```
 
 ### Passo 2: RCV1-V2 (benchmark padrão)
 
 ```
-[ ] 2.1 Criar src/hmc/datasets/rcv1/__init__.py
-[ ] 2.2 Criar src/hmc/datasets/rcv1/dataset_rcv1.py — hierarchy + split
-[ ] 2.3 Criar src/hmc/datasets/rcv1/manager.py — RCV1Manager
-[ ] 2.4 Criar src/hmc/datasets/rcv1/download_rcv1.py
-[ ] 2.5 Adicionar dispatch "rcv1" em dataset_manager.py
-[ ] 2.6 Adicionar rcv1_defaults em registry.py
-[ ] 2.7 Adicionar download-rcv1 no Makefile
+[x] 2.1–2.7 Adapter, manager, downloader, dispatch, defaults e alvo Makefile implementados.
 [ ] 2.8 Testar: python -m hmc.main --dataset_name rcv1 --method global --device cuda
 ```
 
 ### Passo 3: EUR-Lex 57K (larga escala)
 
 ```
-[ ] 3.1 Criar src/hmc/datasets/eurlex/__init__.py
-[ ] 3.2 Criar src/hmc/datasets/eurlex/dataset_eurlex.py
-[ ] 3.3 Criar src/hmc/datasets/eurlex/manager.py — EURLexManager com sparse R
-[ ] 3.4 Criar src/hmc/datasets/eurlex/download_eurlex.py
-[ ] 3.5 Adicionar dispatch "eurlex" em dataset_manager.py
-[ ] 3.6 Adicionar eurlex_defaults em registry.py
-[ ] 3.7 Adicionar download-eurlex no Makefile
-[ ] 3.8 Testar: python -m hmc.main --dataset_name eurlex --method global --device cuda
+[x] 3.1–3.7 Adapter, manager, downloader, dispatch, defaults e alvo Makefile implementados.
+[ ] 3.8 Validar treino com dados completos: `python -m hmc.main --dataset_name eurlex --method global --device cuda`
 ```
 
 ### Passo 4: Experimentos
@@ -150,9 +132,9 @@ data/
 
 ## Progresso
 
-- [x] Passo 1: AAPD — manager, hierarchy, download, dispatch, registry
-- [x] Passo 2: RCV1-V2 — manager, hierarchy, download, dispatch, registry
-- [x] Passo 3: EUR-Lex 57K — manager, hierarchy (EUROVOC tree), sparse R, download, dispatch, registry
+- [x] Passo 1: AAPD — manager, hierarchy, downloader, dispatch, registry
+- [x] Passo 2: RCV1-V2 — manager, hierarchy, downloader, dispatch, registry. Coloque `rcv1.tar.xz` e `lyrl2004_tokens_train.dat` em `data/rcv1/` (ou indique `--raw_dir`); o script roda HBGL.
+- [x] Passo 3: EUR-Lex 57K — manager, hierarquia EUROVOC, sparse R, downloader, dispatch, registry. O downloader lê Parquet versionado do Hugging Face; o arquivo de relações EUROVOC é opcional e a hierarquia fica plana se não for obtido.
 - [ ] Passo 4: Experimentos com dados reais
 
 ### Arquivos criados
@@ -167,32 +149,16 @@ src/hmc/datasets/aapd/
 src/hmc/datasets/rcv1/
 ├── __init__.py              # exports RCV1Manager
 ├── dataset_rcv1.py          # RCV1HierarchyManager + RCV1Split
-├── download_rcv1.py         # download via HiAGM repo
+├── download_rcv1.py         # preprocessamento HBGL a partir do corpus NIST
 └── manager.py               # RCV1Manager (SPECTER2 + splits)
 
 src/hmc/datasets/eurlex/
 ├── __init__.py              # exports EURLexManager
 ├── dataset_eurlex.py        # EURLexHierarchyManager (EUROVOC tree) + EURLexSplit
-├── download_eurlex.py       # download via archive.org / HuggingFace
+├── download_eurlex.py       # conversão de Parquet Hugging Face para JSON local
 └── manager.py               # EURLexManager (SPECTER2 + sparse R support)
 
-run_new_datasets.py           # experiment runner (dense + sparse R)
-```
-
-```
-src/hmc/datasets/aapd/
-├── __init__.py              # exports AAPDManager
-├── dataset_aapd.py          # AAPDHierarchyManager + AAPDSplit
-├── download_aapd.py         # download via HuggingFace/Kaggle
-└── manager.py               # AAPDManager (SPECTER2 + splits)
-
-src/hmc/datasets/rcv1/
-├── __init__.py              # exports RCV1Manager
-├── dataset_rcv1.py          # RCV1HierarchyManager + RCV1Split
-├── download_rcv1.py         # download via HiAGM repo
-└── manager.py               # RCV1Manager (SPECTER2 + splits)
-
-run_new_datasets.py           # experiment runner for new datasets
+experiments/run_new_datasets.py # experiment runner (dense + sparse R)
 ```
 
 ### Modificados

@@ -22,7 +22,7 @@ uv run pytest tests/test_hierarchy.py::TestTreeHierarchy::test_nodes  # um teste
 # Dados — não vêm no repo (./data é gitignored)
 make download-arff             # FunCat + GO + others → data/HMC_data_arff/ (tarball do repo C-HMCNN)
 make download-arxiv | wos | aapd | eurlex
-make download-rcv1             # gated pelo NIST: imprime o passo a passo (--source_dir / --sample)
+make download-rcv1             # corpus NIST em data/rcv1; roda HBGL (--raw_dir / --source_dir / --sample)
 
 # Treino
 ./run.sh                       # wos, global, cuda
@@ -30,8 +30,8 @@ python -m hmc.main --dataset_name wos --method global --device cuda \
   --dataset_path ./data --output_path ./output --consistency_loss none
 ```
 
-O paper vive em `docs/hmc-paper` (repositório git **aninhado**, não rastreado por este):
-`make -C docs/hmc-paper check` compila e falha se sobrar `\ref`/`\cite` sem resolver.
+O manuscrito está em `docs/paper.tex` e `docs/paper/`; `docs/paper.pdf` é o PDF versionado.
+Não há alvo de compilação LaTeX no `Makefile` atual.
 
 ---
 
@@ -42,14 +42,15 @@ Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/h
 | Método | Treino |
 |---|---|
 | `global` | features congeladas + MLP + R-matrix |
-| `globalGNN` | idem + GCN sobre o grafo de labels |
 | `globalE2E` | transformer fine-tuned + MLP + R-matrix |
 | `globalSOTA` | transformer fine-tuned + GCN + R-matrix |
 | `local` / `localE2E` | um MLP por nível da hierarquia |
 | `tabular_gbdt` / `tabular_mlp` | baselines tabulares (baselines da tabela FunCat) |
 
-Cada método tem sua função de treino em `src/hmc/pipeline/`; os modelos em `src/hmc/models/`.
-Não há métodos LLM/Ollama neste repositório (as menções antigas a `globalLLM*` estão obsoletas).
+Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função de treino em
+`src/hmc/pipeline/`; os modelos ficam em `src/hmc/models/`. Embora o dispatch em
+`src/hmc/main.py` conserve alguns aliases internos, `globalGNN`, `globalLM` e `global_baseline`
+não são escolhas válidas no parser atual. Não há métodos LLM/Ollama neste repositório.
 
 `--consistency_loss {mc,hinge,none}` (para `global` e `globalE2E`): `mc` (default) mistura as
 saídas constrangidas no loss, `hinge` soma a Eq. 2 do paper com peso `--lambda_hier`, e `none`

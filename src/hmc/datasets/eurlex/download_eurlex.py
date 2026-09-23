@@ -5,9 +5,9 @@ EUR-Lex 57K contains 57,000 EU legislative documents annotated with
 EUROVOC concepts. It is a standard benchmark for large-scale multi-label
 text classification with hierarchical labels.
 
-Sources:
-  - HuggingFace datasets: ``NLP-AUEB/eurlex`` (recommended)
-  - Direct download: archive.org/details/EURLEX57K
+Source:
+  - The pinned Parquet export of EURLEX57K on Hugging Face, loaded through the
+    generic Parquet reader (no repository dataset script is executed).
 
 Usage:
     python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
@@ -16,7 +16,6 @@ Usage:
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
 import urllib.error
 from urllib.request import urlretrieve
@@ -26,66 +25,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ARCHIVE_BASE = "https://archive.org/download/EURLEX57K"
-FILES = {
-    "train.json": f"{ARCHIVE_BASE}/train.json",
-    "dev.json": f"{ARCHIVE_BASE}/dev.json",
-    "test.json": f"{ARCHIVE_BASE}/test.json",
-    "eurovoc_concepts.jsonl": f"{ARCHIVE_BASE}/eurovoc_concepts.jsonl",
+# Pin the Parquet export of the original EUR-Lex 57K data. Loading these files
+# through the generic Parquet builder avoids the removed eurlex.py dataset script.
+HF_DATASET_REVISION = "04b1573bfbb926f9c5c9e2c149468c65ab6e604f"
+HF_PARQUET_BASE = (
+    "https://huggingface.co/datasets/jonathanli/eurlex/resolve/"
+    f"{HF_DATASET_REVISION}/eurlex57k/"
+)
+HF_SPLITS = {
+    "train": ("train.json", "eurlex-train.parquet"),
+    "validation": ("dev.json", "eurlex-validation.parquet"),
+    "test": ("test.json", "eurlex-test.parquet"),
 }
-
-
-def _download_archive(output_dir: Path) -> None:
-    """Download individual JSON files from archive.org."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    for local_name, url in FILES.items():
-        output_path = output_dir / local_name
-        if output_path.exists() and output_path.stat().st_size > 1024:
-            logger.info(
-                "%s already exists (%d bytes). Skipping.",
-                local_name,
-                output_path.stat().st_size,
-            )
-            continue
-
-        logger.info("Downloading %s …", local_name)
-        try:
-            urlretrieve(url, str(output_path))
-            logger.info(
-                "Downloaded %s (%d bytes).",
-                local_name,
-                output_path.stat().st_size,
-            )
-        except (urllib.error.URLError, OSError) as exc:
-            logger.error("Failed to download %s: %s", local_name, exc)
-            if local_name == "eurovoc_concepts.jsonl":
-                logger.warning(
-                    "Concept file not available — will use flat hierarchy. "
-                    "Training still works, but R-matrix benefit may be reduced."
-                )
-            else:
-                raise
+EUROVOC_CONCEPTS_URL = "https://archive.org/download/EURLEX57K/eurovoc_concepts.jsonl"
 
 
 def _download_huggingface(output_dir: Path) -> None:
-    """Download via HuggingFace datasets library."""
+    """Load the public Parquet splits and save the manager's JSON format."""
     try:
         from datasets import load_dataset  # pylint: disable=import-outside-toplevel
     except ImportError:
-        logger.error("huggingface-datasets not installed. Run: pip install datasets")
-        sys.exit(1)
+        raise ImportError(
+            "huggingface-datasets is required. Install it with: pip install datasets"
+        ) from None
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for split in ["train", "dev", "test"]:
-        output_path = output_dir / f"{split}.json"
+    for hf_split, (local_name, parquet_name) in HF_SPLITS.items():
+        output_path = output_dir / local_name
         if output_path.exists() and output_path.stat().st_size > 1024:
             logger.info("%s already exists. Skipping.", output_path.name)
             continue
 
-        logger.info("Loading EURLEX57K/%s from HuggingFace …", split)
-        dataset = load_dataset("NLP-AUEB/eurlex", split=split)
+        parquet_url = HF_PARQUET_BASE + parquet_name
+        logger.info("Loading EURLEX57K/%s from Hugging Face Parquet …", hf_split)
+        dataset = load_dataset(
+            "parquet",
+            data_files={hf_split: parquet_url},
+            split=hf_split,
+        )
 
         records = []
         for row in dataset:
@@ -107,6 +85,21 @@ def _download_huggingface(output_dir: Path) -> None:
 
         logger.info("Saved %d records to %s", len(records), output_path)
 
+    concept_path = output_dir / "eurovoc_concepts.jsonl"
+    if not concept_path.exists():
+        try:
+            logger.info("Downloading EUROVOC concept hierarchy …")
+            urlretrieve(EUROVOC_CONCEPTS_URL, str(concept_path))
+            if concept_path.stat().st_size < 1024:
+                concept_path.unlink()
+                raise ValueError("Downloaded concept hierarchy is unexpectedly small")
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            logger.warning(
+                "Could not download EUROVOC concept hierarchy (%s); the manager "
+                "will use a flat hierarchy.",
+                exc,
+            )
+
 
 def main() -> None:
     """CLI entry point for EUR-Lex 57K dataset download."""
@@ -121,8 +114,8 @@ def main() -> None:
         "--method",
         type=str,
         default="auto",
-        choices=["auto", "archive", "huggingface"],
-        help="Download method (default: auto)",
+        choices=["auto", "huggingface"],
+        help="Download method (the stable Parquet source is used by default)",
     )
     args = parser.parse_args()
 
@@ -139,28 +132,25 @@ def main() -> None:
 
     method = args.method
 
-    if method == "auto":
-        # Try archive.org first (direct download, no deps)
+    if method in {"auto", "huggingface"}:
         try:
-            _download_archive(output_dir)
-        except (urllib.error.URLError, OSError) as exc:
-            logger.warning("archive.org download failed: %s", exc)
-            try:
-                _download_huggingface(output_dir)
-            except (OSError, ImportError) as exc2:
-                logger.error("HuggingFace download also failed: %s", exc2)
-                sys.exit(1)
-    elif method == "archive":
-        _download_archive(output_dir)
-    elif method == "huggingface":
-        _download_huggingface(output_dir)
+            _download_huggingface(output_dir)
+        except (
+            OSError,
+            ImportError,
+            RuntimeError,
+            ValueError,
+            urllib.error.URLError,
+        ) as exc:
+            logger.error("EUR-Lex download failed: %s", exc)
+            raise SystemExit(1) from exc
 
     # Verify
     if train_path.exists():
         logger.info("Done! EUR-Lex 57K dataset ready in %s", output_dir)
     else:
         logger.error("Download did not produce expected files.")
-        sys.exit(1)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

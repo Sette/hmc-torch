@@ -2,11 +2,15 @@
 
 **Autor:** Bruno Sette
 **Data:** Agosto 2026
-**Status:** Proposta (revisar antes de implementar)
+**Status:** Plano parcialmente superado. AAPD, RCV1-V2 e EUR-Lex já têm adapters no pacote; o plano de implementação abaixo é histórico. Download e validação experimental dependem de dados/fonte e ainda não devem ser considerados concluídos.
 
 ---
 
 ## 1. Contexto e Motivação
+
+> Atualização: a expansão dos adapters descrita aqui foi implementada depois da
+> redação deste plano. Use `docs/project-structure.md` para a estrutura atual e
+> `docs/expansao_dados.md` para o estado de integração e validação dos datasets.
 
 ### Estado atual (Agosto 2026)
 
