@@ -27,7 +27,7 @@ as a reusable, first-class architectural component.
 - 🧱 **R-Matrix as infrastructure**: reusable ancestor-closure constraint for training + inference
 - 🌳 **Explicit hierarchy modeling**: Tree (FunCat) and DAG (Gene Ontology) with type-specific reconciliation
 - 📊 **25+ datasets across 5 domains**: scientific text, genomics, email, microscopy, medical imaging
-- 🧬 **Multi-modal**: tabular, text (transformers), protein sequences, images
+- 🧬 **Multiple modalities**: production paths for tabular and text; experimental encoders for expression, protein sequences, and images
 - ⚡ **GPU-accelerated**: 14× training speedup
 - 📦 **Plugin system**: register your own datasets without modifying the package
 - 🔁 **Reproducible**: experiment manifests with git SHA, seeds, and dependency versions
@@ -121,9 +121,13 @@ The tabular benchmarks land in `data/HMC_data_arff/` (the layout
 `hmc.utils.datasets.paths` expects, covering the 10 `*_FUN`, the 9 `*_GO` and
 the `*_others` datasets); the text datasets each get their own `data/<name>/`.
 
-RCV1-V2 is gated (NIST license), so `make download-rcv1` prints how to prepare
-the files from the corpus you obtain; the other targets download from public
-mirrors. For a pipeline smoke test only, `python -m
+RCV1-V2 is gated (NIST license), so obtain `rcv1.tar.xz` and
+`lyrl2004_tokens_train.dat` from NIST first and place them in
+`data/rcv1/` (the output directory by default). Then `make download-rcv1` clones
+HBGL when needed, links the source files into its checkout, and runs upstream
+preprocessing. Pass `--raw_dir` if the licensed files are stored elsewhere, or
+`--upstream_dir` to select another HBGL checkout. The other targets download
+from public mirrors. For a pipeline smoke test only, `python -m
 hmc.datasets.rcv1.download_rcv1 --sample` installs the ~10-document HiAGM files.
 
 ---
@@ -382,24 +386,20 @@ Our sparse approximation uses graph traversal ($O(N+E)$ memory) with zero hierar
 
 ## 📁 Project Structure
 
+The package has two related data layers: `hmc.datasets` contains built-in
+loaders, managers, downloaders, and compatibility adapters; `hmc.data` defines
+the shared split, hierarchy, metadata, and registry contracts. The code map and
+current capability boundaries are documented in [docs/project-structure.md](docs/project-structure.md).
+
 ```
 src/hmc/
-├── data/              # Data contracts (DatasetBundle, Split, Hierarchy)
-├── datasets/          # Built-in dataset implementations
-│   ├── arxiv/         # ArXiv (JSONL + SPECTER2)
-│   ├── wos/           # WOS (Web of Science)
-│   ├── gofun/         # FunCat + GO (ARFF tabular)
-│   ├── aapd/          # Arxiv Academic Paper Dataset
-│   ├── rcv1/          # Reuters Corpus Volume 1
-│   └── eurlex/        # EUR-Lex documents
-├── features/          # Feature encoders (text, tabular, vision, protein)
-├── models/            # HMC model components
-│   ├── global_classifier/  # Global heads + R-matrix
-│   ├── local_classifier/   # Per-level local heads
-│   ├── hierarchical/       # Sparse R-matrix, label GCN
-│   └── tabular/            # GBDT + MLP baselines
-├── pipeline/          # Training pipelines
-└── utils/             # Metrics, manifests, caching
+├── arguments.py, main.py, train.py  # CLI, dispatch e API Python
+├── data/              # Contratos, hierarquia e registro de datasets
+├── datasets/          # Managers, adapters e downloaders por dataset
+├── features/          # Encoders tabular, text, expression, vision e protein
+├── models/            # Modelos globais, locais, hierárquicos e tabulares
+├── pipeline/          # Loops de treino por família de modelo
+└── utils/             # Métricas, caminhos, cache, manifestos e treino
 ```
 
 ---

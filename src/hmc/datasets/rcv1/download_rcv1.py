@@ -13,8 +13,8 @@ Supported paths:
    the name variants the manager accepts) that you produced yourself.
 2. ``--sample`` — install the two ~10-document HiAGM files, for smoke-testing
    the pipeline only.
-3. No source — print the instructions for producing the corpus from the gated
-   original with the upstream preprocessing scripts.
+3. No ``--source_dir`` — run the upstream preprocessing scripts. Put the NIST
+   source files in ``--raw_dir`` (defaults to ``--output_dir``).
 
 Usage:
     python -m hmc.datasets.rcv1.download_rcv1 --output_dir ./data/rcv1 \
@@ -25,6 +25,7 @@ import argparse
 import json
 import logging
 import shutil
+import subprocess
 import sys
 import urllib.error
 from pathlib import Path
@@ -146,7 +147,7 @@ def _already_present(output_dir: Path) -> tuple[Path, Path] | None:
     return train, test
 
 
-def _print_instructions(output_dir: Path) -> None:
+def _print_instructions(output_dir: Path, raw_dir: Path) -> None:
     """Explain how to produce the files from the gated original."""
     logger.error(
         "RCV1-V2 is not publicly redistributable, so there is nothing to\n"
@@ -154,19 +155,72 @@ def _print_instructions(output_dir: Path) -> None:
         "\n"
         "  1. Obtain the corpus (rcv1.tar.xz + lyrl2004_tokens_train.dat) from\n"
         "     https://trec.nist.gov/data/reuters/reuters.html — license required.\n"
+        "     Place both files in %s (or pass that directory with --raw_dir).\n"
         "\n"
-        "  2. Run the upstream preprocessing the HTC papers use, e.g. from HBGL:\n"
-        "     git clone --depth 1 https://github.com/kongds/hbgl /tmp/HBGL\n"
-        "     cd /tmp/HBGL/data/rcv1\n"
-        "     python preprocess_rcv1.py .\n"
-        "     python data_rcv1.py\n"
-        "     (HiAdv and HierVerb ship the same scripts; see their READMEs.)\n"
+        "  2. Run the default command; it clones HBGL if needed, links the two\n"
+        "     source files into its data/rcv1 directory, and runs both scripts.\n"
         "\n"
-        "  3. Bring the result into this project:\n"
-        "     python -m hmc.datasets.rcv1.download_rcv1 --output_dir %s \\\n"
-        "         --source_dir /tmp/HBGL/data/rcv1\n",
+        "     python -m hmc.datasets.rcv1.download_rcv1 --output_dir %s\n"
+        "\n"
+        "     To use a different source directory: add --raw_dir DIR. To use\n"
+        "     already-preprocessed JSON, pass --source_dir DIR instead.\n",
+        raw_dir,
         output_dir,
     )
+
+
+def _run_upstream_preprocessing(
+    upstream_dir: Path, raw_dir: Path, output_dir: Path
+) -> None:
+    """Run HBGL preprocessing using NIST source files from *raw_dir*."""
+    repo_url = "https://github.com/kongds/hbgl"
+    if not (upstream_dir / ".git").is_dir():
+        if upstream_dir.exists() and any(upstream_dir.iterdir()):
+            raise ValueError(
+                f"{upstream_dir} exists but is not an HBGL checkout; choose "
+                "another --upstream_dir or remove that directory"
+            )
+        upstream_dir.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, str(upstream_dir)],
+            check=True,
+        )
+
+    data_dir = upstream_dir / "data" / "rcv1"
+    preprocess = data_dir / "preprocess_rcv1.py"
+    convert = data_dir / "data_rcv1.py"
+    if not preprocess.is_file() or not convert.is_file():
+        raise FileNotFoundError(f"HBGL RCV1 preprocessing scripts missing in {data_dir}")
+    for filename in ("rcv1.tar.xz", "lyrl2004_tokens_train.dat"):
+        source = raw_dir / filename
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"Missing {source}. Obtain {filename} from NIST and place it in "
+                f"{raw_dir}, or pass its directory with --raw_dir."
+            )
+        target = data_dir / filename
+        if target.exists() or target.is_symlink():
+            if target.resolve() != source.resolve():
+                raise FileExistsError(
+                    f"{target} already exists and differs from {source}; remove or "
+                    "move the existing HBGL input, or choose another --upstream_dir."
+                )
+        else:
+            target.symlink_to(source.resolve())
+    logger.info("Running upstream RCV1 preprocessing in %s", data_dir)
+    subprocess.run([sys.executable, str(preprocess), "."], cwd=data_dir, check=True)
+    subprocess.run([sys.executable, str(convert)], cwd=data_dir, check=True)
+
+    train = _find(data_dir, TRAIN_NAMES)
+    test = _find(data_dir, TEST_NAMES)
+    if train is None or test is None:
+        raise FileNotFoundError(
+            f"HBGL preprocessing completed, but train/test JSON files were not found in {data_dir}"
+        )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _install(train, output_dir)
+    _install(test, output_dir)
+    logger.info("RCV1 JSON splits installed in %s", output_dir)
 
 
 def main() -> None:
@@ -187,6 +241,21 @@ def main() -> None:
         help="Directory holding the preprocessed rcv1_train.json/rcv1_test.json",
     )
     parser.add_argument(
+        "--upstream_dir",
+        type=str,
+        default="/tmp/HBGL",
+        help="HBGL checkout directory used by the default preprocessing path",
+    )
+    parser.add_argument(
+        "--raw_dir",
+        type=str,
+        default=None,
+        help=(
+            "Directory containing NIST rcv1.tar.xz and "
+            "lyrl2004_tokens_train.dat (default: --output_dir)"
+        ),
+    )
+    parser.add_argument(
         "--sample",
         action="store_true",
         help=(
@@ -197,6 +266,7 @@ def main() -> None:
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
+    raw_dir = Path(args.raw_dir) if args.raw_dir else output_dir
 
     if args.sample:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -226,8 +296,13 @@ def main() -> None:
                 present[1].name,
             )
             return
-        _print_instructions(output_dir)
-        sys.exit(1)
+        try:
+            _run_upstream_preprocessing(Path(args.upstream_dir), raw_dir, output_dir)
+        except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+            logger.error("Upstream preprocessing failed: %s", exc)
+            _print_instructions(output_dir, raw_dir)
+            sys.exit(1)
+        return
 
     source_dir = Path(args.source_dir)
     train = _find(source_dir, TRAIN_NAMES)

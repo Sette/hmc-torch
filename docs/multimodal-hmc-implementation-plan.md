@@ -1,5 +1,11 @@
 # Próximos passos: implementação multimodal de HMC
 
+**Estado:** plano evolutivo; o Marco 0 abaixo foi concluído no estado atual do
+repositório. O código mantém `hmc.datasets` como camada de adapters/compatibilidade
+e adiciona contratos compartilhados em `hmc.data`; não houve remoção do pacote
+`datasets`. Consulte [project-structure.md](project-structure.md) para o mapa
+implementado.
+
 ## Resultado pretendido
 
 Evoluir o pacote de um conjunto de pipelines específicos para uma plataforma de
@@ -33,30 +39,13 @@ embeddings de proteína dependem da disponibilidade dos dados brutos.
 - Tornar dependências de modelos grandes opcionais; o pacote básico deve
   continuar instalável e testável sem TabFM, ESM ou modelos visuais.
 
-## Marco 0 — tornar o estado atual executável
+## Marco 0 — base executável (concluído)
 
-O commit atual removeu `src/hmc/datasets`, mas `arguments.py` e os pipelines
-ainda importam `hmc.datasets.*`. Isso precisa ser resolvido antes de adicionar
-uma nova arquitetura.
-
-### Ações
-
-1. Restaurar os módulos removidos a partir do commit anterior ou movê-los para
-   `src/hmc/data/`, atualizando todos os imports de forma atômica.
-2. Restaurar, no mínimo:
-   - `dataset_manager.py`;
-   - `registry.py`;
-   - parser ARFF GoFun (`gofun/dataset_arff.py`);
-   - manager GoFun (`gofun/manager.py`);
-   - adaptadores ArXiv já referenciados pelo README.
-3. Corrigir a inconsistência de caminhos em `eisen_GO` antes de usar o loader.
-4. Fazer o teste de integração de `seq_FUN` passar em CPU, com um fixture ARFF
-   pequeno e sem depender de dados externos.
-
-### Critério de aceite
-
-`python -m hmc.main ... --dataset_name seq_FUN --method local` carrega dados e
-completa uma época de treino; `pytest` executa sem imports ausentes.
+O repositório contém atualmente ambos `src/hmc/datasets/` e `src/hmc/data/`, os
+adapters de datasets, os managers ARFF, hierarquias e pipelines descritos no
+mapa atual. As ações antigas de restauração/migração não se aplicam mais. Novas
+mudanças devem preservar a compatibilidade entre as duas camadas até que uma
+migração explícita seja planejada e concluída.
 
 ## Marco 1 — contratos comuns de dados e hierarquia
 
