@@ -184,6 +184,49 @@ class HMCDatasetArff:
     # Public build methods
     # ------------------------------------------------------------------
 
+    def train_valid_split(self, valid_fraction=0.2, seed=42):
+        """Hold out a deterministic validation slice from this dataset.
+
+        Use this for releases that ship no validation file (e.g. the
+        ``*_others`` datasets).  Aliasing the test split as validation would
+        put test samples back into training as soon as a pipeline merges
+        train and validation, so the slice is carved out of the training file
+        instead.  The class hierarchy is derived from the label declarations
+        and is therefore shared between the two halves.
+
+        Args:
+            valid_fraction (float): Fraction of rows held out for validation.
+            seed (int): Seed for the row permutation, for reproducibility.
+
+        Returns:
+            tuple[HMCDatasetArff, HMCDatasetArff]: The (train, valid) datasets.
+        """
+        if not 0.0 < valid_fraction < 1.0:
+            raise ValueError(f"valid_fraction must be in (0, 1), got {valid_fraction}")
+        n_samples = len(self.samples.x)
+        if n_samples < 2:
+            raise ValueError(f"Need at least 2 samples to split, got {n_samples}")
+        order = np.random.default_rng(seed).permutation(n_samples)
+        n_valid = min(max(1, round(n_samples * valid_fraction)), n_samples - 1)
+        train_rows = np.sort(order[n_valid:])
+        valid_rows = np.sort(order[:n_valid])
+
+        def _subset(rows):
+            subset = object.__new__(type(self))
+            subset.arff_file = self.arff_file
+            subset.is_go = self.is_go
+            subset.hierarchy = self.hierarchy
+            subset.to_eval = self.to_eval
+            subset.samples = SampleData(
+                x=self.samples.x[rows],
+                y=self.samples.y[rows],
+                y_nodes=[self.samples.y_nodes[i] for i in rows],
+                y_local=[self.samples.y_local[i] for i in rows],
+            )
+            return subset
+
+        return _subset(train_rows), _subset(valid_rows)
+
     def build_hierarchy_graph(self, h):
         """Parse a hierarchical attribute declaration string into a directed graph.
 

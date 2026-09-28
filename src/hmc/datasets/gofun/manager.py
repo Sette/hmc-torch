@@ -42,6 +42,11 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
 
     """
 
+    # Fraction of the training file held out when a release ships no
+    # validation split, and the seed that makes that split reproducible.
+    VALID_FRACTION = 0.2
+    SPLIT_SEED = 42
+
     def __init__(self, **kwargs):
         self.dataset_values = {
             "test": None,
@@ -89,13 +94,15 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
             ds = kwargs["dataset"]
             n = len(ds)
             if n == 3:
-                # No validation split (e.g. enron_others, diatoms_others)
+                # No validation file on disk (e.g. enron_others, diatoms_others):
+                # a slice of the training file is held out instead of aliasing the
+                # test split, which would leak test samples into training.
                 (
                     self.dataset_values["is_go"],
                     self.dataset_values["train_file"],
                     self.dataset_values["test_file"],
                 ) = ds
-                self.dataset_values["valid_file"] = self.dataset_values["test_file"]
+                self.dataset_values["valid_file"] = None
             elif n == 4:
                 (
                     self.dataset_values["is_go"],
@@ -261,7 +268,7 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
         Load features and labels from ARFF, and optionally a hierarchy graph from JSON.
         """
         logging.info("Loading dataset from %s", self.dataset_values["train_file"])
-        self.dataset_values["train"] = HMCDatasetArff(
+        train_ds = HMCDatasetArff(
             self.dataset_values["train_file"], is_go=self.dataset_values["is_go"]
         )
 
@@ -270,22 +277,28 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
 
         if valid_file and valid_file != test_file:
             logging.info("Loading dataset from %s", valid_file)
-            self.dataset_values["valid"] = HMCDatasetArff(
-                valid_file, is_go=self.dataset_values["is_go"]
-            )
+            valid_ds = HMCDatasetArff(valid_file, is_go=self.dataset_values["is_go"])
         else:
-            # No separate validation split: reuse test as validation placeholder
-            logging.info("No separate validation split; reusing test as validation")
-            self.dataset_values["valid"] = None  # will be handled downstream
+            # Releases without a validation file: hold out a slice of the training
+            # file so that the test split never reaches the optimizer.
+            logging.info(
+                "No separate validation split for %s; holding out %d%% of the "
+                "training file",
+                self.dataset_values["train_file"],
+                int(self.VALID_FRACTION * 100),
+            )
+            train_ds, valid_ds = train_ds.train_valid_split(
+                valid_fraction=self.VALID_FRACTION, seed=self.SPLIT_SEED
+            )
+
+        self.dataset_values["train"] = train_ds
+        self.dataset_values["valid"] = valid_ds
 
         logging.info("Loading dataset from %s", test_file)
         self.dataset_values["test"] = HMCDatasetArff(
             test_file, is_go=self.dataset_values["is_go"]
         )
 
-        # When valid is None, use test as validation for training
-        if self.dataset_values["valid"] is None:
-            self.dataset_values["valid"] = self.dataset_values["test"]
         self.a = self.dataset_values["train"].a
         self.edge_index = self.dataset_values["train"].edge_index
         # self.r_matrix = self.compute_r_matrix(self.a)

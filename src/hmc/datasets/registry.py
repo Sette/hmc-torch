@@ -126,7 +126,7 @@ class DatasetRegistry:
                 "expr": 4128,
                 "gasch1": 4122,
                 "gasch2": 4128,
-                "pheno": 4500,
+                "pheno": 3124,
                 "seq": 4130,
                 "spo": 4116,
             },
