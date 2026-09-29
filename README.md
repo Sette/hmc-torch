@@ -17,7 +17,7 @@ that integrates the **R-matrix constraint** — originally proposed by
 [Giunchiglia & Lukasiewicz (2018, NeurIPS)](https://papers.nips.cc/paper_files/paper/2018/hash/08aacd96e9e26e79b77e4f65b9c0aa33-Abstract.html) —
 as a reusable, first-class architectural component.
 
-> 📄 **Paper**: *HMC-Torch: A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints* (Bruno Sette, UFSCar, 2026)
+> 📄 **Paper**: *HMC-Torch: A Modular Platform and an Empirical Study of When Hierarchical Constraints Help* (Bruno Sette, UFSCar, 2026)
 
 ---
 
@@ -26,11 +26,11 @@ as a reusable, first-class architectural component.
 - 🔌 **Modular pipeline**: `DatasetAdapter → FeatureEncoder → HierarchicalHead → Calibrator → Reconciler`
 - 🧱 **R-Matrix as infrastructure**: reusable ancestor-closure constraint for training + inference
 - 🌳 **Explicit hierarchy modeling**: Tree (FunCat) and DAG (Gene Ontology) with type-specific reconciliation
-- 📊 **25+ datasets across 5 domains**: scientific text, genomics, email, microscopy, medical imaging
+- 📊 **27 datasets across 5 domains**: scientific text, genomics, email, microscopy, medical imaging
 - 🧬 **Multiple modalities**: production paths for tabular and text; experimental encoders for expression, protein sequences, and images
-- ⚡ **GPU-accelerated**: 14× training speedup
+- ⚡ **GPU-ready**: exact sparse reconciliation that scales to 4,000-class Gene Ontology hierarchies
 - 📦 **Plugin system**: register your own datasets without modifying the package
-- 🔁 **Reproducible**: experiment manifests with git SHA, seeds, and dependency versions
+- 🔁 **Reproducible**: one evaluation protocol and scripts that regenerate every number in the paper
 
 ---
 
@@ -80,7 +80,7 @@ results = hmc.train("cellcycle_FUN", method="tabular_mlp", device="cuda", epochs
 python -m hmc.main --dataset_name wos --method global --device cuda \
   --dataset_path ./data --output_path ./output
 
-# Fine-tuned transformer (SOTA)
+# Fine-tuned transformer (end-to-end)
 python -m hmc.main --dataset_name arxiv --method globalE2E --device cuda \
   --dataset_path ./data --epochs 50 --batch_size 32 --output_path ./output
 
@@ -325,38 +325,46 @@ returns a manager instance.
 
 ## 📊 Results
 
-### Text Benchmarks (Micro-F1)
+All numbers come from `experiments/run_protocol.py` and `experiments/run_wos_e2e.py`
+under one protocol: training on the training split, epoch and decision threshold
+chosen on the validation split, the test split used once, mean over three seeds.
+`experiments/make_paper_artifacts.py` regenerates every table and figure of the paper
+(`docs/hmc-paper`).
 
-| Method | ArXiv | WOS |
-|---|---|---|
-| HiAGM (Zhou+, ACL'20) | 0.5950 | 0.8604 |
-| HTC-infoMAX | — | 0.8720 |
-| **HMC-Torch (frozen)** | **0.7295** | 0.7515 |
-| **HMC-Torch (E2E)** | — | **0.8743** |
+### Text (Micro-F1)
 
-> 🏆 **New SOTA on ArXiv** (+13.5 pts over HiAGM) and **WOS** (+0.2 pts over HTC-infoMAX)
-
-### FunCat Genomic Benchmarks (AUPRC)
-
-| Dataset | HMCN-F | C-HMCNN | HMC-Torch (GBDT) | HMC-Torch (MLP) |
+| Method | ArXiv | WOS | AAPD | EUR-Lex 57K |
 |---|---|---|---|---|
-| cellcycle_FUN | 0.235 | 0.248 | 0.253 | 0.255 |
-| seq_FUN | 0.291 | 0.299 | 0.306 | **0.307** |
-| spo_FUN | 0.228 | 0.228 | 0.229 | 0.229 |
+| BERT+HiAGM (reimpl. by HGCLR, ACL'22) | — | 0.8604 | — | — |
+| BERT+HTCInfoMax (reimpl. by HGCLR, ACL'22) | — | 0.8630 | — | — |
+| BERT+HiMatch (Chen+, ACL'21) | — | 0.8670 | — | — |
+| HGCLR (Wang+, ACL'22) | — | 0.8711 | — | — |
+| HPT (Wang+, EMNLP'22) | — | **0.8716** | — | — |
+| HMC-Torch, frozen SPECTER2 + MLP + reconciliation | 0.723 | 0.746 | 0.823 | 0.786 |
+| HMC-Torch, fine-tuned SPECTER2 + reconciliation | — | 0.863 ± 0.006 | — | — |
 
-> 🏆 **Beats HMCN-F on seq_FUN** (0.307 vs 0.291)
+WOS baselines are from Table 1 of HPT (EMNLP'22), which trains on the training split
+only, as we do. ArXiv and AAPD use our own 64/16/20 splits and EUR-Lex uses the
+EUROVOC hierarchy, so there are no comparable published numbers for them.
 
-### Gene Ontology (Block-Diagonal R-Matrix)
+### FunCat and Gene Ontology (AUPRC, mean over the 8 datasets with published results)
 
-AUPRC improves on **all 9 GO datasets** (avg +0.0055) with zero hierarchy violations, using
-$O(N)$ memory instead of $O(N^2)$ (>1,400× reduction).
+| Method | FunCat | GO |
+|---|---|---|
+| Surj (Yang & Howe, WWW'22) | **0.312** | **0.467** |
+| C-HMCNN (Giunchiglia & Lukasiewicz, NeurIPS'20) | 0.264 | 0.420 |
+| HMCN-F (Wehrmann et al., ICML'18) | 0.261 | 0.422 |
+| HMC-Torch, MLP (BCE) + reconciliation | 0.253 | 0.411 |
+| HMC-Torch, MLP (MCLoss) + reconciliation | 0.255 | 0.411 |
+| HMC-Torch, GBDT + reconciliation | 0.226 | — |
 
-### GPU Speedup
+### What the constraint contributes
 
-| Configuration | CPU | GPU | Speedup |
-|---|---|---|---|
-| global (FunCat avg) | 16.7s | 1.2s | **14×** |
-| tabular_mlp (FunCat avg) | 5.3s | 2.0s | 2.7× |
+Reconciliation at inference raises test AUPRC on 25 of 27 datasets (median +0.002).
+Adding the constraint to training — a hinge penalty or C-HMCNN's MCLoss — gives no
+consistent gain over plain BCE followed by reconciliation. The sparse
+(edge-list) reconciliation is exact and differentiable, so MCLoss trains at batch
+size 64 on the 4,000-class GO hierarchies.
 
 ---
 

@@ -48,7 +48,7 @@ class EURLexManager:
     identity matrix and use ``BlockDiagonalR`` at inference time::
 
         from hmc.models.hierarchical.sparse_r import BlockDiagonalR
-        sparse_r = BlockDiagonalR(test_split.g)
+        sparse_r = BlockDiagonalR(test_split.g, column_index=manager.nodes_idx)
         reconciled = sparse_r.reconcile(raw_scores)
 
     Exposed attributes (same interface as ArXivManager):
