@@ -105,6 +105,56 @@ The constraint is always applied at inference (`get_constr_out`); the flag only
 changes what happens during training. The numbers reported in the paper use
 `none`, so pass it to reproduce them.
 
+### Docker
+
+Build the image from the repository root:
+
+```bash
+docker build -t hmc-torch .
+```
+
+The GitHub Actions workflow publishes release images to GitHub Container
+Registry (GHCR) whenever a `v*` tag is pushed. For example, tag `v0.0.10`
+publishes `ghcr.io/sette/hmc-torch:0.0.10` and the `latest` tag. You can also
+run the workflow manually from the Actions tab; that publishes an image tagged
+with the commit SHA.
+
+Download (pull) a published image from GHCR before running it. Use a version tag
+for a reproducible release, or `latest` for the most recently published
+release:
+
+```bash
+docker pull ghcr.io/sette/hmc-torch:0.0.10
+# Or pull the latest release
+docker pull ghcr.io/sette/hmc-torch:latest
+```
+
+The image runs `python -m hmc.main`; without arguments it displays the CLI help.
+Pass the same options used by the Python CLI to start an experiment. Mount the
+dataset and output directories so they are available inside the container and
+results persist after it exits:
+
+```bash
+docker run --rm \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/output:/app/output" \
+  ghcr.io/sette/hmc-torch:0.0.10 \
+  --dataset_name wos --method global --device cpu \
+  --dataset_path /app/data --output_path /app/output
+```
+
+For GPU training, use Docker with NVIDIA Container Toolkit configured and add
+`--gpus all`; set `--device cuda` in the application arguments:
+
+```bash
+docker run --rm --gpus all \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/output:/app/output" \
+  ghcr.io/sette/hmc-torch:0.0.10 \
+  --dataset_name wos --method global --device cuda \
+  --dataset_path /app/data --output_path /app/output
+```
+
 ### Data
 
 ```bash
