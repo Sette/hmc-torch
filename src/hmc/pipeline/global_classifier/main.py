@@ -112,13 +112,17 @@ def train_global(dataset_name, args):
         split.samples.x = torch.tensor(split.x).clone().detach().float().to(args.device)
         split.samples.y = torch.tensor(split.y).clone().detach().float().to(args.device)
 
+    # Validation stays out of training: it is where the decision threshold is
+    # chosen (train_step), so merging it would leak into model selection.
     args.train_dataset = list(zip(args.train.x, args.train.y))
-    for x, y in zip(args.valid.x, args.valid.y):
-        args.train_dataset.append((x, y))
+    args.valid_dataset = list(zip(args.valid.x, args.valid.y))
     args.test_dataset = list(zip(args.test.x, args.test.y))
 
     args.train_loader = DataLoader(
         dataset=args.train_dataset, batch_size=args.batch_size, shuffle=True
+    )
+    args.valid_loader = DataLoader(
+        dataset=args.valid_dataset, batch_size=args.batch_size, shuffle=False
     )
     args.test_loader = DataLoader(
         dataset=args.test_dataset, batch_size=args.batch_size, shuffle=False
@@ -225,10 +229,13 @@ def train_global_e2e(dataset_name, args):
     text_dataset, _ = _get_transformer_dataset(
         dataset_name, args, tokenizer, local_model_path
     )
-    train_set, _val_set, test_set = text_dataset.get_datasets()
+    train_set, val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    args.valid_loader = DataLoader(
+        val_set, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
     args.test_loader = DataLoader(
         test_set, batch_size=args.batch_size, shuffle=False, num_workers=0
@@ -327,10 +334,13 @@ def train_global_sota(dataset_name, args):
     text_dataset, _ = _get_transformer_dataset(
         dataset_name, args, tokenizer, local_model_path
     )
-    train_set, _val_set, test_set = text_dataset.get_datasets()
+    train_set, val_set, test_set = text_dataset.get_datasets()
 
     args.train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    args.valid_loader = DataLoader(
+        val_set, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
     args.test_loader = DataLoader(
         test_set, batch_size=args.batch_size, shuffle=False, num_workers=0

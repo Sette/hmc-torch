@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "bootstrap-sha": "65fae5dfff69b332be53d61cf8b06f0d7c321652",
+  "packages": {
+    ".": {
+      "package-name": "hmc-torch",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "generic", "path": "src/hmc/__init__.py" }
+      ]
+    }
+  }
+}
