@@ -85,6 +85,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "kaggle>=2.1.2",
     "matplotlib>=3.9",
+    "bump-my-version>=1.2",
 ]
 
 [tool.uv]
@@ -98,6 +99,17 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch" }
 torchvision = { index = "pytorch" }  # pulled by the `vision` extra (timm)
+
+[tool.bumpversion]
+# Local bumps (`make bump-patch|minor|major`); [project].version is updated
+# automatically. Releases on main are cut by release-please (release-please-config.json).
+commit = false
+tag = false
+
+[[tool.bumpversion.files]]
+filename = "src/hmc/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
 
 [tool.hatch.build.targets.sdist]
 include = ["src/hmc"]

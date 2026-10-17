@@ -1,4 +1,4 @@
-VERSION="0.0.9"
+VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
 
 export PYTHONPATH=src
 
@@ -60,3 +60,9 @@ build:
 
 
 pipeline: lint test
+
+# ── Versioning (releases on main are cut by release-please) ─────────
+
+bump-patch bump-minor bump-major:
+	uv run bump-my-version bump $(subst bump-,,$@)
+	@uv run bump-my-version show current_version
