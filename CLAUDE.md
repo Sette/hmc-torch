@@ -11,7 +11,7 @@ Datasets de texto: **ArXiv**, **WOS**, **AAPD**, **EUR-Lex**; tabulares: **FunCa
 
 ```bash
 export PYTHONPATH=src          # necessário para `python -m hmc.*` e para os scripts de experiments/
-uv sync --all-groups           # instala tudo (inclui tf-keras, exigido pelo parser ARFF)
+uv sync --all-groups --extra download   # dev + kagglehub/datasets (usados só pelos `make download-*`)
 
 make lint-check                # flake8 + ruff format --check + ruff check + pylint (apenas src/)
 make lint                      # idem, aplicando a formatação

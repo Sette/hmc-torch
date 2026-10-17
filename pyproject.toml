@@ -40,22 +40,18 @@ dependencies = [
     "tqdm==4.67.3",
     "numpy==2.4.3",
     "torch==2.10.0",
-    "torchaudio==2.10.0",
-    "torchvision==0.25.0",
     "pandas==3.0.1",
-    "dataset==1.6.2",
     "scikit-learn==1.8.0",
-    "lightning[extra]==2.6.1",
-    "tensorflow==2.21.0",
-    "tf-keras==2.21.0",
-    "optuna==4.8.0",
+    "networkx>=3.4",
+    "psutil>=6.0",
+    "lightning==2.6.1",
     "torch-geometric==2.7.0",
     "transformers==5.3.0",
-    "kagglehub>=1.0.2",
-    "datasets>=5.0.1",
 ]
 
 [project.optional-dependencies]
+# Only needed by the `make download-*` targets (ArXiv/AAPD via Kaggle, EUR-Lex via HF).
+download = ["kagglehub>=1.0.2", "datasets>=5.0.1"]
 tabfm = ["tabfm[pytorch]"]
 vision = ["timm", "opencv-python-headless"]
 protein = ["fair-esm"]
@@ -88,6 +84,7 @@ dev = [
     "ruff>=0.15.8",
     "pytest-cov>=7.1.0",
     "kaggle>=2.1.2",
+    "matplotlib>=3.9",
 ]
 
 [tool.uv]
@@ -100,8 +97,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-torchaudio = { index = "pytorch" }
-torchvision = { index = "pytorch" }
+torchvision = { index = "pytorch" }  # pulled by the `vision` extra (timm)
 
 [tool.hatch.build.targets.sdist]
 include = ["src/hmc"]

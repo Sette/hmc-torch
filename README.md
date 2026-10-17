@@ -43,6 +43,7 @@ pip install hmc-torch
 For optional features:
 
 ```bash
+pip install "hmc-torch[download]"    # Dataset downloaders (kagglehub, HF datasets)
 pip install "hmc-torch[vision]"      # Image models (timm)
 pip install "hmc-torch[protein]"     # Protein models (fair-esm)
 pip install "hmc-torch[expression]"  # Expression autoencoders
@@ -53,7 +54,7 @@ pip install "hmc-torch[expression]"  # Expression autoencoders
 ```bash
 git clone https://github.com/Sette/hmc-torch.git
 cd hmc-torch
-uv sync --all-groups
+uv sync --all-groups --extra download
 export PYTHONPATH=src
 ```
 
@@ -474,7 +475,7 @@ Contributions welcome! Areas we'd love help with:
 ```bash
 git clone https://github.com/Sette/hmc-torch.git
 cd hmc-torch
-uv sync --all-groups
+uv sync --all-groups --extra download
 make test
 make lint
 ```
