@@ -39,6 +39,93 @@ HF_SPLITS = {
 }
 EUROVOC_CONCEPTS_URL = "https://archive.org/download/EURLEX57K/eurovoc_concepts.jsonl"
 
+# The EURLEX57K concept file lists ids and titles only.  The thesaurus structure
+# (concept -> broader concept -> top term -> microthesaurus -> domain) comes from
+# the EU Publications Office SPARQL endpoint.
+EUROVOC_SPARQL_URL = "https://publications.europa.eu/webapi/rdf/sparql"
+EUROVOC_SCHEME = "http://eurovoc.europa.eu/100141"
+_EUROVOC_QUERIES = {
+    "broader": (
+        "PREFIX skos: <http://www.w3.org/2004/02/skos/core#> "
+        f"SELECT ?child ?parent WHERE {{ ?child skos:inScheme <{EUROVOC_SCHEME}> . "
+        "?child skos:broader ?parent . }"
+    ),
+    "top_term": (
+        "PREFIX skos: <http://www.w3.org/2004/02/skos/core#> "
+        f"SELECT ?child ?parent WHERE {{ ?child skos:inScheme <{EUROVOC_SCHEME}> . "
+        f"?child skos:topConceptOf ?parent . FILTER(?parent != <{EUROVOC_SCHEME}>) }}"
+    ),
+    "microthesaurus": (
+        "SELECT ?child ?parent WHERE { "
+        "?child a <http://eurovoc.europa.eu/schema#MicroThesaurus> . "
+        "?child <http://eurovoc.europa.eu/schema#domain> ?parent . }"
+    ),
+}
+# Microthesauri and domains share the numeric id space with concepts, so they
+# get a prefix to keep them apart in the label graph.
+_EUROVOC_PREFIXES = {
+    "broader": ("", ""),
+    "top_term": ("", "mt_"),
+    "microthesaurus": ("mt_", "dom_"),
+}
+
+
+def _sparql_pairs(query: str) -> list[tuple[str, str]]:
+    """Run a SPARQL query returning (?child, ?parent) and keep the URI tails."""
+    import csv  # pylint: disable=import-outside-toplevel
+    import io  # pylint: disable=import-outside-toplevel
+    from urllib.parse import urlencode  # pylint: disable=import-outside-toplevel
+    from urllib.request import Request, urlopen  # pylint: disable=import-outside-toplevel
+
+    request = Request(
+        f"{EUROVOC_SPARQL_URL}?{urlencode({'query': query})}",
+        headers={"Accept": "text/csv"},
+    )
+    with urlopen(request, timeout=300) as response:
+        text = response.read().decode("utf-8")
+    return [
+        (row["child"].rsplit("/", 1)[-1], row["parent"].rsplit("/", 1)[-1])
+        for row in csv.DictReader(io.StringIO(text))
+    ]
+
+
+def add_eurovoc_relations(concept_path: Path) -> None:
+    """Add ``broader`` fields to the EUROVOC concept file from the EU SPARQL endpoint.
+
+    Concepts point to their broader concepts, top terms to their microthesauri
+    (``mt_<id>``), and microthesauri to their domains (``dom_<id>``); domains
+    hang from the root.  The file is rewritten in place.
+    """
+    broader: dict[str, set[str]] = {}
+    for name, query in _EUROVOC_QUERIES.items():
+        child_prefix, parent_prefix = _EUROVOC_PREFIXES[name]
+        pairs = _sparql_pairs(query)
+        logger.info("EUROVOC %s relations: %d", name, len(pairs))
+        for child, parent in pairs:
+            broader.setdefault(child_prefix + child, set()).add(parent_prefix + parent)
+
+    records = []
+    with open(concept_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                records.append(json.loads(line))
+    known = {str(rec["id"]) for rec in records}
+    for rec in records:
+        rec["broader"] = sorted(broader.get(str(rec["id"]), set()))
+    for node in sorted(set(broader) - known):
+        if node.startswith(("mt_", "dom_")):
+            records.append({"id": node, "broader": sorted(broader[node])})
+
+    with open(concept_path, "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    with_parents = sum(1 for rec in records if rec.get("broader"))
+    logger.info(
+        "EUROVOC relations written: %d of %d entries have parents",
+        with_parents,
+        len(records),
+    )
+
 
 def _download_huggingface(output_dir: Path) -> None:
     """Load the public Parquet splits and save the manager's JSON format."""
@@ -97,6 +184,16 @@ def _download_huggingface(output_dir: Path) -> None:
             logger.warning(
                 "Could not download EUROVOC concept hierarchy (%s); the manager "
                 "will use a flat hierarchy.",
+                exc,
+            )
+
+    if concept_path.exists():
+        try:
+            add_eurovoc_relations(concept_path)
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            logger.warning(
+                "Could not fetch EUROVOC relations (%s); the manager will use a "
+                "flat hierarchy.",
                 exc,
             )
 

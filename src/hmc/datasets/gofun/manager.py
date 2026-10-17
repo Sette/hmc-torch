@@ -2,6 +2,7 @@
 This module provides functionality to manage hierarchical multi-label datasets.
 """
 
+import copy
 import logging
 from collections import defaultdict
 
@@ -9,7 +10,7 @@ import networkx as nx
 import numpy as np
 import torch
 
-from hmc.datasets.gofun.dataset_arff import HMCDatasetArff
+from hmc.datasets.gofun.dataset_arff import HMCDatasetArff, SampleData
 from hmc.utils.datasets.paths import to_skip
 from hmc.utils.path.files import __load_json__
 
@@ -19,6 +20,36 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+VALID_HOLDOUT_FRACTION = 0.2
+VALID_HOLDOUT_SEED = 0
+
+
+def _subset(ds, idx):
+    """Shallow copy of an ARFF split keeping only the samples at ``idx``."""
+    part = copy.copy(ds)
+    samples = ds.samples
+    n = samples.x.shape[0]
+    part.samples = SampleData(
+        x=samples.x[idx],
+        y=samples.y[idx],
+        y_nodes=[samples.y_nodes[i] for i in idx]
+        if len(samples.y_nodes) == n
+        else samples.y_nodes,
+        y_local=[samples.y_local[i] for i in idx]
+        if len(samples.y_local) == n
+        else samples.y_local,
+    )
+    return part
+
+
+def _holdout_split(ds, fraction):
+    """Split an ARFF split into (train, valid) with a fixed random holdout."""
+    n = ds.samples.x.shape[0]
+    perm = np.random.default_rng(VALID_HOLDOUT_SEED).permutation(n)
+    n_valid = round(n * fraction)
+    return _subset(ds, np.sort(perm[n_valid:])), _subset(ds, np.sort(perm[:n_valid]))
 
 
 class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
@@ -274,18 +305,22 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
                 valid_file, is_go=self.dataset_values["is_go"]
             )
         else:
-            # No separate validation split: reuse test as validation placeholder
-            logging.info("No separate validation split; reusing test as validation")
-            self.dataset_values["valid"] = None  # will be handled downstream
+            self.dataset_values["valid"] = None
 
         logging.info("Loading dataset from %s", test_file)
         self.dataset_values["test"] = HMCDatasetArff(
             test_file, is_go=self.dataset_values["is_go"]
         )
 
-        # When valid is None, use test as validation for training
+        # No separate validation file (enron/diatoms/imclef): hold out a fixed
+        # 20% of the training file.  Reusing the test file here would leak it
+        # into model selection, or into training when callers merge the splits.
         if self.dataset_values["valid"] is None:
-            self.dataset_values["valid"] = self.dataset_values["test"]
+            logging.info("No separate validation split; holding out 20%% of train")
+            (
+                self.dataset_values["train"],
+                self.dataset_values["valid"],
+            ) = _holdout_split(self.dataset_values["train"], VALID_HOLDOUT_FRACTION)
         self.a = self.dataset_values["train"].a
         self.edge_index = self.dataset_values["train"].edge_index
         # self.r_matrix = self.compute_r_matrix(self.a)

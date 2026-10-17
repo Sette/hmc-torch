@@ -11,7 +11,7 @@ Datasets de texto: **ArXiv**, **WOS**, **AAPD**, **EUR-Lex**; tabulares: **FunCa
 
 ```bash
 export PYTHONPATH=src          # necessário para `python -m hmc.*` e para os scripts de experiments/
-uv sync --all-groups           # instala tudo (inclui tf-keras, exigido pelo parser ARFF)
+uv sync --all-groups --extra download   # dev + kagglehub/datasets (usados só pelos `make download-*`)
 
 make lint-check                # flake8 + ruff format --check + ruff check + pylint (apenas src/)
 make lint                      # idem, aplicando a formatação
@@ -52,10 +52,10 @@ Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função 
 `src/hmc/main.py` conserve alguns aliases internos, `globalGNN`, `globalLM` e `global_baseline`
 não são escolhas válidas no parser atual. Não há métodos LLM/Ollama neste repositório.
 
-`--consistency_loss {mc,hinge,none}` (para `global` e `globalE2E`): `mc` (default) mistura as
-saídas constrangidas no loss, `hinge` soma a Eq. 2 do paper com peso `--lambda_hier`, e `none`
-treina com BCE puro deixando a R-matrix só para a inferência — **é a receita dos números do
-paper**. O constraint de inferência (`get_constr_out`) vale nos três casos.
+`--consistency_loss {mc,hinge,none}` (para `global` e `globalE2E`): `mc` (default) é o MCLoss
+do C-HMCNN (BCE sobre as saídas constrangidas), `hinge` soma a Eq. 2 do paper com peso
+`--lambda_hier`, e `none` treina com BCE puro. O constraint de inferência (`get_constr_out`) vale
+nos três casos. O paper compara os três objetivos, cada um com e sem reconciliação.
 
 ---
 
@@ -75,6 +75,12 @@ Existem **duas** convenções, transpostas entre si; usar a errada inverte a pen
 `out[i] = max(x[i], max dos descendentes de i)`: **folhas saem intactas** e só nós internos
 podem mudar de score — em AAPD são 7 áreas entre 61 labels avaliadas; em ArXiv, 19 entre 156.
 
+`BlockDiagonalR` (`models/hierarchical/sparse_r.py`) faz a mesma coisa em O(B·E) e é
+diferenciável (serve para o MCLoss no GO). Ele indexa colunas por `column_index`: **passe sempre
+o `nodes_idx` do dataset** (ou `{i: i}` se o grafo tiver nós inteiros). O default é a ordem
+interna (profundidade, nome), que no FunCat difere da ordem das colunas e reconcilia as colunas
+erradas.
+
 ---
 
 ## Dados e avaliação
@@ -89,10 +95,20 @@ podem mudar de score — em AAPD são 7 áreas entre 61 labels avaliadas; em ArX
   arxiv/aapd/rcv1/eurlex. O AAPD canônico tem 55.840 documentos — com o default o split vira
   40.000/10.000 em vez dos 44.672/11.168 do paper.
 - **Splits**: ArXiv/AAPD usam 64/16/20; WOS/EUR-Lex/RCV1 seguem as partições publicadas; FunCat e
-  GO usam os arquivos `.train/.valid/.test.arff` do benchmark. Features de texto são SPECTER2
-  (768d, CLS-pool) com cache em disco invalidado por hash MD5.
-- **Threshold**: todos os caminhos (`compute_metrics` dos scripts e `--best_threshold` do CLI)
-  escolhem o melhor threshold varrendo o **test split**; AUPRC não é afetado por isso.
+  GO usam os arquivos `.train/.valid/.test.arff` do benchmark. Os `_others` (enron, diatoms,
+  imclef) não têm arquivo de validação: os managers ARFF separam **20% fixos do treino**
+  (`_holdout_split`, seed 0). Antes eles reaproveitavam o test como validação — não volte a isso.
+  Features de texto são SPECTER2 (768d, CLS-pool) com cache em disco invalidado por hash MD5.
+- **Protocolo de avaliação**: treino só no split de treino; época e threshold escolhidos na
+  **validação**; test usado uma vez. No CLI (`global`, `globalE2E`, `globalSOTA`, `local`,
+  `localE2E`) o `--best_threshold true` varre a validação. Os scripts antigos de `experiments/`
+  (listados abaixo como legados) ainda escolhem o threshold no test e juntam validação ao treino.
+- **Textos do GO**: `data/ontologies/go.obo` (baixado de `purl.obolibrary.org` por
+  `label_embedding.load_go_obo` se faltar); cobre todos os termos dos 9 datasets GO, inclusive
+  `alt_id`s e obsoletos. O catálogo de nomes do FunCat não está mais disponível online.
+- **EUR-Lex**: a hierarquia EUROVOC (conceito → termo de topo → microtesauro → domínio) vem do
+  SPARQL do EU Publications Office; `download_eurlex.add_eurovoc_relations` grava os `broader`
+  no `eurovoc_concepts.jsonl`. Sem isso o manager cai numa hierarquia plana.
 - **Fontes externas**: AAPD vem de um re-upload do Kaggle (`xiaojuanwang9/aapd-dataset`, 54
   labels); RCV1-V2 é gated (corpus do NIST + pré-processamento dos repos HBGL/HiAdv); RCV1
   também aceita `--sample` para smoke test com os ~10 documentos do HiAGM.
@@ -101,16 +117,22 @@ podem mudar de score — em AAPD são 7 áreas entre 61 labels avaliadas; em ArX
 
 ## Scripts de `experiments/`
 
-Rodam **no import** (o loop fica no nível do módulo, não há `main()`), gravam em `./output/` e
-exigem `PYTHONPATH=src`. Os principais:
+Exigem `PYTHONPATH=src` e gravam em `./output/`. **Todos os números do paper vêm de:**
 
 | Script | O que produz |
 |---|---|
-| `run_new_datasets.py --dataset aapd --seeds 3 [--max_records 0]` | AAPD/EUR-Lex com e sem R (tabela de texto) |
-| `run_sota_comparison.py [--datasets ... --device cpu\|cuda]` | `global` nos FunCat (reproduz a tabela do paper) |
-| `run_experiment_matrix.py [--datasets ... --methods ... --device ...]` | `tabular_gbdt` e `tabular_mlp` nos FunCat |
-| `run_go_experiments.py` / `run_all_funcat_go.py` | GO com raw vs sparse R / os datasets "restantes" |
-| `statistical_tests.py` | Friedman + Nemenyi da tabela FunCat |
+| `run_protocol.py --group {funcat,go,others,text,all}` | `output/protocol/<dataset>.json`: 3 seeds × {BCE, hinge, MCLoss} × {raw, reconciliado}, + GBDT/Platt no FunCat |
+| `run_wos_e2e.py --seed N` | SPECTER2 fine-tuned no WOS com o protocolo do HPT (`output/protocol/wos_e2e_seedN.json`) |
+| `hierarchy_structure.py` | `output/protocol/structure.json`: fração de nós internos e quanto a reconciliação move os scores (análise da Seção 5.2) |
+| `run_label_embeddings.py --group {funcat,go,all}` | `output/label_embeddings/`: heads com embeddings de rótulos (livre, GCN, texto do `go.obo`, texto+GCN) no mesmo protocolo |
+| `make_paper_artifacts.py --paper_dir docs/hmc-paper` | `data/protocol_summary.json`, `tables/*.tex`, figuras do paper e estatísticas (Friedman/Nemenyi, Wilcoxon, Spearman) |
+
+`output/protocol/run_all.sh` roda a bateria inteira (~10–12 h numa RTX 3060, a maior parte no E2E).
+`run_protocol.py` pula datasets cujo JSON já existe — apague o arquivo para refazer.
+
+Os demais scripts (`run_new_datasets.py`, `run_sota_comparison.py`, `run_go_experiments.py`,
+`run_all_datasets.py`, …) são **legados**: rodam no import, juntam validação ao treino e
+escolhem o threshold no test. Não use os números deles.
 
 `json.dump` nesses scripts precisa de `default=float`: os resultados contêm `numpy.float32` e o
 script inteiro morre na última linha sem isso (já custou horas de compute).

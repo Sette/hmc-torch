@@ -113,20 +113,23 @@ data/
 ## SOTAs Publicados (referência)
 
 ### RCV1-V2 (Micro-F1)
+Valores conferidos na Tabela 1 do HPT (EMNLP 2022), que reproduz os originais.
 | Método | Ano | Micro-F1 |
 |--------|-----|----------|
-| HiAGM | 2019 | 0.834 |
-| HTCInfoMax | 2020 | 0.847 |
-| HiMatch | 2021 | 0.863 |
-| C-HMCNN | 2021 | 0.836 |
-| HBGL | 2023 | 0.876 |
+| HiAGM-TP (TextRCNN) | 2020 | 0.8396 |
+| HTCInfoMax (TextRCNN) | 2021 | 0.8351 |
+| HiMatch (TextRCNN) | 2021 | 0.8473 |
+| BERT+HiMatch | 2021 | 0.8633 |
+| HGCLR | 2022 | 0.8649 |
+| HPT | 2022 | 0.8726 |
+| HBGL | 2023 | 0.876 (não conferido) |
+
+O C-HMCNN não avalia RCV1-V2 no paper original; a entrada anterior (0.836) foi removida.
 
 ### AAPD (Micro-F1)
-| Método | Ano | Micro-F1 |
-|--------|-----|----------|
-| HiAGM | 2019 | 0.701 |
-| HTCInfoMax | 2020 | 0.716 |
-| HiMatch | 2021 | 0.723 |
+Sem baselines conferidos: HiAGM, HTCInfoMax e HiMatch não avaliam AAPD nos papers
+originais. Os valores anteriores (0.701 / 0.716 / 0.723) não tinham fonte e foram
+removidos.
 
 ---
 

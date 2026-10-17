@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from itertools import chain
 from typing import Any
 
-import keras
 import networkx as nx
 import numpy as np
 
@@ -385,7 +384,7 @@ class HMCDatasetArff:
         cats_lens.append(len(cats))
         d.append(
             {
-                key: keras.utils.to_categorical(i, len(cats)).tolist()
+                key: np.eye(len(cats), dtype=np.float32)[i].tolist()
                 for i, key in enumerate(cats)
             }
         )
