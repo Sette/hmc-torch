@@ -105,8 +105,8 @@ class LabelEmbeddingHead(nn.Module):  # pylint: disable=too-many-instance-attrib
         if "text" in self.mode:
             emb = emb + self.text_gate * self.text_proj(self.text)
         if "graph" in self.mode:
-            h = torch.relu(torch.sparse.mm(self.adjacency, self.gcn1(emb)))
-            emb = emb + self.graph_gate * torch.sparse.mm(self.adjacency, self.gcn2(h))
+            h = torch.relu(self.adjacency @ self.gcn1(emb))
+            emb = emb + self.graph_gate * (self.adjacency @ self.gcn2(h))
         return emb
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -124,11 +124,12 @@ def load_go_obo(path: str) -> dict[str, str]:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         urlretrieve(GO_OBO_URL, path)
     texts: dict[str, str] = {}
-    term: dict | None = None
+    term: dict[str, str] = {}
     aliases: list[str] = []
+    in_term = False
 
     def flush():
-        if term and "id" in term:
+        if "id" in term:
             text = term.get("name", "").removeprefix("obsolete ")
             if term.get("def"):
                 text = f"{text}: {term['def']}"
@@ -140,8 +141,8 @@ def load_go_obo(path: str) -> dict[str, str]:
             line = line.rstrip("\n")
             if line.startswith("["):
                 flush()
-                term, aliases = ({} if line == "[Term]" else None), []
-            elif term is not None and ": " in line:
+                term, aliases, in_term = {}, [], line == "[Term]"
+            elif in_term and ": " in line:
                 key, value = line.split(": ", 1)
                 if key in ("id", "name"):
                     term[key] = value
