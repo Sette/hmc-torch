@@ -51,14 +51,14 @@ Our method achieves \textbf{new state-of-the-art} on ArXiv (Micro-F1
 0.7295, +13.5 points over HiAGM) and WOS (Micro-F1 0.8743,
 surpassing HTC-infoMAX), while establishing competitive baselines on
 FunCat.  To extend R-matrix constraints to large hierarchies where the
-dense $O(N^2)$ matrix is infeasible, we introduce the
+dense $O(N^2)$ matrix limits the batch size, we introduce the
 \textbf{Block-Diagonal R-Matrix}---a sparse approximation that
 reconciles scores via graph traversal in $O(N)$ memory, eliminating
 all hierarchy violations without materializing the dense ancestor
 matrix.  We validate this on 9 Gene Ontology datasets (up to 4,504 classes,
 13 levels, DAG structure), where AUPRC improves on all datasets
-(avg +0.0055) while the dense R-matrix would require $>$65~MB
-(infeasible on GPU).  Our sparse approximation achieves zero
+(avg +0.0055), whereas applying the dense R-matrix materializes a
+batch $\times N \times N$ tensor ($\approx$8.7~GB at batch 64).  Our sparse approximation achieves zero
 hierarchy violations with negligible overhead (0.024\,s build time).
 \end{abstract}
 
@@ -120,7 +120,7 @@ Our contributions are:
     architectures (GBDT, MLP), and beating HMCN-F on seq\_FUN.
   \item \textbf{Block-Diagonal R-Matrix}: a sparse $O(N)$ approximation
     that extends R-matrix constraints to large DAGs (4,000+ classes)
-    where the dense $O(N^2)$ matrix is infeasible.  Validated on
+    where the dense $O(N^2)$ matrix limits the batch size.  Validated on
     Gene Ontology benchmarks with zero hierarchy violations.
   \item An \textbf{honest failure analysis}: the R-matrix alone is
     insufficient for protein function prediction tasks where ontology
@@ -258,7 +258,10 @@ ablation studies in Section~\ref{sec:results}.
 
 A practical limitation of the R-matrix is its $O(N^2)$ memory:
 for Gene Ontology datasets with $N > 4{,}000$, the dense matrix
-requires $>65$~MB, making batched GPU training infeasible.  We
+requires $>65$~MB, and applying it materializes a
+$B \times N \times N$ tensor: $\approx$136~MB per example in float64,
+$\approx$0.5~GB at batch 4 and $\approx$8.7~GB at batch 64, which caps
+the batch size on a 12~GB GPU.  We
 introduce the \textbf{Block-Diagonal R-Matrix}, a sparse $O(N)$
 approximation that achieves zero hierarchy violations without
 materializing the dense ancestor matrix.
@@ -370,6 +373,16 @@ $10^{-4}$, batch 8, 3 epochs (WOS). Tabular GPU: LR $10^{-4}$, batch
 HistGradientBoosting, max\_iter=100, no early stopping). NVIDIA RTX
 3060 (12GB).
 
+\textbf{FunCat protocol.} Features are mean-imputed and z-scored with
+training-split statistics. The global model is a 3-layer MLP (hidden
+size per dataset, ReLU, dropout 0.7) trained with MCLoss through the
+Block-Diagonal R-Matrix, AdamW (LR $10^{-4}$), batch 4. The number of
+epochs is chosen by early stopping on validation AUPRC (patience 20,
+at most 200 epochs); the model is then refit on training + validation
+for that many epochs, the convention of HMCN and C-HMCNN. The
+decision threshold is also chosen on validation, and the test split is
+used once. We report mean $\pm$ std over 3 seeds (0, 42, 123).
+
 \textbf{Metrics.} \textbf{Micro-F1} (primary for text) and
 \textbf{micro-AUPRC} (primary for FunCat, following literature
 convention~\cite{www2022ontology}). Threshold sweep: $[0.02, 0.90]$
@@ -462,6 +475,42 @@ to ontology representation learning, which we do not implement.
 Section~\ref{sec:discussion} discusses this as a clear direction for
 future improvement within our modular platform.
 
+\subsection{Ablation: Training Recipe on FunCat}
+\label{sec:recipe}
+
+\begin{table}[h]
+\centering
+\caption{Test AUPRC of the global model (MCLoss, sparse R, reconciled
+outputs) under three training recipes, mean $\pm$ std over 3 seeds.
+Epochs, threshold and refit follow the FunCat protocol; nothing is
+chosen on the test split.}
+\label{tab:recipe}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Dataset} & \textbf{d0.3, b32} & \textbf{d0.7, b32} &
+\textbf{d0.7, b4} & \textbf{C-HMCNN} \\
+\midrule
+cellcycle & 0.249 $\pm$ 0.001 & \textbf{0.256} $\pm$ 0.000 & 0.250 $\pm$ 0.001 & 0.255 \\
+derisi    & 0.190 $\pm$ 0.001 & 0.194 $\pm$ 0.000 & 0.192 $\pm$ 0.001 & \textbf{0.195} \\
+seq       & 0.281 $\pm$ 0.001 & 0.290 $\pm$ 0.001 & 0.290 $\pm$ 0.002 & \textbf{0.292} \\
+spo       & 0.213 $\pm$ 0.001 & 0.209 $\pm$ 0.001$^\dagger$ & 0.214 $\pm$ 0.001 & \textbf{0.215} \\
+\midrule
+\textit{Avg} & 0.233 & 0.237 & 0.237 & 0.239 \\
+\bottomrule
+\multicolumn{5}{l}{\small $^\dagger$Early stopping hit the 200-epoch cap (197--200).} \\
+\end{tabular}
+\end{table}
+
+The gap between our earlier FunCat numbers and C-HMCNN is a matter of
+training recipe, not of the sparse R-matrix: the Block-Diagonal
+R-Matrix reproduces the dense constraint exactly, in both the forward
+pass and the MCLoss gradient (checked in the test suite).  Raising
+dropout from 0.3 to C-HMCNN's 0.7 accounts for most of the gap
+(+0.004 AUPRC on average).  Batch 4 does not change AUPRC but
+converges in about half the epochs, which keeps the 200-epoch budget
+from binding (spo).  With both, the model is within 0.003 AUPRC of
+C-HMCNN on average.
+
 \subsection{Cross-Domain Results (Enron, Diatoms, ImCLEF)}
 \label{sec:others}
 
@@ -546,9 +595,8 @@ WOS globalE2E (3 ep) & -- & 5,791s & -- \\
 \begin{table}[h]
 \centering
 \caption{Block-Diagonal R-Matrix on Gene Ontology datasets (4 datasets,
-3,500--4,200 classes).  Dense R is infeasible on GPU ($>$65~MB matrix).
-Sparse R reconciliation is applied at inference time only; training
-uses identity matrix to avoid OOM.  AUPRC improves on all datasets.}
+3,500--4,200 classes).  Sparse R reconciliation is applied at
+inference time only; training uses the identity matrix.  AUPRC improves on all datasets.}
 \label{tab:sparse}
 \begin{tabular}{lccccc}
 \toprule
@@ -568,7 +616,7 @@ spo\_GO       & 4120 & 0.3687 & 0.3632 & $-$0.0055 & +0.0039 \\
 \textit{Avg}  & --   & 0.3718 & 0.3667 & $-$0.0051 & +0.0055 \\
 \bottomrule
 \multicolumn{6}{l}{\small Training: 20 epochs, batch 64, identity R-matrix + sparse reconciliation at inference.} \\
-\multicolumn{6}{l}{\small Dense R-matrix ($>$65~MB) would OOM on GPU with batch $>$ 1.} \\
+\multicolumn{6}{l}{\small Dense R at batch 64: $B \times N \times N$ float64 tensor of $\approx$8.7~GB.} \\
 \multicolumn{6}{l}{\small AUPRC improves on \textbf{all 9 datasets} (avg +0.0055).} \\
 \end{tabular}
 \end{table}
@@ -576,12 +624,13 @@ spo\_GO       & 4120 & 0.3687 & 0.3632 & $-$0.0055 & +0.0039 \\
 The Block-Diagonal R-Matrix achieves \textbf{zero hierarchy violations}
 on all GO datasets while using $O(N)$ memory.  Key findings:
 
-\textbf{1. Feasibility.} The sparse R enables---for the first
-time---R-matrix-constrained inference on the full Gene Ontology
-benchmark suite.  The dense R-matrix ($N^2 \times 4$ bytes = 65~MB
-for $N{=}4{,}126$) cannot fit in GPU memory alongside model
-parameters and batched data; the sparse approximation uses only graph
-edges ($\sim$46~KB, $>1{,}400\times$ reduction).
+\textbf{1. Memory.} The dense R-matrix itself is small enough
+($N^2 \times 4$ bytes = 65~MB for $N{=}4{,}126$); the cost is the
+$B \times N \times N$ tensor formed when it is applied, which forces
+small batches (C-HMCNN trains GO with batch 4).  The sparse
+approximation uses only graph edges ($\sim$46~KB, $>1{,}400\times$
+reduction) and its cost grows with $B \cdot E$ instead of
+$B \cdot N^2$.
 
 \textbf{2. AUPRC improvement.} Sparse reconciliation improves AUPRC on
 all four datasets (avg +0.0065), consistent with the recall-boosting
@@ -673,8 +722,9 @@ However, the R-matrix is \textbf{not a silver bullet}:
     but our Block-Diagonal approximation (Section~\ref{sec:sparse})
     reduces this to $O(N)$ with zero violation penalty.  On all 9 GO
     datasets (up to 4,504 nodes), sparse reconciliation improves
-    AUPRC on every dataset (avg +0.0055) while the dense R-matrix
-    cannot even fit in GPU memory.  Training completes in 2--12\,s per
+    AUPRC on every dataset (avg +0.0055) without the
+    $B \times N \times N$ tensor that limits the dense R-matrix to
+    small batches.  Training completes in 2--12\,s per
     dataset (RTX 3060).
   \item \textbf{GBDT integration.} Tree-based models cannot use the
     R-matrix during training (reconciliation is post-hoc only). An
