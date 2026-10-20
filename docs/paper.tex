@@ -72,12 +72,15 @@ o \textbf{ArXiv} (50\,000 artigos, hierarquia de 19 áreas e 137 subcategorias) 
 \textbf{Web of Science} (WOS, 46\,985 resumos, 7 áreas e 134 subcategorias), este
 último o benchmark canônico da literatura de classificação hierárquica de texto (HTC).
 Utilizamos o split padrão da literatura (64\% treino / 16\% validação / 20\% teste,
-seguindo a metodologia do HPT) para permitir comparação direta. No WOS, nossos
-resultados ficam a aproximadamente \textbf{12--14 pontos percentuais} dos melhores
-métodos publicados (HiAGM, HGCLR, HPT), com o \textit{gap} atribuível a três fatores:
-congelamento do encoder, ausência de GNN no grafo de rótulos, e falta de sinal
-contrastivo hierárquico. Discutimos o roteiro de melhorias incrementais, todas já
-implementadas como métodos alternativos no repositório.
+seguindo a metodologia do HPT) para permitir comparação direta. No WOS, o encoder
+congelado fica cerca de 13 pontos percentuais abaixo dos melhores métodos
+publicados; com \textit{fine-tuning} end-to-end e época e limiar escolhidos na
+validação, o modelo atinge \textbf{86,7\%} de Micro-F1, competitivo com HPT
+(87,2\%) e HGCLR (87,1\%) e acima de HiAGM e HTC-infoMAX. Nos benchmarks
+tabulares, o mesmo classificador empata com C-HMCNN e HMCN-F no FunCat e no Gene
+Ontology (com uma R-matrix esparsa) e supera o C-HMCNN em três de quatro datasets
+de domínio cruzado; os resultados reportados pelo Surj, sem código público, não
+foram reproduzíveis a partir do artigo.
 
 \vspace{0.6em}
 \noindent\textbf{Palavras-chave:} classificação hierárquica multi-rótulo,
@@ -466,14 +469,20 @@ Global (micro)   & \ours{0,741} & --              & -- \\
 A Tabela~\ref{tab:wos_sota} posiciona nosso resultado no WOS frente aos métodos
 do estado da arte em HTC. Diferentemente do ArXiv --- que carece de benchmarks
 padronizados --- o WOS permite comparação direta, pois todos os métodos utilizam
-o mesmo split (64/16/20) e reportam Micro-F1.
+o mesmo split (64/16/20) e reportam Micro-F1.  Seguindo o protocolo do HPT
+(treino só nos 30.070 documentos de treino, época e limiar escolhidos nos 7.518
+de validação, teste usado uma vez), o \textit{fine-tuning} end-to-end atinge
+86,71\%: acima de HiAGM e HTC-infoMAX e 0,45\,pp abaixo do HPT.  Um valor
+anterior de 87,36\%, obtido com um script que escolhia o limiar no teste, foi
+retirado.
 
 \begin{table}[htbp]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \caption{Comparação no dataset WOS (Web of Science). Split 64/16/20 padrão.
-         Métricas de terceiros extraídas dos artigos originais.}
+         Métricas de terceiros extraídas dos artigos originais.  E2E: época
+         (5 de até 10) e limiar escolhidos na validação, seed 0.}
 \label{tab:wos_sota}
 \begin{tabular}{llcc}
 \toprule
@@ -482,7 +491,7 @@ o mesmo split (64/16/20) e reportam Micro-F1.
 \ours{C-HMCNN + SPECTER2 (frozen)} & SPECTER2 (768\,d, frozen)
     & \ours{74,07\%} & este trabalho \\
 \ours{C-HMCNN + SPECTER2 (E2E)}   & SPECTER2 (768\,d, fine-tuned)
-    & \ours{87,36\%} & este trabalho \\
+    & \ours{86,71\%} & este trabalho \\
 \midrule
 HiAGM                      & TextRCNN (Bi-GRU)
     & 85,82\%   & \cite{zhou2020hiagm} \\
@@ -497,7 +506,7 @@ HPT                        & RoBERTa (1024\,d)
 \subsection{ArXiv: estudo de ablação planejado}
 
 Como o ArXiv não possui baselines externas de HTC, a avaliação neste dataset é
-conduzida como estudo de ablação interna. A Tabela~\ref{tab:arxiv_ablation}
+conduzida como estudo de ablação interna. A Tabela~\ref{tab:ablation}
 resume as configurações planejadas e o ganho esperado de cada componente, com
 base em resultados análogos no WOS.
 
@@ -510,8 +519,7 @@ base em resultados análogos no WOS.
 \textbf{Configuração} & \textbf{Micro-F1 (WOS)} & \textbf{Micro-F1 (ArXiv)} \\
 \midrule
 \ours{Baseline (frozen, 50k)}      & \ours{74,07\%} & \ours{72,11\%} \\
-\ours{+ Fine-tuning (E2E, 5 ep)}   & \ours{87,36\%} & 71,38\% \\
-\ours{+ Fine-tuning (E2E, 10 ep)}  & 87,12\% & -- \\
+\ours{+ Fine-tuning (E2E, protocolo HPT)}$^\ast$ & \ours{86,71\%} & 71,38\% \\
 \ours{+ Label GNN (SOTA, 5 ep)}    & \ours{86,55\%} & 70,87\% \\
 \ours{+ SciBERT (100k, 10 ep)}     & --         & \ours{72,58\%} \\
 \bottomrule
@@ -522,8 +530,59 @@ HGCLR   & 87,11\% & -- \\
 HPT     & 87,16\% & -- \\
 \texttt{localE2E} & \ours{86,67\%} & este trabalho \\
 \bottomrule
+\multicolumn{3}{p{0.9\linewidth}}{\small $^\ast$WOS: época e limiar escolhidos
+na validação (seed 0).  As demais linhas vêm de execuções anteriores e não
+seguem esse protocolo.} \\
 \end{tabular}
 \end{table}
+
+% ═══════════════════════════════════════════════════════════════════════
+\subsection{Além do texto: FunCat, Gene Ontology e domínios cruzados}
+\label{sec:tabular}
+
+O mesmo classificador global (MLP + R-matrix) foi avaliado nos benchmarks
+tabulares de HMC sob um protocolo só com validação (época e limiar escolhidos
+na validação; teste usado uma vez; média de três seeds).  A
+Tabela~\ref{tab:tabular} resume os resultados frente aos métodos
+verificáveis do estado da arte, C-HMCNN~\cite{giunchiglia2020coherent} e
+HMCN-F~\cite{wehrmann2018hmcn}.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption{AUPRC média (micro, sem as raízes) nos benchmarks tabulares.
+         FunCat e GO: 8 datasets em comum com a literatura.}
+\label{tab:tabular}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Grupo} & \textbf{C-HMCNN} & \textbf{HMCN-F} & \textbf{Nosso} & \textbf{Situação} \\
+\midrule
+FunCat (8)                 & 0,264 & 0,261 & \ours{0,262} & empate estatístico \\
+Gene Ontology (8)          & 0,420 & 0,422 & \ours{0,418} & empate, com R esparsa \\
+Domínios cruzados (4)      & 0,849 & 0,781 & \ours{0,857} & acima em 3 de 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+No FunCat, o modelo com MCLoss e um ramo de \textit{autoencoder} de grafo
+sobre a hierarquia empata com o C-HMCNN (Friedman/Nemenyi) e o supera em
+derisi e spo.  No Gene Ontology (até 4.134 classes), a formulação esparsa
+da R-matrix, em memória $O(C{+}E)$, iguala os modelos com restrição sem
+materializar o tensor denso, que não cabe na GPU com batch 64.  Nos
+domínios cruzados (e-mail, microscopia e imagens médicas), o modelo supera o
+C-HMCNN em enron, imclef07a e diatoms (+0,027 neste último).
+
+\textbf{O caso Surj.}  O Surj~\cite{yang2022surj} reporta AUPRC
+7--31\% acima do C-HMCNN no FunCat e no GO, mas o código nunca foi
+disponibilizado publicamente.  Reimplementamos o modelo a partir da
+descrição do artigo, sobre o próprio pipeline do C-HMCNN (que reproduz os
+números publicados do C-HMCNN), com os hiperparâmetros não informados
+escolhidos na validação: obtivemos 0,232 no FunCat e 0,352 no GO, contra
+0,312 e 0,468 reportados, abaixo do C-HMCNN em todos os datasets.  Nenhuma
+variante da métrica explica a diferença para os dois modelos ao mesmo
+tempo.  Por isso, tratamos os números do Surj como reportados, mas não
+reprodutíveis, e não os usamos nas comparações; a reimplementação está em
+\texttt{surj\_repro/}.
 
 % ═══════════════════════════════════════════════════════════════════════
 \section{Análise e Discussão}
@@ -610,8 +669,16 @@ científico congelado já resolve boa parte da taxonomia do ArXiv. No
 \textbf{WOS}, o pipeline congelado atinge \textbf{74,1\%} de Micro-F1, e a
 execução local com fine-tuning end-to-end (\texttt{localE2E}) sobe para
 \textbf{86,7\%}, evidenciando um ganho claro de adaptação ao domínio.
-A configuração \texttt{globalE2E} permanece como melhor resultado do repositório,
-com \textbf{87,4\%} --- acima de HPT (87,2\%) e HGCLR (87,1\%).
+A configuração \texttt{globalE2E}, sob o protocolo do HPT (época e limiar
+escolhidos na validação), atinge \textbf{86,7\%}, competitiva com HPT (87,2\%)
+e HGCLR (87,1\%) e acima de HiAGM e HTC-infoMAX.
+
+Fora do texto, o mesmo classificador empata com C-HMCNN e HMCN-F no FunCat e no
+Gene Ontology --- neste, graças à R-matrix esparsa, que evita o tensor denso ---
+e supera o C-HMCNN em três dos quatro datasets de domínio cruzado
+(Seção~\ref{sec:tabular}).  Os resultados reportados pelo Surj, acima de todos
+esses no FunCat e no GO, não puderam ser reproduzidos a partir do artigo e
+não têm código público; por isso não entram na comparação.
 
 O caminho de melhoria incremental está mapeado e implementado no repositório:
 \textit{fine-tuning} end-to-end (\texttt{globalE2E}), integração de GNN no grafo
@@ -652,6 +719,17 @@ J.~Zhou, C.~Ma, D.~Long, G.~Xu, N.~Ding, H.~Zhang, P.~Xie \& G.~Liu.
 \textit{Hierarchy-Aware Global Model for Hierarchical Text Classification}.
 In \textit{Proceedings of the 58th Annual Meeting of the Association for
 Computational Linguistics} (ACL), 2020.
+
+\bibitem{wehrmann2018hmcn}
+J.~Wehrmann, R.~Cerri \& R.~C.~Barros.
+\textit{Hierarchical Multi-label Classification Networks}.
+In \textit{Proceedings of ICML}, pp.~5225--5234, 2018.
+
+\bibitem{yang2022surj}
+S.~T.~Yang \& B.~Howe.
+\textit{Surj: Ontological Learning for Fast, Accurate, and Robust
+Hierarchical Multi-label Classification}.
+In \textit{Companion Proceedings of the Web Conference} (WWW), 2022.
 
 \bibitem{wang2022hgclr}
 Z.~Wang, P.~Wang, L.~Huang, X.~Sun \& H.~Wang.

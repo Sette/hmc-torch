@@ -5,11 +5,21 @@
 **Tempo restante:** < 12 meses. Não dá para 3 papers + proteína + GO + teoria.
 É preciso escolher **1 contribuição original forte** e executá-la com profundidade.
 
-**O que já está pronto:**
-- Plataforma funcional (91 testes, GPU, 25 datasets)
-- SOTA em ArXiv (+13.5 F1) e WOS (+0.2 F1)
-- FunCat competitivo com baselines neurais
-- Paper em LaTeX escrito
+**O que já está pronto** (Out 2026, todos os números com época e limiar escolhidos na validação):
+- Plataforma funcional (172 testes, GPU, 28 datasets).
+- **Domínios cruzados (ARFF):** acima do C-HMCNN em 3 de 4 datasets (AUPRC média 0,857 vs
+  0,849; diatoms +0,027). É o ganho mais claro.
+- **FunCat:** empate estatístico com C-HMCNN e HMCN-F (0,262 vs 0,264, Friedman/Nemenyi); acima do
+  C-HMCNN em derisi e spo, com um ramo de autoencoder de grafo.
+- **Gene Ontology:** empate (0,418 vs 0,420/0,422) com a R-matrix esparsa, em O(C+E), onde a R
+  densa não cabe na GPU.
+- **WOS:** 86,71% de Micro-F1 com fine-tuning (seed 0), competitivo e 0,45 pp abaixo do HPT. O
+  87,4% antigo vinha de um script que escolhia o limiar no teste e foi retirado.
+- **ArXiv/AAPD:** split próprio, sem comparação direta com a literatura (não alegar SOTA).
+- **Surj (WWW'22):** reportado, mas não reprodutível. Não tem código público; a reimplementação a
+  partir do artigo, sobre o pipeline do C-HMCNN, fica abaixo do C-HMCNN (FunCat 0,232 vs 0,312
+  reportado). Está em `surj_repro/` e não entra nas comparações.
+- Papers: `docs/hmc-paper` (inglês, completo) e `docs/paper.tex` (português, texto).
 
 **O que NÃO dá tempo:**
 - 2 papers separados → Junte em 1 paper forte
@@ -26,7 +36,7 @@
 **Paper:** *"The R-Matrix Constraint as a First-Class Hierarchical Classification Component"*
 
 Este paper substitui os Paper 1 e Paper 2 do plano anterior. É um paper de método
-que introduz a plataforma E demonstra resultados SOTA. Não é demo track — é main track.
+que introduz a plataforma E demonstra resultados competitivos com o estado da arte verificável (acima dele nos domínios cruzados). Não é demo track — é main track.
 
 **Conteúdo:**
 1. Introdução: o problema HMC, R-matrix como ideia herdada, plataforma como contribuição
@@ -52,7 +62,10 @@ que introduz a plataforma E demonstra resultados SOTA. Não é demo track — é
 **ESCOLHA ÚNICA** — não dá para fazer as duas. Escolha baseada no que é mais
 viável e impactante:
 
-#### Opção A: Sparse R-Matrix para GO (recomendada)
+#### Opção A: Sparse R-Matrix para GO (recomendada) — **concluída**
+
+Status (Out 2026): `BlockDiagonalR` exato (mesmos valores da R densa) roda nos 9 datasets GO,
+com resultado empatado com C-HMCNN/HMCN-F.
 
 **Por que esta?**
 - Não depende de dados externos (GO já está em `data/HMC_data_arff/datasets_GO/`)
@@ -98,7 +111,7 @@ funciona. Paper forte de análise empírica (não de método novo).
    - 25 datasets, GPU, artefatos reproduzíveis
 
 2. **R-Matrix em texto** (Cap. 5, Paper 1)
-   - SOTA em ArXiv (+13.5) e WOS (+0.2)
+   - WOS competitivo (86,7%, −0,45 pp do HPT); ArXiv/AAPD em split próprio
    - Ablação, análise por nível
 
 3. **R-Matrix Esparsa em GO** (Cap. 6, Fase 2) OU **Análise sistemática** (Opção B)

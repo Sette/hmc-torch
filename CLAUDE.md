@@ -123,7 +123,7 @@ Exigem `PYTHONPATH=src` e gravam em `./output/`. **Todos os números do paper v�
 | Script | O que produz |
 |---|---|
 | `run_protocol.py --group {funcat,go,others,text,all}` | `output/protocol/<dataset>.json`: 3 seeds × {BCE, hinge, MCLoss} × {raw, reconciliado}, + GBDT/Platt no FunCat |
-| `run_wos_e2e.py --seed N` | SPECTER2 fine-tuned no WOS com o protocolo do HPT (`output/protocol/wos_e2e_seedN.json`) |
+| `run_wos_e2e.py --seed N --epochs 10` | SPECTER2 fine-tuned no WOS com o protocolo do HPT (`output/protocol/wos_ep10/wos_e2e_seedN.json`; seed 0 = 0,8671, o número do paper) |
 | `hierarchy_structure.py` | `output/protocol/structure.json`: fração de nós internos e quanto a reconciliação move os scores (análise da Seção 5.2) |
 | `run_surj.py --experiment {main,literal,evolving,datasize}` | `output/surj/<exp>/`: reprodução do Surj (cabeças `surj` e `onehot`, raw/rec, GHV, tempos); `literal` = Adam 1e-3, 10 seeds, sem refit, com o teto diagnóstico `oracle_test_auprc` (época escolhida no test — nunca reportar como resultado) |
 | `run_label_embeddings.py --group {funcat,go,all}` | `output/label_embeddings/`: heads com embeddings de rótulos (livre, GCN, texto do `go.obo`, texto+GCN) no mesmo protocolo |
