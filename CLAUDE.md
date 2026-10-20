@@ -46,6 +46,7 @@ Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/h
 | `globalSOTA` | transformer fine-tuned + GCN + R-matrix |
 | `local` / `localE2E` | um MLP por nível da hierarquia |
 | `tabular_gbdt` / `tabular_mlp` | baselines tabulares (baselines da tabela FunCat) |
+| `surj` | Surj (WWW'22): GAE sobre a hierarquia → embeddings congelados; MLP → cosine → FC(V→V) → sigmoid, BCE |
 
 Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função de treino em
 `src/hmc/pipeline/`; os modelos ficam em `src/hmc/models/`. Embora o dispatch em
@@ -101,7 +102,7 @@ erradas.
   Features de texto são SPECTER2 (768d, CLS-pool) com cache em disco invalidado por hash MD5.
 - **Protocolo de avaliação**: treino só no split de treino; época e threshold escolhidos na
   **validação**; test usado uma vez. No CLI (`global`, `globalE2E`, `globalSOTA`, `local`,
-  `localE2E`) o `--best_threshold true` varre a validação. Os scripts antigos de `experiments/`
+  `localE2E`, `surj`) o `--best_threshold true` varre a validação. Os scripts antigos de `experiments/`
   (listados abaixo como legados) ainda escolhem o threshold no test e juntam validação ao treino.
 - **Textos do GO**: `data/ontologies/go.obo` (baixado de `purl.obolibrary.org` por
   `label_embedding.load_go_obo` se faltar); cobre todos os termos dos 9 datasets GO, inclusive
@@ -124,11 +125,16 @@ Exigem `PYTHONPATH=src` e gravam em `./output/`. **Todos os números do paper v�
 | `run_protocol.py --group {funcat,go,others,text,all}` | `output/protocol/<dataset>.json`: 3 seeds × {BCE, hinge, MCLoss} × {raw, reconciliado}, + GBDT/Platt no FunCat |
 | `run_wos_e2e.py --seed N` | SPECTER2 fine-tuned no WOS com o protocolo do HPT (`output/protocol/wos_e2e_seedN.json`) |
 | `hierarchy_structure.py` | `output/protocol/structure.json`: fração de nós internos e quanto a reconciliação move os scores (análise da Seção 5.2) |
+| `run_surj.py --experiment {main,literal,evolving,datasize}` | `output/surj/<exp>/`: reprodução do Surj (cabeças `surj` e `onehot`, raw/rec, GHV, tempos); `literal` = Adam 1e-3, 10 seeds, sem refit, com o teto diagnóstico `oracle_test_auprc` (época escolhida no test — nunca reportar como resultado) |
 | `run_label_embeddings.py --group {funcat,go,all}` | `output/label_embeddings/`: heads com embeddings de rótulos (livre, GCN, texto do `go.obo`, texto+GCN) no mesmo protocolo |
+| `run_autoencoder.py --stage {screen,final}` | `output/autoencoder/`: autoencoders no modelo global (GAE híbrido, DAE de features, AE de labels C2AE); triagem só na validação, vencedor com 3 seeds (Seção `sec:autoenc` do paper) |
 | `make_paper_artifacts.py --paper_dir docs/hmc-paper` | `data/protocol_summary.json`, `tables/*.tex`, figuras do paper e estatísticas (Friedman/Nemenyi, Wilcoxon, Spearman) |
 
 `output/protocol/run_all.sh` roda a bateria inteira (~10–12 h numa RTX 3060, a maior parte no E2E).
 `run_protocol.py` pula datasets cujo JSON já existe — apague o arquivo para refazer.
+
+`surj_repro/` (na raiz) é a reprodução standalone do Surj sobre o parser do C-HMCNN: `surj_repro/run_all.sh`,
+veredito em `surj_repro/analysis.md` (não reproduz; o paper lista o Surj como "reportado, não verificável").
 
 Os demais scripts (`run_new_datasets.py`, `run_sota_comparison.py`, `run_go_experiments.py`,
 `run_all_datasets.py`, …) são **legados**: rodam no import, juntam validação ao treino e

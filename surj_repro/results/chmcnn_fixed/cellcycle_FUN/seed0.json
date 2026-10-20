@@ -1,0 +1,62 @@
+{
+ "dataset": "cellcycle_FUN",
+ "run": "chmcnn_fixed",
+ "recipe_name": "chmcnn_fixed",
+ "recipe": {
+  "net": "chmcnn",
+  "lr": 0.0001,
+  "batch": 4,
+  "dropout": 0.7,
+  "weight_decay": 1e-05,
+  "hidden": "chmcnn",
+  "gae_dim": 16,
+  "gae_epochs": 200,
+  "mcm": true,
+  "mcloss": true,
+  "epochs": "published",
+  "max_epochs": 300,
+  "patience": 20
+ },
+ "frac": 1.0,
+ "provenance": {
+  "commit": "7ce9f6c1171030c1297f25128f43ff1bf4324374",
+  "dirty": true,
+  "torch": "2.10.0+cu130",
+  "cuda": "13.0",
+  "gpu": "NVIDIA GeForce RTX 3060",
+  "data_md5": {
+   "cellcycle_FUN.train.arff": "1412634252ce00c6a7bcec0c51d1f6d8",
+   "cellcycle_FUN.valid.arff": "5eb9a3fa028223c60bfdf7d4fe938d4d",
+   "cellcycle_FUN.test.arff": "ca6033b33944e63d1da05a6a98cbc5a9"
+  }
+ },
+ "gae_time_s": {},
+ "settings": {
+  "full": {
+   "seed": 0,
+   "epochs": 106,
+   "time_train_s": 319.1829822063446,
+   "test_ap": 0.2562483147793595,
+   "metrics": {
+    "micro_ap": 0.2562483147793595,
+    "micro_ap_with_roots": 0.3577901056588082,
+    "micro_trapezoid": 0.2561935752363078,
+    "weighted_ap": 0.2406375358774272,
+    "macro_ap": 0.09617537182990424,
+    "samples_ap": 0.3527114940521385
+   },
+   "ghv": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1190,
+    "rate": 0.0
+   },
+   "ghv_relevant": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1190,
+    "rate": 0.0
+   }
+  }
+ }
+}

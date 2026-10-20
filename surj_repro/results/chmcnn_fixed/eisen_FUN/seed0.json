@@ -1,0 +1,62 @@
+{
+ "dataset": "eisen_FUN",
+ "run": "chmcnn_fixed",
+ "recipe_name": "chmcnn_fixed",
+ "recipe": {
+  "net": "chmcnn",
+  "lr": 0.0001,
+  "batch": 4,
+  "dropout": 0.7,
+  "weight_decay": 1e-05,
+  "hidden": "chmcnn",
+  "gae_dim": 16,
+  "gae_epochs": 200,
+  "mcm": true,
+  "mcloss": true,
+  "epochs": "published",
+  "max_epochs": 300,
+  "patience": 20
+ },
+ "frac": 1.0,
+ "provenance": {
+  "commit": "7ce9f6c1171030c1297f25128f43ff1bf4324374",
+  "dirty": true,
+  "torch": "2.10.0+cu130",
+  "cuda": "13.0",
+  "gpu": "NVIDIA GeForce RTX 3060",
+  "data_md5": {
+   "eisen_FUN.train.arff": "65db4fbc06a8568ee3f8d5e2e9da87b9",
+   "eisen_FUN.valid.arff": "4437941fb53a8330515d9d11ea66a013",
+   "eisen_FUN.test.arff": "5bdb8a0bd0bfd4bae14cf0fa7454e56d"
+  }
+ },
+ "gae_time_s": {},
+ "settings": {
+  "full": {
+   "seed": 0,
+   "epochs": 110,
+   "time_train_s": 211.23803234100342,
+   "test_ap": 0.30864014768833836,
+   "metrics": {
+    "micro_ap": 0.30864014768833836,
+    "micro_ap_with_roots": 0.39952452863529697,
+    "micro_trapezoid": 0.30857613312396603,
+    "weighted_ap": 0.2957793170731116,
+    "macro_ap": 0.13958595014606656,
+    "samples_ap": 0.40432531639529423
+   },
+   "ghv": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1087,
+    "rate": 0.0
+   },
+   "ghv_relevant": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1087,
+    "rate": 0.0
+   }
+  }
+ }
+}

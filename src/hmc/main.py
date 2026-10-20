@@ -2,7 +2,7 @@
 Main module for training HMC models.
 
 Supports methods: global (frozen), globalE2E (fine-tuned), globalSOTA (E2E + GCN),
-local, localE2E, tabular_gbdt, tabular_mlp.
+local, localE2E, tabular_gbdt, tabular_mlp, surj (graph-autoencoder label embeddings).
 """
 
 import logging
@@ -95,10 +95,17 @@ def main(args=None) -> dict:
             from hmc.pipeline.tabular.main import train_tabular_mlp  # pylint: disable=import-outside-toplevel
 
             train_tabular_mlp(args.dataset.dataset_name, args)
+        case "surj":
+            logging.info(
+                "Surj (graph-autoencoder label embeddings + cosine classifier)"
+            )
+            from hmc.pipeline.surj.main import train_surj  # pylint: disable=import-outside-toplevel
+
+            train_surj(args.dataset.dataset_name, args)
         case _:
             print(
                 f"Unknown method '{args.method}'. "
-                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp"
+                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp, surj"
             )
 
     score: dict = args.score if isinstance(args.score, dict) else {}

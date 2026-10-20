@@ -1,0 +1,93 @@
+{
+  "chmcnn_fixed": {
+    "about": "Sanity 2a: C-HMCNN as released (its net, lr 1e-4, MCM + MCLoss, published epochs on train+val). Must match output/chmcnn_parity.",
+    "set": {
+      "net": "chmcnn",
+      "lr": 0.0001,
+      "mcm": true,
+      "mcloss": true,
+      "epochs": "published"
+    }
+  },
+  "L0_chmcnn": {
+    "about": "Sanity 2b / ladder rung 0: as chmcnn_fixed, epochs by early stopping on validation + refit.",
+    "set": {
+      "net": "chmcnn",
+      "lr": 0.0001,
+      "mcm": true,
+      "mcloss": true
+    }
+  },
+  "L1_onehot_mc": {
+    "about": "Rung 1: Surj's output head with one-hot labels (normalize, cosine with I, FC(V,V)), still MCM + MCLoss, lr 1e-4.",
+    "set": {
+      "net": "onehot",
+      "lr": 0.0001,
+      "mcm": true,
+      "mcloss": true
+    }
+  },
+  "L2_onehot": {
+    "about": "Rung 2: L1 with plain BCE and raw outputs (Surj's Table 5 baseline), lr 1e-4.",
+    "set": {
+      "net": "onehot",
+      "lr": 0.0001
+    }
+  },
+  "L3_surj": {
+    "about": "Rung 3: L2 with the GAE embeddings (Surj as written), lr 1e-4.",
+    "set": {
+      "net": "surj",
+      "lr": 0.0001
+    }
+  },
+  "L4_surj_lr3": {
+    "about": "Rung 4: L3 at the paper's lr 1e-3.",
+    "set": {
+      "net": "surj",
+      "lr": 0.001
+    }
+  },
+  "L5_surj_mc": {
+    "about": "Rung 5: L4 + MCM + MCLoss (would explain the paper's zero hierarchy violations).",
+    "set": {
+      "net": "surj",
+      "lr": 0.001,
+      "mcm": true,
+      "mcloss": true
+    }
+  },
+  "L4_onehot_lr3": {
+    "about": "Ablation partner of L4 (one-hot at lr 1e-3).",
+    "set": {
+      "net": "onehot",
+      "lr": 0.001
+    }
+  },
+  "selected": {
+    "about": "Chosen by hpsearch.py on FunCat validation AP (seed 0).",
+    "set": {
+      "net": "surj",
+      "lr": 0.001,
+      "batch": 4,
+      "dropout": 0.7,
+      "hidden": 512,
+      "gae_dim": 16,
+      "mcm": true,
+      "mcloss": true
+    }
+  },
+  "selected_onehot": {
+    "about": "`selected` with one-hot labels (Table 5 ablation).",
+    "set": {
+      "net": "onehot",
+      "lr": 0.001,
+      "batch": 4,
+      "dropout": 0.7,
+      "hidden": 512,
+      "gae_dim": 16,
+      "mcm": true,
+      "mcloss": true
+    }
+  }
+}

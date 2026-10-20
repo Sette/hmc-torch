@@ -1,0 +1,192 @@
+{
+ "dataset": "eisen_FUN",
+ "tag": "S0",
+ "args": {
+  "datasets": "eisen_FUN,cellcycle_FUN",
+  "group": null,
+  "variant": "S0",
+  "heads": [
+   "surj",
+   "onehot"
+  ],
+  "seeds": [
+   0,
+   1,
+   2
+  ],
+  "lr": 0.001,
+  "dropout": 0.7,
+  "batch": 4,
+  "max_epochs": 300,
+  "patience": 20,
+  "gae_dim": 16,
+  "frac": 1.0,
+  "evolve": false,
+  "device": "cuda",
+  "out_dir": "surj_repro/results/pilot"
+ },
+ "runs": [
+  {
+   "seed": 0,
+   "epochs": 44,
+   "val_auprc": 0.2478403706965057,
+   "test_auprc": 0.2636091902798148,
+   "test_auprc_no_refit": 0.2542147089866717,
+   "ghv": {
+    "violations": 40274,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.04426594740272516
+   },
+   "ghv_relevant": {
+    "violations": 18,
+    "samples_with_violation": 8,
+    "pairs": 1087,
+    "rate": 1.9784154870364324e-05
+   },
+   "time_select_s": 51.63677430152893,
+   "time_refit_s": 44.69025373458862,
+   "auprc_with_roots": 0.3391573333406377,
+   "oracle_test_auprc": 0.2542147089866717,
+   "oracle_epoch": 44,
+   "head": "surj",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  },
+  {
+   "seed": 1,
+   "epochs": 46,
+   "val_auprc": 0.2502620303581661,
+   "test_auprc": 0.26501571477026553,
+   "test_auprc_no_refit": 0.2548515490277613,
+   "ghv": {
+    "violations": 41825,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.04597068208072155
+   },
+   "ghv_relevant": {
+    "violations": 37,
+    "samples_with_violation": 24,
+    "pairs": 1087,
+    "rate": 4.066742945574889e-05
+   },
+   "time_select_s": 60.37283444404602,
+   "time_refit_s": 65.96103501319885,
+   "auprc_with_roots": 0.34387653906352955,
+   "oracle_test_auprc": 0.2548732656163351,
+   "oracle_epoch": 37,
+   "head": "surj",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  },
+  {
+   "seed": 2,
+   "epochs": 47,
+   "val_auprc": 0.2514718915390516,
+   "test_auprc": 0.2597026993937175,
+   "test_auprc_no_refit": 0.25287886817422994,
+   "ghv": {
+    "violations": 42143,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.04632020215009799
+   },
+   "ghv_relevant": {
+    "violations": 33,
+    "samples_with_violation": 24,
+    "pairs": 1087,
+    "rate": 3.6270950595667926e-05
+   },
+   "time_select_s": 71.77157831192017,
+   "time_refit_s": 65.1273500919342,
+   "auprc_with_roots": 0.3355189624226329,
+   "oracle_test_auprc": 0.2548994582442538,
+   "oracle_epoch": 35,
+   "head": "surj",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  },
+  {
+   "seed": 0,
+   "epochs": 6,
+   "val_auprc": 0.1613511499272654,
+   "test_auprc": 0.161462331529704,
+   "test_auprc_no_refit": 0.16216983391604892,
+   "ghv": {
+    "violations": 14147,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.01554924660839134
+   },
+   "ghv_relevant": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1087,
+    "rate": 0.0
+   },
+   "time_select_s": 27.642083406448364,
+   "time_refit_s": 6.116877317428589,
+   "auprc_with_roots": 0.3005020680303954,
+   "oracle_test_auprc": 0.16347520251185763,
+   "oracle_epoch": 10,
+   "head": "onehot",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  },
+  {
+   "seed": 1,
+   "epochs": 9,
+   "val_auprc": 0.16146419506340146,
+   "test_auprc": 0.15984273640953714,
+   "test_auprc_no_refit": 0.16266077923006717,
+   "ghv": {
+    "violations": 12555,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.013799448022079117
+   },
+   "ghv_relevant": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1087,
+    "rate": 0.0
+   },
+   "time_select_s": 21.370104789733887,
+   "time_refit_s": 9.557580709457397,
+   "auprc_with_roots": 0.2995505117181259,
+   "oracle_test_auprc": 0.1631817523817227,
+   "oracle_epoch": 11,
+   "head": "onehot",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  },
+  {
+   "seed": 2,
+   "epochs": 5,
+   "val_auprc": 0.16153366871598634,
+   "test_auprc": 0.15856890306901986,
+   "test_auprc_no_refit": 0.161678889565886,
+   "ghv": {
+    "violations": 16655,
+    "samples_with_violation": 837,
+    "pairs": 1087,
+    "rate": 0.0183058388536621
+   },
+   "ghv_relevant": {
+    "violations": 0,
+    "samples_with_violation": 0,
+    "pairs": 1087,
+    "rate": 0.0
+   },
+   "time_select_s": 20.069644689559937,
+   "time_refit_s": 5.842622756958008,
+   "auprc_with_roots": 0.2984853761788412,
+   "oracle_test_auprc": 0.16282076256090927,
+   "oracle_epoch": 14,
+   "head": "onehot",
+   "setting": "full",
+   "gae_time_s": 1.2734136581420898
+  }
+ ]
+}

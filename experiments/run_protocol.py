@@ -56,6 +56,9 @@ from hmc.datasets.registry import (  # noqa: E402  pylint: disable=wrong-import-
 from hmc.models.hierarchical.sparse_r import (  # noqa: E402  pylint: disable=wrong-import-position
     BlockDiagonalR,
 )
+from hmc.utils.datasets.scaling import (  # noqa: E402  pylint: disable=wrong-import-position
+    standardize_splits,
+)
 
 FUNCAT = [
     "cellcycle_FUN", "church_FUN", "derisi_FUN", "eisen_FUN", "expr_FUN",
@@ -95,12 +98,7 @@ def load_dataset(name: str) -> dict:
     ys = [np.asarray(s.y, dtype=np.float32) for s in (train, valid, test)]
 
     # Impute (tabular features may have NaNs) and standardize with train stats.
-    mean = np.nanmean(xs[0], axis=0)
-    mean = np.where(np.isnan(mean), 0.0, mean)
-    xs = [np.where(np.isnan(x), mean, x) for x in xs]
-    std = xs[0].std(axis=0)
-    std[std == 0] = 1.0
-    xs = [((x - mean) / std).astype(np.float32) for x in xs]
+    xs = standardize_splits(*xs)
 
     # Hierarchy: mgr.a[i, j] = 1 means j is a parent of i (child -> parent).
     adj = np.asarray(mgr.a)
@@ -153,8 +151,13 @@ def hyperparams(name: str) -> dict:
         family = "FUN" if name.endswith("_FUN") else "GO" if name.endswith("_GO") else "others"
         key = name.rsplit("_", 1)[0]
         hidden = reg.hidden_dims[family][key]
-        batch = 64 if family == "GO" else 32
-        return {"hidden": hidden, "batch": batch, "max_epochs": 200, "patience": 20, "refit": True}
+        # FunCat and GO: dropout 0.7 / batch 4 (C-HMCNN's values) close the gap to
+        # C-HMCNN; see output/protocol_ablation/ and output/protocol_go_recipe/.
+        # _others keep the measured defaults.
+        batch = 4 if family in ("FUN", "GO") else 32
+        dropout = 0.7 if family in ("FUN", "GO") else 0.3
+        return {"hidden": hidden, "batch": batch, "dropout": dropout,
+                "max_epochs": 200, "patience": 20, "refit": True}
     return {"hidden": 512, "batch": 64, "max_epochs": 100, "patience": 10, "refit": False}
 
 
@@ -276,12 +279,17 @@ def predict(model, x, device, batch=1024):
     return torch.cat(out).numpy()
 
 
-def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None, on_epoch=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Train a model for up to ``epochs`` epochs.
 
     With ``x_val``, stop early on the validation AUPRC of the reconciled outputs
     and return the best checkpoint; otherwise train for exactly ``epochs``.
     ``model_fn(input_dim, output_dim)`` builds the network (default: the MLP).
+    ``hp["lr"]`` (default 1e-4) and ``hp["optimizer"]`` (``"adamw"`` or
+    ``"adam"``) set the optimizer and ``hp["select"]`` (``"rec"`` or ``"raw"``)
+    which validation scores drive early stopping; ``on_epoch(epoch, model)`` is called after
+    every epoch (diagnostics only, it must not influence training).  A model with
+    ``aux_loss(xb, yb)`` gets that term added to the objective of every batch.
     """
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -292,10 +300,14 @@ def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None):
     sparse_r = data["sparse_r"]
     x_t, y_t = torch.from_numpy(x), torch.from_numpy(y)
 
-    model = (model_fn or (lambda d_in, d_out: MLP(d_in, hp["hidden"], d_out)))(
+    model = (model_fn or (lambda d_in, d_out: MLP(d_in, hp["hidden"], d_out, hp.get("dropout", 0.3))))(
         x.shape[1], y.shape[1]
     ).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    lr = hp.get("lr", 1e-4)
+    if hp.get("optimizer", "adamw") == "adam":
+        opt = torch.optim.Adam(model.parameters(), lr=lr)
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     gen = torch.Generator().manual_seed(seed)
     best, best_state, best_epoch, bad = -1.0, None, epochs, 0
     for epoch in range(epochs):
@@ -305,12 +317,20 @@ def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None):
             idx = perm[i : i + hp["batch"]]
             xb, yb = x_t[idx].to(device), y_t[idx].to(device)
             loss = objective_loss(kind, model(xb), yb, eval_cols, sparse_r, anc, desc)
+            if hasattr(model, "extra_loss"):
+                loss = loss + model.extra_loss()
+            if hasattr(model, "aux_loss"):  # batch-dependent auxiliary term (autoencoders)
+                loss = loss + model.aux_loss(xb, yb)
             opt.zero_grad()
             loss.backward()
             opt.step()
+        if on_epoch is not None:
+            on_epoch(epoch + 1, model)
         if x_val is None:
             continue
-        s_val = _reconcile(data, predict(model, x_val, device), device)
+        s_val = predict(model, x_val, device)
+        if hp.get("select", "rec") == "rec":
+            s_val = _reconcile(data, s_val, device)
         score = auprc(data["y"][1][:, m], s_val[:, m])
         if score > best:
             best, best_epoch, bad = score, epoch + 1, 0
@@ -328,17 +348,22 @@ def _reconcile(data, scores, device):
     return data["sparse_r"].reconcile(torch.from_numpy(scores).to(device)).cpu().numpy()
 
 
-def train_mlp(data, kind, seed, device, hp, model_fn=None):
+def train_mlp(data, kind, seed, device, hp, model_fn=None, keep_scores=False, on_epoch=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Early-stop on validation, then (optionally) refit on train + validation.
 
     The decision threshold always comes from the validation scores of the
     early-stopped model, so the test split never influences any choice.
+    With ``keep_scores``, the raw and reconciled test scores are returned under
+    ``"raw_test_scores"`` and ``"rec_test_scores"`` (not JSON-serializable; pop
+    them before dumping).  ``on_epoch`` is passed to the first (early-stopped)
+    fit only.
     """
     x_tr, x_val, x_te = data["x"]
     y_tr, y_val = data["y"][0], data["y"][1]
     t0 = time.time()
     model, best_epoch, best = _fit(data, kind, seed, device, hp, x_tr, y_tr,
-                                   hp["max_epochs"], x_val=x_val, model_fn=model_fn)
+                                   hp["max_epochs"], x_val=x_val, model_fn=model_fn,
+                                   on_epoch=on_epoch)
     raw_val = predict(model, x_val, device)
     if hp["refit"]:
         model, _, _ = _fit(data, kind, seed, device, hp,
@@ -352,7 +377,9 @@ def train_mlp(data, kind, seed, device, hp, model_fn=None):
         "rec": (_reconcile(data, raw_val, device), _reconcile(data, raw_test, device)),
     }.items():
         results[mode] = evaluate(data, sv, st)
-    return {
+    extra = {"raw_test_scores": raw_test,
+             "rec_test_scores": _reconcile(data, raw_test, device)} if keep_scores else {}
+    return extra | {
         "objective": kind,
         "seed": seed,
         "best_epoch": best_epoch,
@@ -430,7 +457,7 @@ def run_gbdt(data, seed=0):
 # ---------------------------------------------------------------------------
 
 
-def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None):
+def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None, overrides=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     path = os.path.join(out_dir, f"{name}.json")
     if os.path.exists(path):
         print(f"[skip] {name}: {path} exists")
@@ -440,6 +467,7 @@ def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None)
     hp = hyperparams(name)
     if max_epochs:
         hp["max_epochs"] = max_epochs
+    hp |= overrides or {}
     m = data["eval_mask"]
     record = {
         "dataset": name,
@@ -488,6 +516,8 @@ def main():
     parser.add_argument("--out_dir", default="./output/protocol")
     parser.add_argument("--no_gbdt", action="store_true")
     parser.add_argument("--max_epochs", type=int, default=None, help="Override (smoke tests)")
+    parser.add_argument("--dropout", type=float, default=None, help="Override the MLP dropout (0.3)")
+    parser.add_argument("--batch", type=int, default=None, help="Override the batch size")
     args = parser.parse_args()
 
     if args.datasets:
@@ -503,7 +533,9 @@ def main():
     device = torch.device(args.device)
     for name in names:
         run_dataset(name, seeds, device, args.out_dir, objectives,
-                    gbdt=name in FUNCAT and not args.no_gbdt, max_epochs=args.max_epochs)
+                    gbdt=name in FUNCAT and not args.no_gbdt, max_epochs=args.max_epochs,
+                    overrides={k: v for k, v in (("dropout", args.dropout), ("batch", args.batch))
+                               if v is not None})
 
 
 if __name__ == "__main__":

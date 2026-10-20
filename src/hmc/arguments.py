@@ -33,6 +33,11 @@ class TrainingConfig:
     consistency_loss: str = "mc"
     lambda_hier: float = 1.0
     lr_transformer: float = 2e-5
+    lr: float = 1e-3
+    dropout: float = 0.3
+    surj_dim: int = 128
+    surj_gae_epochs: int = 200
+    surj_gae_loss: str = "full"
 
 
 @dataclass
@@ -118,6 +123,22 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--lambda_hier", type=float, default=1.0)
     parser.add_argument("--lr_transformer", type=float, default=2e-5)
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate (surj)")
+    parser.add_argument("--dropout", type=float, default=0.3, help="MLP dropout (surj)")
+    parser.add_argument(
+        "--surj_dim",
+        type=int,
+        default=128,
+        help="Label-embedding size of the graph autoencoder",
+    )
+    parser.add_argument("--surj_gae_epochs", type=int, default=200)
+    parser.add_argument(
+        "--surj_gae_loss",
+        type=str,
+        default="full",
+        choices=["full", "sampled"],
+        help="'full' = Kipf & Welling's adjacency reconstruction; 'sampled' = negative sampling",
+    )
     parser.add_argument(
         "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
     )
@@ -137,6 +158,7 @@ def get_parser() -> argparse.ArgumentParser:
             "localE2E",
             "tabular_gbdt",
             "tabular_mlp",
+            "surj",
         ],
     )
     parser.add_argument(
@@ -168,6 +190,11 @@ def parse_args() -> Args:
         consistency_loss=ns.consistency_loss,
         lambda_hier=ns.lambda_hier,
         lr_transformer=ns.lr_transformer,
+        lr=ns.lr,
+        dropout=ns.dropout,
+        surj_dim=ns.surj_dim,
+        surj_gae_epochs=ns.surj_gae_epochs,
+        surj_gae_loss=ns.surj_gae_loss,
     )
     return Args(
         dataset=dataset,

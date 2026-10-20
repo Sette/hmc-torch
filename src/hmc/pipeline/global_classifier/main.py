@@ -12,6 +12,7 @@ from lightning import Trainer
 from lightning.pytorch.callbacks import EarlyStopping
 from torch.utils.data import DataLoader
 
+from hmc.arguments import TrainingConfig
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
     ConstrainedGNNModel,
@@ -19,18 +20,32 @@ from hmc.models.global_classifier.constraint.model import (
     ConstrainedModel,
 )
 from hmc.pipeline.global_classifier.core.train import train_step
+from hmc.utils.datasets.scaling import standardize_splits
 from hmc.utils.model_cache import ensure_transformer_model_cached
 from hmc.utils.train.job import (
     create_job_id_name,
 )
 
 
+ARFF_SUFFIXES = ("_FUN", "_GO", "_others")
+
+
+def _is_arff(dataset_name: str) -> bool:
+    return any(suffix in (dataset_name or "") for suffix in ARFF_SUFFIXES)
+
+
 def _get_defaults(registry, dataset_name: str) -> dict:
     """Pick default hyperparams based on dataset family."""
     if dataset_name == "wos":
         return registry.wos_defaults
-    if any(suffix in (dataset_name or "") for suffix in ("_FUN", "_GO", "_others")):
-        return registry.gofun_defaults
+    if _is_arff(dataset_name):
+        defaults = dict(registry.gofun_defaults)
+        # Per-dataset hidden size (C-HMCNN's tuned values), as in run_protocol.py.
+        name, family = dataset_name.rsplit("_", 1)
+        defaults["hidden_dim"] = registry.hidden_dims.get(family, {}).get(
+            name, defaults["hidden_dim"]
+        )
+        return defaults
     return registry.arxiv_defaults
 
 
@@ -70,7 +85,9 @@ def train_global(dataset_name, args):
     defaults = _get_defaults(args.registry, dataset_name)
     args.hidden_dim = defaults["hidden_dim"]
     args.lr = defaults["lr"]
-    args.epochs = defaults["epochs"]
+    # Honour an explicit --epochs; the CLI default falls back to the registry.
+    if args.epochs <= 0 or args.epochs == TrainingConfig.epochs:
+        args.epochs = defaults["epochs"]
     args.weight_decay = defaults["weight_decay"]
     args.batch_size = defaults["batch_size"]
     args.num_layers = defaults["num_layers"]
@@ -107,9 +124,16 @@ def train_global(dataset_name, args):
     rev = torch.tensor([cols, rows], dtype=torch.long)
     args.label_edge_index = torch.cat([fwd, rev], dim=1).to(args.device)
 
-    # Text features: convert directly to tensors without sklearn scaling.
-    for split in (args.train, args.valid, args.test):
-        split.samples.x = torch.tensor(split.x).clone().detach().float().to(args.device)
+    # ARFF features are on very different scales (raw, the MLP collapses to the
+    # label prior on derisi/expr/seq/spo): z-score them with train statistics.
+    # Text features (SPECTER2 embeddings) go in as they are.
+    splits = (args.train, args.valid, args.test)
+    if _is_arff(dataset_name):
+        xs = standardize_splits(*(split.x for split in splits))
+    else:
+        xs = [split.x for split in splits]
+    for split, x in zip(splits, xs):
+        split.samples.x = torch.tensor(x).clone().detach().float().to(args.device)
         split.samples.y = torch.tensor(split.y).clone().detach().float().to(args.device)
 
     # Validation stays out of training: it is where the decision threshold is
