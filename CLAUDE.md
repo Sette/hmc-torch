@@ -30,8 +30,8 @@ python -m hmc.main --dataset_name wos --method global --device cuda \
   --dataset_path ./data --output_path ./output --consistency_loss none
 ```
 
-O manuscrito está em `docs/paper.tex` e `docs/paper/`; `docs/paper.pdf` é o PDF versionado.
-Não há alvo de compilação LaTeX no `Makefile` atual.
+O manuscrito é `docs/hmc-paper/main.tex`, um repositório git próprio (fora do versionamento do
+hmc-torch), com `make pdf` / `make check` no seu `Makefile`. Não há outra versão do paper no repo.
 
 ---
 

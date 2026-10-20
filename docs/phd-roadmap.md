@@ -19,7 +19,7 @@
 - **Surj (WWW'22):** reportado, mas não reprodutível. Não tem código público; a reimplementação a
   partir do artigo, sobre o pipeline do C-HMCNN, fica abaixo do C-HMCNN (FunCat 0,232 vs 0,312
   reportado). Está em `surj_repro/` e não entra nas comparações.
-- Papers: `docs/hmc-paper` (inglês, completo) e `docs/paper.tex` (português, texto).
+- Paper: `docs/hmc-paper` (inglês, versão única).
 
 **O que NÃO dá tempo:**
 - 2 papers separados → Junte em 1 paper forte
