@@ -47,13 +47,14 @@ Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/h
 | `local` / `localE2E` | um MLP por nível da hierarquia |
 | `tabular_gbdt` / `tabular_mlp` | baselines tabulares (baselines da tabela FunCat) |
 | `surj` | Surj (WWW'22): GAE sobre a hierarquia → embeddings congelados; MLP → cosine → FC(V→V) → sigmoid, BCE |
+| `globalHPT` | HPT (EMNLP'22) + matriz R: prompt com um `[PRED]` por nível, tokens de rótulo via GAT, ZMLCE + MLM; `--consistency_loss` vira `none` (HPT puro) / `mc` (MCLoss nos logits) / `hinge` |
 
 Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função de treino em
 `src/hmc/pipeline/`; os modelos ficam em `src/hmc/models/`. Embora o dispatch em
 `src/hmc/main.py` conserve alguns aliases internos, `globalGNN`, `globalLM` e `global_baseline`
 não são escolhas válidas no parser atual. Não há métodos LLM/Ollama neste repositório.
 
-`--consistency_loss {mc,hinge,none}` (para `global` e `globalE2E`): `mc` (default) é o MCLoss
+`--consistency_loss {mc,hinge,none}` (para `global`, `globalE2E` e `globalHPT`): `mc` (default) é o MCLoss
 do C-HMCNN (BCE sobre as saídas constrangidas), `hinge` soma a Eq. 2 do paper com peso
 `--lambda_hier`, e `none` treina com BCE puro. O constraint de inferência (`get_constr_out`) vale
 nos três casos. O paper compara os três objetivos, cada um com e sem reconciliação.
@@ -128,13 +129,11 @@ Exigem `PYTHONPATH=src` e gravam em `./output/`. **Todos os números do paper v�
 | `run_surj.py --experiment {main,literal,evolving,datasize}` | `output/surj/<exp>/`: reprodução do Surj (cabeças `surj` e `onehot`, raw/rec, GHV, tempos); `literal` = Adam 1e-3, 10 seeds, sem refit, com o teto diagnóstico `oracle_test_auprc` (época escolhida no test — nunca reportar como resultado) |
 | `run_label_embeddings.py --group {funcat,go,all}` | `output/label_embeddings/`: heads com embeddings de rótulos (livre, GCN, texto do `go.obo`, texto+GCN) no mesmo protocolo |
 | `run_autoencoder.py --stage {screen,final}` | `output/autoencoder/`: autoencoders no modelo global (GAE híbrido, DAE de features, AE de labels C2AE); triagem só na validação, vencedor com 3 seeds (Seção `sec:autoenc` do paper) |
+| `run_hpt.py --dataset {wos,aapd,arxiv,eurlex} --stage {screen,final}` | `output/hpt/<stage>/<dataset>/`: HPT + R-matrix. `screen` = seed 0, ≤10 épocas, só validação, {bert, specter2} × {none, mc, hinge} + o HPT publicado (`bert/none/down`); `final` = 3 seeds, test uma vez (`--auto` pega o melhor do screen). Bateria: `experiments/run_hpt_all.sh` |
 | `make_paper_artifacts.py --paper_dir docs/hmc-paper` | `data/protocol_summary.json`, `tables/*.tex`, figuras do paper e estatísticas (Friedman/Nemenyi, Wilcoxon, Spearman) |
 
 `output/protocol/run_all.sh` roda a bateria inteira (~10–12 h numa RTX 3060, a maior parte no E2E).
 `run_protocol.py` pula datasets cujo JSON já existe — apague o arquivo para refazer.
-
-`surj_repro/` (na raiz) é a reprodução standalone do Surj sobre o parser do C-HMCNN: `surj_repro/run_all.sh`,
-veredito em `surj_repro/analysis.md` (não reproduz; o paper lista o Surj como "reportado, não verificável").
 
 Os demais scripts (`run_new_datasets.py`, `run_sota_comparison.py`, `run_go_experiments.py`,
 `run_all_datasets.py`, …) são **legados**: rodam no import, juntam validação ao treino e
@@ -175,3 +174,22 @@ Depois registre o manager (ver "Register your own dataset" no README.md).
    `src/hmc/datasets/gofun/__init__.py`.
 3. Dispatch em `src/hmc/datasets/dataset_manager.py`, defaults em `src/hmc/datasets/registry.py`,
    entrada em `src/hmc/datasets/download_all.py` e alvo no `Makefile`.
+
+---
+
+## HPT + matriz R (`globalHPT`, `experiments/run_hpt.py`)
+
+- Código: `models/global_classifier/hpt/` (modelo + losses) e `pipeline/hpt/main.py` (`fit_hpt` /
+  `evaluate_hpt`, compartilhados pelo CLI e pelo script). Reimplementação sobre transformers 5 / PyG 2.7;
+  `HPT/` (fora do versionamento) é só a referência.
+- `--hpt_graph down` é o grafo do HPT: com arestas só pai→filho e nível→rótulo, os tokens de nível
+  (os únicos que entram no prompt) não recebem mensagem nenhuma além do self-loop — a hierarquia não
+  chega ao encoder. `both` (default) adiciona as arestas reversas.
+- O cache de modelos (`ensure_transformer_model_cached`) salva via `AutoModel`, que **descarta a cabeça
+  MLM**; o HPT usa `auto_class="AutoModelForMaskedLM"` (pasta `models/<nome>__AutoModelForMaskedLM`).
+  O SPECTER2 não publica cabeça MLM: o transform começa aleatório.
+- Métricas: micro/macro-F1 (definição do HPT: média sobre todos os rótulos, ausentes contam 0, em
+  `utils/metrics/multilabel.py`), AUPRC e GHV; raw e reconciliado, no threshold fixo do HPT
+  (logit 0 = 0,5) e no escolhido na validação. Splits de texto agora carregam `split.texts`.
+- Custo (RTX 3060, bf16, batch 8 × accum 2): ~17 min por época no WOS.
+
