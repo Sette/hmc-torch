@@ -102,10 +102,15 @@ def main(args=None) -> dict:
             from hmc.pipeline.surj.main import train_surj  # pylint: disable=import-outside-toplevel
 
             train_surj(args.dataset.dataset_name, args)
+        case "globalHPT":
+            logging.info("Global HPT (hierarchy-aware prompt tuning + R-matrix)")
+            from hmc.pipeline.hpt.main import train_hpt  # pylint: disable=import-outside-toplevel
+
+            train_hpt(args.dataset.dataset_name, args)
         case _:
             print(
                 f"Unknown method '{args.method}'. "
-                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp, surj"
+                "Valid: global, globalE2E, globalSOTA, local, localE2E, tabular_gbdt, tabular_mlp, surj, globalHPT"
             )
 
     score: dict = args.score if isinstance(args.score, dict) else {}
