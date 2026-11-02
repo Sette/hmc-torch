@@ -16,11 +16,12 @@ import numpy as np
 
 from hmc.datasets.aapd.dataset_aapd import AAPDHierarchyManager, AAPDSplit
 from hmc.datasets.arxiv.manager import compute_transformer_embeddings
+from hmc.datasets.arxiv.names import arxiv_label_names
 
 logger = logging.getLogger(__name__)
 
 
-class AAPDManager:
+class AAPDManager:  # pylint: disable=too-many-instance-attributes
     """HMCDatasetManager-compatible manager for AAPD hierarchical text data.
 
     Text features are SPECTER2 embeddings extracted from title + abstract.
@@ -123,7 +124,8 @@ class AAPDManager:
         )
 
         Y_global, Y_local_all = self._compute_labels(hierarchy, labels_list)
-        self._create_splits(X, Y_global, Y_local_all)
+        self._create_splits(X, Y_global, Y_local_all, texts)
+        self.label_names = arxiv_label_names(hierarchy.terms)
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Y_global.shape[1])
 
     def _clean_text(self, text: str) -> str:
@@ -239,6 +241,7 @@ class AAPDManager:
         X: np.ndarray,
         Y_global: np.ndarray,
         Y_local_all: list,
+        texts: list | None = None,
     ) -> None:
         """Create 64/16/20 splits using HPT methodology."""
         from sklearn.model_selection import (  # pylint: disable=import-outside-toplevel
@@ -253,17 +256,30 @@ class AAPDManager:
         X_shuf = X[idx]
         Yg_shuf = Y_global[idx]
         Yl_shuf = [Y_local_all[i] for i in idx]
+        # Row ids ride along so the raw texts follow the same permutation.
+        ids_shuf = np.asarray(idx)
 
-        X_train, X_test, Yg_train, Yg_test, Yl_train, Yl_test = train_test_split(
-            X_shuf, Yg_shuf, Yl_shuf, test_size=0.2, random_state=0
+        X_train, X_test, Yg_train, Yg_test, Yl_train, Yl_test, id_train, id_test = (
+            train_test_split(
+                X_shuf, Yg_shuf, Yl_shuf, ids_shuf, test_size=0.2, random_state=0
+            )
         )
-        X_train, X_val, Yg_train, Yg_val, Yl_train, Yl_val = train_test_split(
-            X_train, Yg_train, Yl_train, test_size=0.2, random_state=0
+        X_train, X_val, Yg_train, Yg_val, Yl_train, Yl_val, id_train, id_val = (
+            train_test_split(
+                X_train, Yg_train, Yl_train, id_train, test_size=0.2, random_state=0
+            )
         )
 
-        self._train = AAPDSplit(x=X_train, y=Yg_train, y_local=Yl_train)
-        self._valid = AAPDSplit(x=X_val, y=Yg_val, y_local=Yl_val)
-        self._test = AAPDSplit(x=X_test, y=Yg_test, y_local=Yl_test)
+        def _texts(ids):
+            return [texts[i] for i in ids] if texts is not None else None
+
+        self._train = AAPDSplit(
+            x=X_train, y=Yg_train, y_local=Yl_train, texts=_texts(id_train)
+        )
+        self._valid = AAPDSplit(x=X_val, y=Yg_val, y_local=Yl_val, texts=_texts(id_val))
+        self._test = AAPDSplit(
+            x=X_test, y=Yg_test, y_local=Yl_test, texts=_texts(id_test)
+        )
         logger.info(
             "Splits — train: %d  valid: %d  test: %d (HPT methodology)",
             len(self._train.x),

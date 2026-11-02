@@ -37,7 +37,7 @@ _CONCEPT_CANDIDATES = [
 ]
 
 
-class EURLexManager:
+class EURLexManager:  # pylint: disable=too-many-instance-attributes
     """Manager for EUR-Lex 57K hierarchical text classification.
 
     Text features are SPECTER2 embeddings from document text (header +
@@ -272,6 +272,9 @@ class EURLexManager:
             hierarchy = EURLexHierarchyManager.from_labels(train_labels)
 
         self.hierarchy_manager = hierarchy
+        self.label_names = (
+            self._load_concept_titles(concept_file) if concept_file else {}
+        )
 
         # Compute embeddings
         all_texts = train_texts + val_texts + test_texts
@@ -293,9 +296,15 @@ class EURLexManager:
         labels = self._compute_all_split_labels(
             hierarchy, train_labels, val_labels, test_labels
         )
-        self._train = EURLexSplit(x=X_train, y=labels[0], y_local=labels[1], g=train_g)
-        self._valid = EURLexSplit(x=X_val, y=labels[2], y_local=labels[3], g=train_g)
-        self._test = EURLexSplit(x=X_test, y=labels[4], y_local=labels[5], g=train_g)
+        self._train = EURLexSplit(
+            x=X_train, y=labels[0], y_local=labels[1], g=train_g, texts=train_texts
+        )
+        self._valid = EURLexSplit(
+            x=X_val, y=labels[2], y_local=labels[3], g=train_g, texts=val_texts
+        )
+        self._test = EURLexSplit(
+            x=X_test, y=labels[4], y_local=labels[5], g=train_g, texts=test_texts
+        )
 
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], labels[0].shape[1])
 
@@ -312,6 +321,18 @@ class EURLexManager:
                 "for inference-time reconciliation.",
                 self.output_dim,
             )
+
+    @staticmethod
+    def _load_concept_titles(concept_file: Path) -> dict:
+        """``{concept id: title}``; microthesauri and domains have no title."""
+        titles = {}
+        with open(concept_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    rec = json.loads(line)
+                    if rec.get("title"):
+                        titles[str(rec["id"])] = rec["title"]
+        return titles
 
     @staticmethod
     def _compute_all_split_labels(
