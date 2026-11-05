@@ -83,8 +83,8 @@ despachados em `src/hmc/main.py`:
 | `local`, `localE2E` | `hmc.pipeline.local_classifier.main` |
 | `tabular_gbdt`, `tabular_mlp` | `hmc.pipeline.tabular.main` |
 
-O dispatch também reconhece aliases internos `global_baseline` e `globalLM`,
-mas eles não aparecem nas escolhas do parser CLI. Use os nomes listados acima.
+O dispatch também reconhece o alias interno `global_baseline`, mas ele não
+aparece nas escolhas do parser CLI. Use os nomes listados acima.
 
 ## Diretórios de trabalho
 
