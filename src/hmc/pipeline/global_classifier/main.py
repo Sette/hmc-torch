@@ -8,15 +8,12 @@ import os
 import networkx as nx
 import numpy as np
 import torch
-from lightning import Trainer
-from lightning.pytorch.callbacks import EarlyStopping
 from torch.utils.data import DataLoader
 
 from hmc.arguments import TrainingConfig
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
     ConstrainedGNNModel,
-    ConstrainedLightningModel,
     ConstrainedModel,
 )
 from hmc.pipeline.global_classifier.core.train import train_step
@@ -389,29 +386,7 @@ def fit_trainer(args):
     """
     Fit the trainer
     """
-    if args.method == "globalLM":
-        configs = {
-            "input_dim": args.input_dim,
-            "hidden_dim": args.hidden_dim,
-            "output_dim": args.output_dim,
-            "hyperparams": args.hyperparams,
-            "r_matrix": args.r_matrix,
-            "to_eval": args.to_eval,
-            "lr": args.lr,
-            "weight_decay": args.weight_decay,
-        }
-        args.model = ConstrainedLightningModel(**configs)
-
-        trainer = Trainer(
-            max_epochs=args.num_epochs,
-            accelerator=args.device,
-            log_every_n_steps=1,
-            callbacks=[EarlyStopping(monitor="train_loss", patience=20, mode="max")],
-        )
-
-        trainer.fit(args.model, args.train_loader, args.val_loader)
-        trainer.test(args.model, args.test_loader)
-    elif args.method == "globalGNN":
+    if args.method == "globalGNN":
         configs = {
             "input_dim": args.input_dim,
             "hidden_dim": args.hidden_dim,

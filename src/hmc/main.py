@@ -70,7 +70,7 @@ def main(args=None) -> dict:
     )
 
     match args.method:
-        case "global" | "global_baseline" | "globalGNN" | "globalLM":
+        case "global" | "global_baseline" | "globalGNN":
             logging.info("Global classifier (frozen embeddings)")
             train_global(args.dataset.dataset_name, args)
         case "globalE2E":
