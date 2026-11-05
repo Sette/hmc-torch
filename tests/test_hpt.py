@@ -15,6 +15,7 @@ from hmc.models.global_classifier.hpt import (
     zmlce,
 )
 from hmc.models.hierarchical.sparse_r import BlockDiagonalR
+from hmc.pipeline.hpt.main import HPTConfig, selection_score
 from hmc.utils.metrics.multilabel import macro_f1
 
 WORDS = ["science", "computer", "machine", "learning", "biology", "cell", "the", "a"]
@@ -122,11 +123,15 @@ def test_zmlce_matches_closed_form():
 def test_mc_on_logits_matches_mcloss_on_probabilities():
     torch.manual_seed(1)
     z = torch.randn(6, 5, dtype=torch.float64)
-    y = torch.tensor([[1, 1, 0, 1, 0], [1, 0, 1, 0, 1], [1, 1, 1, 0, 0]] * 2, dtype=torch.float64)
+    y = torch.tensor(
+        [[1, 1, 0, 1, 0], [1, 0, 1, 0, 1], [1, 1, 1, 0, 0]] * 2, dtype=torch.float64
+    )
     p = torch.sigmoid(z)
     r = _dense_r()
     mcloss_out = (1 - y) * get_constr_out(p, r) + y * get_constr_out(y * p, r)
-    assert torch.allclose(torch.sigmoid(mc_logits(z, y, _sparse_r()).double()), mcloss_out, atol=1e-6)
+    assert torch.allclose(
+        torch.sigmoid(mc_logits(z, y, _sparse_r()).double()), mcloss_out, atol=1e-6
+    )
 
 
 def test_objectives_are_differentiable():
@@ -138,7 +143,9 @@ def test_objectives_are_differentiable():
     for kind in ("none", "mc", "hinge"):
         loss = hpt_objective(kind, z, y, cols, _sparse_r(), anc, desc)
         (grad,) = torch.autograd.grad(loss, z)
-        assert torch.isfinite(loss) and torch.isfinite(grad).all() and grad.abs().sum() > 0
+        assert (
+            torch.isfinite(loss) and torch.isfinite(grad).all() and grad.abs().sum() > 0
+        )
     with pytest.raises(ValueError):
         hpt_objective("bce", z, y, cols, _sparse_r(), anc, desc)
 
@@ -147,3 +154,29 @@ def test_macro_f1_counts_absent_labels_as_zero():
     y = np.array([[1, 0, 0], [0, 1, 0]])
     s = np.array([[0.9, 0.1, 0.1], [0.2, 0.8, 0.1]])
     assert macro_f1(y, s, 0.5) == pytest.approx(2 / 3)
+
+
+def test_selection_score_hpt_raw_uses_raw_macro_f1():
+    y = np.array([[1, 0], [1, 0], [0, 1]])
+    raw = np.array([[0.9, 0.1], [0.8, 0.2], [0.1, 0.9]])
+    rec = np.zeros_like(raw)
+    mask = np.array([True, True])
+    assert selection_score("hpt_raw", y, raw, rec, mask, 0.5) == pytest.approx(1.0)
+
+
+def test_selection_score_default_uses_reconciled_micro_f1():
+    y = np.array([[1, 0], [0, 1]])
+    raw = np.zeros((2, 2))
+    rec = np.array([[0.9, 0.1], [0.1, 0.9]])
+    mask = np.array([True, True])
+    assert selection_score("rec_val_micro", y, raw, rec, mask, 0.5) == pytest.approx(
+        1.0
+    )
+    assert selection_score("rec_val_micro", y, raw, rec, mask, 0.95) == pytest.approx(
+        0.0
+    )
+
+
+def test_hpt_config_selection_values():
+    assert HPTConfig().selection == "rec_val_micro"
+    assert HPTConfig(selection="hpt_raw").selection == "hpt_raw"
