@@ -198,22 +198,30 @@ class EURLexManager:  # pylint: disable=too-many-instance-attributes
                 return " ".join(val)
             return str(val) if val else ""
 
+        title = _join(title)
         parts = [
             _join(rec.get("header", "")),
             _join(rec.get("recitals", "")),
             _join(rec.get("main_body", "")),
         ]
         body = " ".join(p for p in parts if p)
-        text = f"{title} {body}".strip()
-        if not text:
-            # Fallback: single 'text' field
-            text = _join(rec.get("text", rec.get("body", rec.get("content", ""))))
+        if body:
+            return f"{title} {body}".strip()
+
+        # Records produced by download_eurlex.py keep the body in a single
+        # ``text`` field instead of the structured header/recitals/main_body
+        # fields; use it as the body and prepend the title when it is not
+        # already part of the text.
+        text = _join(rec.get("text", rec.get("body", rec.get("content", ""))))
         if not text:
             # HiAGM-style 'token' field
             token = rec.get("token", "")
             if isinstance(token, list):
                 token = " ".join(token)
             text = str(token) if token else ""
+            return text
+        if title and not text.startswith(title):
+            return f"{title} {text}".strip()
         return text
 
     @staticmethod
