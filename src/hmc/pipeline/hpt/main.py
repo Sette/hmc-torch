@@ -59,6 +59,10 @@ class HPTConfig:  # pylint: disable=too-many-instance-attributes
     grad_accum: int = 2
     max_epochs: int = 20
     patience: int = 6
+    # "rec_val_micro": our protocol (reconciled validation micro-F1, tuned
+    # threshold).  "hpt_raw": HPT's reference loop (raw validation macro-F1 at
+    # logit 0, i.e. probability 0.5, patience 5).
+    selection: str = "rec_val_micro"
     max_length: int = 512
     eval_batch_size: int = 32
     bf16: bool = True
@@ -120,6 +124,25 @@ def _full_logits(
     full = z.new_full((z.shape[0], n_total), ROOT_LOGIT, dtype=torch.float32)
     full[:, label_cols] = z.float()
     return full
+
+
+def selection_score(
+    selection: str,
+    y: np.ndarray,
+    raw: np.ndarray,
+    rec: np.ndarray,
+    mask: np.ndarray,
+    threshold: float,
+) -> float:
+    """Validation score used for early stopping.
+
+    ``hpt_raw`` follows HPT's reference loop: raw (unreconciled) validation
+    macro-F1 at logit 0 (probability 0.5).  The default keeps our protocol:
+    reconciled validation micro-F1 at the tuned threshold.
+    """
+    if selection == "hpt_raw":
+        return macro_f1(y[:, mask], raw[:, mask], 0.5)
+    return micro_prf(y[:, mask], rec[:, mask], threshold)[2]
 
 
 def fit_hpt(  # pylint: disable=too-many-locals,too-many-statements,logging-fstring-interpolation
@@ -210,24 +233,29 @@ def fit_hpt(  # pylint: disable=too-many-locals,too-many-statements,logging-fstr
                 opt.step()
                 opt.zero_grad()
                 n_steps += 1
-        s_val = reconcile(predict(1))
+        s_raw = predict(1)
+        s_val = reconcile(s_raw)
         thr = pick_threshold(ys[1][:, m], s_val[:, m])
         val_f1 = micro_prf(ys[1][:, m], s_val[:, m], thr)[2]
+        selected = selection_score(cfg.selection, ys[1], s_raw, s_val, m, thr)
         record = {
             "epoch": epoch + 1,
             "val_f1": val_f1,
             "val_macro_f1": macro_f1(ys[1][:, m], s_val[:, m], thr),
             "threshold": thr,
+            "selection": cfg.selection,
+            "selection_score": selected,
             "steps": n_steps,
             "elapsed_s": time.time() - t0,
         }
         history.append(record)
         log(
             f"epoch {epoch + 1}: val micro-F1 {val_f1:.4f} macro-F1 "
-            f"{record['val_macro_f1']:.4f} (thr {thr}, {record['elapsed_s']:.0f}s)"
+            f"{record['val_macro_f1']:.4f} (thr {thr}, {record['elapsed_s']:.0f}s) "
+            f"| select {cfg.selection}={selected:.4f}"
         )
-        if val_f1 > best_f1:
-            best_f1, best_epoch, bad = val_f1, epoch + 1, 0
+        if selected > best_f1:
+            best_f1, best_epoch, bad = selected, epoch + 1, 0
             best_state = {
                 k: v.detach().to("cpu", copy=True)
                 for k, v in model.state_dict().items()
