@@ -23,6 +23,7 @@ uv run pytest tests/test_hierarchy.py::TestTreeHierarchy::test_nodes  # um teste
 make download-arff             # FunCat + GO + others → data/HMC_data_arff/ (tarball do repo C-HMCNN)
 make download-arxiv | wos | aapd | eurlex
 make download-rcv1             # corpus NIST em data/rcv1; roda HBGL (--raw_dir / --source_dir / --sample)
+make download-rcv1-lyrl        # rota aberta LYRL2004/JMLR (tokens com stem, sem texto bruto)
 
 # Treino
 ./run.sh                       # wos, global, cuda
@@ -51,8 +52,8 @@ Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/h
 
 Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função de treino em
 `src/hmc/pipeline/`; os modelos ficam em `src/hmc/models/`. Embora o dispatch em
-`src/hmc/main.py` conserve alguns aliases internos, `globalGNN`, `globalLM` e `global_baseline`
-não são escolhas válidas no parser atual. Não há métodos LLM/Ollama neste repositório.
+`src/hmc/main.py` conserve alguns aliases internos, `globalGNN` e `global_baseline`
+não são escolhas válidas no parser atual.
 
 `--consistency_loss {mc,hinge,none}` (para `global`, `globalE2E` e `globalHPT`): `mc` (default) é o MCLoss
 do C-HMCNN (BCE sobre as saídas constrangidas), `hinge` soma a Eq. 2 do paper com peso
@@ -192,4 +193,8 @@ Depois registre o manager (ver "Register your own dataset" no README.md).
   `utils/metrics/multilabel.py`), AUPRC e GHV; raw e reconciliado, no threshold fixo do HPT
   (logit 0 = 0,5) e no escolhido na validação. Splits de texto agora carregam `split.texts`.
 - Custo (RTX 3060, bf16, batch 8 × accum 2): ~17 min por época no WOS.
+- `--selection {rec_val_micro,hpt_raw}`: o default é o nosso protocolo (micro-F1 reconciliado na
+  validação, threshold ajustado); `hpt_raw` reproduz o loop do HPT (macro-F1 **cru** na validação
+  em logit 0, paciência 5) para a reexecução do baseline. `experiments/summarize_hpt.py` agrega
+  os JSONs por seed em `summary.json`.
 
