@@ -58,8 +58,16 @@ SCREEN.append(("bert", "none", "down"))  # HPT as published
 SEEDS = (0, 1, 2)
 
 
-def run_name(backbone: str, loss: str, graph: str, seed: int, mlm: bool = True) -> str:
-    return f"{backbone}_{loss}_{graph}{'' if mlm else '_nomlm'}_seed{seed}"
+def run_name(
+    backbone: str,
+    loss: str,
+    graph: str,
+    seed: int,
+    mlm: bool = True,
+    selection: str = "rec_val_micro",
+) -> str:
+    suffix = "" if selection == "rec_val_micro" else f"_{selection}"
+    return f"{backbone}_{loss}_{graph}{'' if mlm else '_nomlm'}{suffix}_seed{seed}"
 
 
 def load_manager(dataset: str, limit: int | None):
@@ -93,6 +101,8 @@ def run_one(mgr, args, backbone, loss, graph, seed, out_path, score_test):  # py
             mlm=not args.no_mlm,
             graph_direction=graph,
             max_epochs=args.max_epochs or (10 if args.stage == "screen" else 20),
+            patience=args.patience,
+            selection=args.selection,
             seed=seed,
             limit=args.limit,
         )
@@ -110,6 +120,10 @@ def run_one(mgr, args, backbone, loss, graph, seed, out_path, score_test):  # py
             "config": asdict(cfg),
             "best_epoch": fit["best_epoch"],
             "best_val_f1": max(h["val_f1"] for h in fit["history"]),
+            "best_selection_score": max(
+                h["selection_score"] for h in fit["history"]
+            ),
+            "selection": cfg.selection,
             "history": fit["history"],
             "train_time_s": fit["train_time_s"],
             "wall_time_s": time.time() - t0,
@@ -157,6 +171,21 @@ def main():
     parser.add_argument("--seed", type=int, help="final stage: one seed (default: 0, 1, 2)")
     parser.add_argument("--auto", action="store_true", help="final stage: best screen config")
     parser.add_argument("--no_mlm", action="store_true", help="drop the MLM auxiliary loss")
+    parser.add_argument(
+        "--selection",
+        default="rec_val_micro",
+        choices=["rec_val_micro", "hpt_raw"],
+        help=(
+            "epoch-selection metric: our reconciled validation micro-F1 with a "
+            "tuned threshold, or HPT's raw validation macro-F1 at logit 0"
+        ),
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=6,
+        help="early-stopping patience in epochs (HPT uses 5)",
+    )
     parser.add_argument("--max_epochs", type=int, help="default: 10 (screen) / 20 (final)")
     parser.add_argument("--limit", type=int, help="smoke test: first N documents per split")
     parser.add_argument("--out_dir", default="./output/hpt")
@@ -182,7 +211,7 @@ def main():
     if args.limit:
         out_dir = os.path.join(args.out_dir, "smoke", args.stage, args.dataset)
     for backbone, loss, graph, seed in configs:
-        name = run_name(backbone, loss, graph, seed, not args.no_mlm)
+        name = run_name(backbone, loss, graph, seed, not args.no_mlm, args.selection)
         run_one(
             mgr, args, backbone, loss, graph, seed,
             os.path.join(out_dir, f"{name}.json"),
