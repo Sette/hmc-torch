@@ -143,8 +143,12 @@ def get_parser() -> argparse.ArgumentParser:
         "--surj_gae_loss",
         type=str,
         default="full",
-        choices=["full", "sampled"],
-        help="'full' = Kipf & Welling's adjacency reconstruction; 'sampled' = negative sampling",
+        choices=["full", "sampled", "sibling_repulsive"],
+        help=(
+            "'full' = Kipf & Welling's adjacency reconstruction; "
+            "'sampled' = negative sampling; "
+            "'sibling_repulsive' = SR-GAE with sibling cosine repulsion"
+        ),
     )
     parser.add_argument(
         "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
