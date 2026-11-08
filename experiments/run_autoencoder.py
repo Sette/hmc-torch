@@ -57,8 +57,8 @@ from hmc.models.hierarchical.graph_autoencoder import (  # noqa: E402  pylint: d
 
 OUT_DIR = "output/autoencoder"
 GROUPS = {"funcat": FUNCAT, "go": GO, "others": OTHERS}
-SCREEN_VARIANTS = ["mlp", "gae_hybrid@16", "gae_hybrid@64", "feat_dae", "feat_dae+aux",
-                   "label_ae@0.1", "label_ae@1"]
+SCREEN_VARIANTS = ["mlp", "gae_hybrid@16", "gae_hybrid@64", "sr_gae_hybrid@64",
+                   "sr_gae_cosine@64", "feat_dae", "feat_dae+aux", "label_ae@0.1", "label_ae@1"]
 SEEDS = (0, 42, 123)
 DAE_MASK, DAE_EPOCHS, DAE_AUX = 0.2, 100, 0.1
 
@@ -83,6 +83,40 @@ class GaeHybrid(MLP):
         h = self.net[:-1](x)
         cos = nn.functional.normalize(self.proj(h), dim=1) @ self.z.T
         return torch.sigmoid(self.net[-1](h) + self.scale * self.fc(cos))
+
+
+class SrGaeHybrid(MLP):
+    """Direct ontology dot-product residual over SR-GAE embeddings (starts as the baseline MLP)."""
+
+    def __init__(self, d_in, hidden, d_out, dropout, z, init_scale: float = 5.0):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        super().__init__(d_in, hidden, d_out, dropout)
+        z = torch.as_tensor(z, dtype=torch.float32)
+        self.register_buffer("z", nn.functional.normalize(z, dim=1))
+        self.proj = nn.Linear(hidden, z.shape[1])
+        nn.init.zeros_(self.proj.weight)
+        nn.init.zeros_(self.proj.bias)
+        self.scale = nn.Parameter(torch.tensor(float(init_scale)))
+
+    def forward(self, x):
+        h = self.net[:-1](x)
+        return torch.sigmoid(self.net[-1](h) + self.scale * (self.proj(h) @ self.z.T))
+
+
+class SrGaeCosine(MLP):
+    """Pure cosine-similarity classifier head over frozen label embeddings."""
+
+    def __init__(self, d_in, hidden, d_out, dropout, z, init_scale: float = 15.0):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        super().__init__(d_in, hidden, d_out, dropout)
+        z = torch.as_tensor(z, dtype=torch.float32)
+        self.register_buffer("z", nn.functional.normalize(z, dim=1))
+        self.proj = nn.Linear(hidden, z.shape[1])
+        self.log_scale = nn.Parameter(torch.log(torch.tensor(float(init_scale))))
+        self.bias = nn.Parameter(torch.zeros(d_out))
+
+    def forward(self, x):
+        h = self.net[:-1](x)
+        cos = nn.functional.normalize(self.proj(h), dim=1) @ self.z.T
+        return torch.sigmoid(self.log_scale.exp() * cos + self.bias)
 
 
 class FeatDAE(MLP):
@@ -156,11 +190,21 @@ def model_fn_for(variant: str, data: dict, hp: dict, device, cache: dict):
     hidden, dropout = hp["hidden"], hp.get("dropout", 0.3)
     if kind == "gae_hybrid":
         dim = int(arg)
-        if dim not in cache:
+        if ("gae", dim) not in cache:
             n = data["y"][0].shape[1]
-            cache[dim] = pretrain_label_gae(data["edges"], n, dim=dim, hidden_dim=32, epochs=200,
-                                            lr=1e-2, loss="full", seed=0, device=device)
-        return lambda d_in, d_out: GaeHybrid(d_in, hidden, d_out, dropout, cache[dim])
+            cache[("gae", dim)] = pretrain_label_gae(
+                data["edges"], n, dim=dim, hidden_dim=32, epochs=200,
+                lr=1e-2, loss="full", seed=0, device=device)
+        return lambda d_in, d_out: GaeHybrid(d_in, hidden, d_out, dropout, cache[("gae", dim)])
+    if kind in ("sr_gae_hybrid", "sr_gae_cosine"):
+        dim = int(arg)
+        if ("sr_gae", dim) not in cache:
+            n = data["y"][0].shape[1]
+            cache[("sr_gae", dim)] = pretrain_label_gae(
+                data["edges"], n, dim=dim, hidden_dim=max(2 * dim, 64), epochs=200,
+                lr=1e-2, loss="sibling_repulsive", seed=0, device=device)
+        cls = SrGaeHybrid if kind == "sr_gae_hybrid" else SrGaeCosine
+        return lambda d_in, d_out: cls(d_in, hidden, d_out, dropout, cache[("sr_gae", dim)])
     if kind in ("feat_dae", "feat_dae+aux"):
         aux = DAE_AUX if kind.endswith("+aux") else 0.0
         # Pretrained on the training features only, for the early-stopped fit and the refit.
