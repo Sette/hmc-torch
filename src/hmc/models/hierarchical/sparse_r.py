@@ -139,6 +139,41 @@ class SparseRMatrix:
         """
         raise NotImplementedError
 
+    def reconcile_with_depth_offsets(
+        self,
+        scores: torch.Tensor,
+        level_offsets: dict[int, float] | torch.Tensor,
+        eps: float = 1e-6,
+    ) -> torch.Tensor:
+        """Apply per-depth-level logit offsets followed by exact bottom-up reconciliation.
+
+        Unlike per-node Platt calibration (which fits ``2*C`` parameters and
+        overfits rare leaf classes), depth-level calibration adjusts only ``L``
+        scalar offsets (one per hierarchy depth level ``l``) before
+        ``self.reconcile``, recovering deep-level recall while guaranteeing
+        zero hierarchy violations.
+
+        Args:
+            scores: ``(batch, N)`` tensor of probabilities in ``[0, 1]``.
+            level_offsets: mapping ``{depth_level: delta_logit}`` or 1D tensor
+                indexed by depth level.
+            eps: numerical clamp before ``torch.logit``.
+
+        Returns:
+            torch.Tensor: depth-calibrated and reconciled probabilities ``(batch, N)``.
+        """
+        col_offsets = scores.new_zeros(scores.shape[1])
+        for node, col in self.node_idx.items():
+            lvl = self.node_levels.get(node, 0)
+            if isinstance(level_offsets, dict):
+                val = float(level_offsets.get(lvl, 0.0))
+            else:
+                val = float(level_offsets[lvl]) if lvl < len(level_offsets) else 0.0
+            col_offsets[col] = val
+        clamped = scores.clamp(eps, 1.0 - eps)
+        adjusted = torch.sigmoid(torch.logit(clamped) + col_offsets.unsqueeze(0))
+        return self.reconcile(adjusted)
+
     def consistency_loss(
         self, probs: torch.Tensor, margin: float = 0.0
     ) -> torch.Tensor:
