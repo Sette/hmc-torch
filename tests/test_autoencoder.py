@@ -11,7 +11,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "experiments"))
 
-from run_autoencoder import FeatDAE, GaeHybrid, LabelAE  # noqa: E402
+from run_autoencoder import FeatDAE, GaeHybrid, LabelAE, SrGaeCosine, SrGaeHybrid  # noqa: E402
 from run_protocol import MLP, _fit  # noqa: E402
 
 from hmc.models.hierarchical.sparse_r import BlockDiagonalR  # noqa: E402
@@ -45,6 +45,24 @@ def test_gae_hybrid_starts_as_the_mlp():
     x = torch.randn(3, D_IN)
     torch.testing.assert_close(hybrid(x), mlp(x))
     assert hybrid.z.shape == (V, 4)
+
+
+def test_sr_gae_hybrid_starts_as_the_mlp_with_nonzero_proj_grad():
+    z = np.random.default_rng(0).normal(size=(V, 4)).astype(np.float32)
+    torch.manual_seed(0)
+    mlp = MLP(D_IN, HID, V, 0.5).eval()
+    torch.manual_seed(0)
+    sr_hybrid = SrGaeHybrid(D_IN, HID, V, 0.5, z).eval()
+    x = torch.randn(3, D_IN)
+    torch.testing.assert_close(sr_hybrid(x), mlp(x))
+    sr_hybrid.train()
+    sr_hybrid(x).sum().backward()
+    assert sr_hybrid.proj.weight.grad is not None
+    assert float(sr_hybrid.proj.weight.grad.abs().sum()) > 0.0
+    cos_head = SrGaeCosine(D_IN, HID, V, 0.5, z).eval()
+    out = cos_head(x)
+    assert out.shape == (3, V)
+    assert torch.all((out > 0) & (out < 1))
 
 
 def test_feat_dae_pretraining_reduces_reconstruction():
