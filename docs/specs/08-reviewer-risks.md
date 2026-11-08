@@ -120,13 +120,13 @@ o protocolo validation-only e reportar com a ressalva.
 
 ## Checklist de mitigação
 
-- [ ] Spec 01 (texto validation-only, incluindo ArXiv).
-- [ ] Spec 02 (hinge FunCat/GO; tabelas com hinge).
-- [ ] Spec 03 (structure.json; análise de estrutura).
-- [ ] Spec 04 (WOS 3 seeds).
-- [ ] Spec 05: introdução reenquadrada em “injeção de conhecimento hierárquico”.
-- [ ] Spec 05: seção de orientação prática.
-- [ ] Spec 05: Related Work ampliada (8–12 referências recentes).
-- [ ] Spec 05: Results condensado; ablações para suplementar.
-- [ ] Spec 05: redação do Surj revisada.
-- [ ] Spec 06: cover letter destacando o encaixe na KBS.
+- [x] Spec 01 (texto validation-only, incluindo ArXiv).
+- [x] Spec 02 (hinge FunCat/GO; tabelas com hinge).
+- [x] Spec 03 (structure.json; análise de estrutura com Spearman $\rho = 0{,}49, p = 0{,}009$ vs. $\rho = -0{,}07, p = 0{,}721$).
+- [x] Spec 04 (WOS 3 seeds + HPT 3 seeds reexecutado).
+- [x] Spec 05: introdução reenquadrada em “injeção de conhecimento hierárquico” e questões científicas Q1–Q3.
+- [x] Spec 05: seção de orientação prática e seção dedicada de Limitations and Threats to Validity.
+- [x] Spec 05: Related Work ampliada com literatura 2022–2024 (HGCLR, HBGL, HPT, HiClass, HJCL, CCN+).
+- [x] Spec 05: Metodologia limpa (sem stubs não implementados; formulação matemática completa do `BlockDiagonalR` e decomposição $3\times 2$ com Wilcoxon $p = 2{,}1\times 10^{-7}$).
+- [x] Spec 05: redação do Surj revisada como auditoria de reprodutibilidade.
+- [x] Spec 06: cover letter e highlights destacando o encaixe científico na KBS (≤85 caracteres por highlight).

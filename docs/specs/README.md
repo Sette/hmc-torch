@@ -12,9 +12,10 @@ Atualize a tabela ao concluir cada spec.
 | 05 | [Paper numbers](05-paper-numbers.md) | P0/P1 | [x] atualizado | 01–04 |
 | 06 | [Metadata](06-metadata.md) | — | [~] aguardando dados do usuário | usuário |
 | 07 | [Verify](07-verify.md) | — | [x] verificado | 01–06 |
-| 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [~] versão de 5 p. pronta; falta orientador e revisão | — |
+| 08 | [Reviewer risks (KBS)](08-reviewer-risks.md) | P0/P1 | [x] mitigações aplicadas em `docs/hmc-paper/` | 01–07 |
+| 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] versão de 6 p. revisada e verificada; falta apenas orientador | — |
 | 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [ ] especificado; execução após 11 | 11 |
-| 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [~] em execução (HPT no WOS) | — |
+| 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); papers atualizados | — |
 | 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [ ] especificado; gate de decisão | — |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).

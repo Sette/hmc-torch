@@ -22,7 +22,7 @@ make check  # falha se houver citação indefinida ou passar de 6 páginas
 ## Estado
 
 - [x] Esqueleto e template IEEEtran
-- [ ] Texto de 6 páginas
-- [ ] Tabelas/figura
-- [ ] Build ≤6 páginas
+- [x] Texto de 6 páginas
+- [x] Tabelas/figura
+- [x] Build ≤6 páginas
 - [ ] Submissão 31/01/2027

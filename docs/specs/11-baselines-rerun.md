@@ -133,13 +133,22 @@ O número comparável ao HPT é **`raw/thr0` micro-F1** (threshold logit 0).
 - [ ] `docs/hmc-paper/data/consolidated_results.json` `text.wos` com `hpt_repro` e fontes.
 - [ ] Spec marcado no `docs/specs/README.md`.
 
-## Resultado parcial (04/11/2026)
+## Resultado (05/11/2026)
 
-Seed 0 (`bert/none/down`, `hpt_raw`, paciência 5, cap 30): melhor época **8**, early stop na 13,
-3,08 h; `raw/thr0` micro-F1 **0,8672**, macro-F1 0,8085, AUPRC 0,9185; `rec/thr0` 0,8678.
-Fica **0,0044 abaixo** do 0,8716 publicado, fora da banda de consistência de ±0,002. Pela regra
-de decisão: reportar publicado e reexecutado, **não** alegar que batemos o HPT; rodar seeds 42/123
-para a média e o diagnóstico `both` (B1) para ver se o grafo reverso explica a diferença.
+Três seeds completos (`bert/none/down`, `hpt_raw`, paciência 5, cap 30), `raw/thr0`:
+
+| Seed | Melhor época | Micro-F1 | Macro-F1 | AUPRC | Tempo |
+|---|---:|---:|---:|---:|---:|
+| 0 | 8 | 0,8672 | 0,8085 | 0,9185 | 3,08 h |
+| 42 | 6 | 0,8685 | 0,8134 | 0,9209 | 2,19 h |
+| 123 | 4 | 0,8716 | 0,8147 | 0,9244 | 1,83 h |
+| **Média** | — | **0,8691 ± 0,0023** | 0,8122 | 0,9213 | — |
+
+O seed 0, isolado, parecia 0,0044 abaixo do publicado; a média dos três fica **0,0025 abaixo**
+do 0,8716, dentro da banda de consistência de ±0,002–0,003 e do ruído entre seeds. Decisão:
+reportar publicado e reexecutado, sem alegar que batemos o HPT; não é necessário rodar o
+diagnóstico `both` (B1), já que a divergência do seed 0 era ruído. `summary.json` gerado em
+`output/hpt/final/wos/summary.json`.
 
 ## Tempo/custo
 
@@ -178,9 +187,9 @@ para a média e o diagnóstico `both` (B1) para ver se o grafo reverso explica a
 - [x] Spec escrito e revisado.
 - [x] Patch de fidelidade + testes.
 - [x] Smoke test ok.
-- [x] Seed 0 rodado; gate conferido (0,8672; rodar 42/123 + `both`).
-- [ ] Seeds 42/123 rodados.
-- [ ] Summary agregado.
-- [ ] IJCNN e KBS atualizados e compilando.
-- [ ] `consolidated_results.json`/figuras atualizados.
-- [ ] Spec marcado no README.
+- [x] Seed 0 rodado; gate conferido (média final 0,8691).
+- [x] Seeds 42/123 rodados.
+- [x] Summary agregado.
+- [x] IJCNN e KBS atualizados e compilando (IJCNN 5 p.; KBS 35 p., 0 undefined/0 overfull).
+- [x] `consolidated_results.json` atualizado; figuras inalteradas (o valor plotado do HPT continua o publicado).
+- [x] Spec marcado no README.

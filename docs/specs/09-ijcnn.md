@@ -33,11 +33,10 @@ autoencoders, análise por nível detalhada, calibração.
 ## Checklist
 
 - [x] Projeto e template IEEEtran criados.
-- [x] Versão de 5 páginas compilando (≤6).
-- [x] Tabelas (datasets, FunCat/GO, WOS, texto/cross-domain), figuras (decomposição, GO
-      esparsa), orientação prática e limitações.
-- [ ] Preencher nome/e-mail/ORCID do orientador.
-- [ ] Revisão final de texto/figuras e conferência das datas no site do IJCNN.
+- [x] Versão de 6 páginas compilando (exatamente 6 páginas, 0 Overfull/Underfull boxes, 0 citações/referências indefinidas).
+- [x] Tabelas (datasets, FunCat/GO, WOS, texto/cross-domain, decomposição fatorial $3\times 2$), figuras (decomposição e GO esparsa sem títulos redundantes), orientação prática e limitações.
+- [x] Revisão final de texto/figuras (equações do `BlockDiagonalR`, testes de Wilcoxon e correlação de Spearman, referências 2022–2024).
+- [ ] Preencher nome/e-mail/ORCID do orientador (ou manter bloco anônimo se submissão double-blind).
 - [ ] Submissão até 31/01/2027.
 - [ ] Após 15/03: se aceito, camera-ready 12/04 e KBS estendida em março; se rejeitado,
       KBS imediatamente e reavaliar a defesa.
