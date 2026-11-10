@@ -23,12 +23,23 @@ usuário; o que estiver disponível é aplicado, o resto fica listado como pend�
 - `docs/tese/main.tex`: `\orientador{[Orientador]}`.
 - `docs/tese/frontmatter/folha-aprovacao.tex`: banca (quando definida).
 
+## Dados fornecidos (10/11/2026)
+
+- Autor: Bruno Silva Sette, `bruno.sette@ufscar.br`.
+- Orientador: Diego Furtado Silva (UFSCar); e-mail e ORCID pendentes.
+- Financiamento: sem agência; declaração de autofinanciamento no KBS.
+- Declaração de IA: padrão Elsevier adicionada ao KBS (Claude/Anthropic; revisão e
+  responsabilidade dos autores).
+- IJCNN: double-blind; bloco nomeado mantido por enquanto; anonimizar antes da submissão.
+- Abertos: e-mail/ORCID do orientador, 4–6 revisores, banca e agradecimentos adicionais.
+
 ## Critério de aceite
 
-- [ ] Nenhum `[Orientador]`/`[orientador@ufscar.br]` no PDF final (ou pendência listada).
+- [x] Nenhum `[Orientador]`/`[orientador@ufscar.br]` no PDF final (e-mail/ORCID do
+  orientador ainda pendentes, sem placeholder no PDF).
 - [ ] Reviewers sugeridos na cover letter.
-- [ ] Funding/agência preenchidos.
-- [ ] Build do paper e da tese limpos.
+- [x] Funding/agência preenchidos (sem agência; autofinanciamento declarado).
+- [x] Build do paper e da tese limpos.
 
 ## Falhas
 
@@ -37,7 +48,8 @@ usuário; o que estiver disponível é aplicado, o resto fica listado como pend�
 
 ## Checklist
 
-- [ ] Dados do orientador aplicados (ou pendência registrada).
+- [x] Dados do orientador aplicados (nome; e-mail/ORCID pendentes).
 - [ ] Reviewers aplicados (ou pendência).
-- [ ] Funding aplicado (ou pendência).
-- [ ] Spec marcado como concluído no `README.md`.
+- [x] Funding aplicado (sem agência; autofinanciamento declarado).
+- [x] Declaração de IA (Elsevier) aplicada.
+- [ ] Spec marcado como concluído no `README.md` (permanece `[~]`).

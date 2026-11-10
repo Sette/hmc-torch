@@ -10,7 +10,7 @@ Atualize a tabela ao concluir cada spec.
 | 03 | [Structure](03-structure.md) | P1 | [x] rodado | — |
 | 04 | [WOS 3 seeds](04-wos-3-seeds.md) | P0 | [x] rodado | — |
 | 05 | [Paper numbers](05-paper-numbers.md) | P0/P1 | [x] atualizado | 01–04 |
-| 06 | [Metadata](06-metadata.md) | — | [~] aguardando dados do usuário | usuário |
+| 06 | [Metadata](06-metadata.md) | — | [~] nome/afiliação/financiamento/IA aplicados; faltam e-mail/ORCID do orientador, revisores, banca | usuário |
 | 07 | [Verify](07-verify.md) | — | [~] revisão editorial concluída; RCV1 JSON concluído; falta spec 06 (metadados) | 01–06 |
 | 08 | [Reviewer risks (KBS)](08-reviewer-risks.md) | P0/P1 | [x] mitigações aplicadas em `docs/hmc-paper/` | 01–07 |
 | 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] 6 p., 0 over/underfull após a revisão; falta apenas orientador | — |
