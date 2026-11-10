@@ -11,23 +11,39 @@ Atualize a tabela ao concluir cada spec.
 | 04 | [WOS 3 seeds](04-wos-3-seeds.md) | P0 | [x] rodado | — |
 | 05 | [Paper numbers](05-paper-numbers.md) | P0/P1 | [x] atualizado | 01–04 |
 | 06 | [Metadata](06-metadata.md) | — | [~] aguardando dados do usuário | usuário |
-| 07 | [Verify](07-verify.md) | — | [x] verificado | 01–06 |
+| 07 | [Verify](07-verify.md) | — | [~] revisão editorial em andamento; RCV1 JSON pendente | 01–06 |
 | 08 | [Reviewer risks (KBS)](08-reviewer-risks.md) | P0/P1 | [x] mitigações aplicadas em `docs/hmc-paper/` | 01–07 |
-| 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] versão de 6 p. revisada e verificada; falta apenas orientador | — |
-| 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [ ] especificado; execução após 11 | 11 |
-| 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); papers atualizados | — |
-| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [ ] especificado; gate de decisão | — |
+| 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] 6 p., 0 over/underfull após a revisão; falta apenas orientador | — |
+| 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [x] M1 e M2 implementados e testados (`tests/test_hpt.py`) | 11 |
+| 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); KBS 49 p., IJCNN 6 p. | — |
+| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [~] resultados no KBS/tese; run de regeneração do JSON em andamento | — |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
 > após a decisão do IJCNN, para o requisito de submissão a periódico.
 >
-> **Next steps:** o spec 11 (reexecução do HPT no WOS) é o único em execução agora e precisa
-> entrar no IJCNN antes de 31/01/2027. O spec 10 (prompt encoder) tem go/no-go em 15/01/2027
-> para a KBS de março; o spec 12 (RCV1 aberto) é um gate de decisão, não uma execução imediata.
+> **Next steps:** a revisão editorial de 10/11/2026 corrigiu a tabela fatorial, separou
+> AUPRC (sem DepthCal) de F1 (com DepthCal), padronizou H-MLCL+H-KNN e os desvios amostrais,
+> e alinhou RCV1 à rota aberta. Falta o JSON de regeneração do RCV1 (run em andamento), o
+> pacote de submissão (`make submission`) e os metadados do spec 06. O spec 10 (prompt encoder)
+> tem go/no-go em 15/01/2027 para a KBS de março.
 
 Documento de apoio (não sequencial): [08 — Riscos de revisão na KBS](08-reviewer-risks.md) —
 objeções prováveis e mitigações.
+
+## Revisão 2026-11-10
+
+- KBS: corrigida `tab:decomp_family` (valores não batiam com `output/protocol/*`); prosa
+  dependente, atribuição AUPRC/F1, `tab:others`, deltas EUR-Lex/Diatoms, CD, memória,
+  contagem de edges, root sintético, cosine, `L`, GBDT, Surj, contagens de famílias/Table 1,
+  labels de “full model” e Figura 1.
+- IJCNN: RCV1 passou a “rota aberta LYRL2004”; seeds qualificados; “never outperforms”
+  suavizado; 6 páginas, 0 overfull/underfull; H-MLCL+H-KNN.
+- Tese: abstract/resumo, cap. 1/5/6/7/8 alinhados; tabela fatorial corrigida; RCV1
+  consistente; H-MLCL+H-KNN; Bessel em vez de Parseval; definições `w_i`/`\tilde{w}_{b,m}`;
+  `L` por nível; título e siglas.
+- Pendências: spec 06 (metadados do usuário), JSON do RCV1, `submission/main.pdf`, e a
+  tabela 3-seed de suporte ao 27/27 na tese (recomendada).
 
 Regras:
 
