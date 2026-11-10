@@ -55,9 +55,10 @@ objeções prováveis e mitigações.
   overfull vbox pré-existentes (capa e quebra do cap. 3) e 7 underfull hbox. A tabela 3-seed
   de suporte ao 27/27 foi omitida do corpo porque gerava uma página em branco; o parágrafo de
   suporte já traz as médias por família, os p-values e o trade-off do DepthCal.
-- Repositórios: KBS `c0fecaf` (tag `kbs-2026-11-10`); root `8656253` (tag
-  `rcv1-open-2026-11-10`) e `e571096` (tag `ijcnn-2026-11-10`); tese arquivada em
-  `/home/brunos/hmc-tese-2026-11-10.tar.gz`.
+- Repositórios: KBS `b0d9f99` (tags `kbs-2026-11-10` e `kbs-metadata-2026-11-10`);
+  root `a451c2d` (código RCV1), `8656253` (tag `rcv1-open-2026-11-10`), `5357cba`
+  (tag `ijcnn-metadata-2026-11-10`) e `417b0c8` (tag `metadata-2026-11-10`); tese
+  arquivada em `/home/brunos/hmc-tese-2026-11-10.tar.gz`.
 - Pendências: spec 06 (metadados do usuário).
 
 Regras:
