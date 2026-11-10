@@ -100,7 +100,6 @@ class SparseRMatrix:
         self.levels = levels
         self.node_idx = node_index
         self._edges = None  # (child, parent) column tensors, built lazily
-        self._col_lvls = None  # cached depth level per score column
         self.nodes = nodes_sorted
         self._parents = parents_map
         # depth level per node (0 = root)
@@ -139,49 +138,6 @@ class SparseRMatrix:
             Reconciled scores of same shape.
         """
         raise NotImplementedError
-
-    def reconcile_with_depth_offsets(
-        self,
-        scores: torch.Tensor,
-        level_offsets: dict[int, float] | torch.Tensor,
-        eps: float = 1e-6,
-    ) -> torch.Tensor:
-        """Apply per-depth-level logit offsets followed by exact bottom-up reconciliation.
-
-        Unlike per-node Platt calibration (which fits ``2*C`` parameters and
-        overfits rare leaf classes), depth-level calibration adjusts only ``L``
-        scalar offsets (one per hierarchy depth level ``l``) before
-        ``self.reconcile``, recovering deep-level recall while guaranteeing
-        zero hierarchy violations.
-
-        Args:
-            scores: ``(batch, N)`` tensor of probabilities in ``[0, 1]``.
-            level_offsets: mapping ``{depth_level: delta_logit}`` or 1D tensor
-                indexed by depth level.
-            eps: numerical clamp before ``torch.logit``.
-
-        Returns:
-            torch.Tensor: depth-calibrated and reconciled probabilities ``(batch, N)``.
-        """
-        col_lvls = getattr(self, "_col_lvls", None)
-        if col_lvls is None or len(col_lvls) != scores.shape[1]:
-            col_lvls = [0] * scores.shape[1]
-            for node, col in self.node_idx.items():
-                if 0 <= col < scores.shape[1]:
-                    col_lvls[col] = int(self.node_levels.get(node, 0))
-            self._col_lvls = col_lvls
-        if isinstance(level_offsets, dict):
-            off_list = [float(level_offsets.get(lvl, 0.0)) for lvl in col_lvls]
-        else:
-            n_off = len(level_offsets)
-            off_list = [
-                float(level_offsets[lvl]) if 0 <= lvl < n_off else 0.0
-                for lvl in col_lvls
-            ]
-        col_offsets = torch.tensor(off_list, dtype=scores.dtype, device=scores.device)
-        clamped = scores.clamp(eps, 1.0 - eps)
-        adjusted = torch.sigmoid(torch.logit(clamped) + col_offsets.unsqueeze(0))
-        return self.reconcile(adjusted)
 
     def consistency_loss(
         self, probs: torch.Tensor, margin: float = 0.0
@@ -246,12 +202,11 @@ class BlockDiagonalR(SparseRMatrix):
         if child.numel() == 0:
             return result
         index = parent.unsqueeze(0).expand(scores.shape[0], -1)
-        is_cuda = scores.is_cuda
         for _ in range(len(self.levels)):
             updated = result.scatter_reduce(
                 1, index, result[:, child], reduce="amax", include_self=True
             )
-            if not is_cuda and torch.equal(updated, result):
+            if torch.equal(updated, result):
                 break
             result = updated
         return result

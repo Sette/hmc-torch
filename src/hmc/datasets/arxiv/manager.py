@@ -18,7 +18,6 @@ import numpy as np
 from tqdm import tqdm
 
 from hmc.datasets.arxiv.dataset_arxiv import ArXivHierarchyManager, ArXivSplit
-from hmc.datasets.arxiv.names import arxiv_label_names
 from hmc.utils.model_cache import ensure_transformer_model_cached
 
 logger = logging.getLogger(__name__)
@@ -179,8 +178,7 @@ class ArXivManager:
         )
         Y_global, Y_local_all = self._compute_labels(hierarchy, cats_list)
 
-        self._create_splits(X, Y_global, Y_local_all, texts)
-        self.label_names = arxiv_label_names(hierarchy.terms)
+        self._create_splits(X, Y_global, Y_local_all)
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Y_global.shape[1])
 
     def _load_records(
@@ -286,7 +284,6 @@ class ArXivManager:
         X: np.ndarray,
         Y_global: np.ndarray,
         Y_local_all: list,
-        texts: list | None = None,
     ) -> None:
         """Create 64/16/20 splits using HPT methodology.
 
@@ -306,34 +303,19 @@ class ArXivManager:
         X_shuf = X[idx]
         Yg_shuf = Y_global[idx]
         Yl_shuf = [Y_local_all[i] for i in idx]
-        # Row ids ride along so the raw texts follow the same permutation.
-        ids_shuf = np.asarray(idx)
 
         # 80/20 split → test
-        X_train, X_test, Yg_train, Yg_test, Yl_train, Yl_test, id_train, id_test = (
-            train_test_split(
-                X_shuf, Yg_shuf, Yl_shuf, ids_shuf, test_size=0.2, random_state=0
-            )
+        X_train, X_test, Yg_train, Yg_test, Yl_train, Yl_test = train_test_split(
+            X_shuf, Yg_shuf, Yl_shuf, test_size=0.2, random_state=0
         )
         # 80/20 split of remainder → val → 64/16/20 overall
-        X_train, X_val, Yg_train, Yg_val, Yl_train, Yl_val, id_train, id_val = (
-            train_test_split(
-                X_train, Yg_train, Yl_train, id_train, test_size=0.2, random_state=0
-            )
+        X_train, X_val, Yg_train, Yg_val, Yl_train, Yl_val = train_test_split(
+            X_train, Yg_train, Yl_train, test_size=0.2, random_state=0
         )
 
-        def _texts(ids):
-            return [texts[i] for i in ids] if texts is not None else None
-
-        self._train = ArXivSplit(
-            x=X_train, y=Yg_train, y_local=Yl_train, texts=_texts(id_train)
-        )
-        self._valid = ArXivSplit(
-            x=X_val, y=Yg_val, y_local=Yl_val, texts=_texts(id_val)
-        )
-        self._test = ArXivSplit(
-            x=X_test, y=Yg_test, y_local=Yl_test, texts=_texts(id_test)
-        )
+        self._train = ArXivSplit(x=X_train, y=Yg_train, y_local=Yl_train)
+        self._valid = ArXivSplit(x=X_val, y=Yg_val, y_local=Yl_val)
+        self._test = ArXivSplit(x=X_test, y=Yg_test, y_local=Yl_test)
         logger.info(
             "Splits — train: %d  valid: %d  test: %d (HPT methodology)",
             len(self._train.x),

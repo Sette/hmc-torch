@@ -158,13 +158,11 @@ class AAPDSplit:
         x: np.ndarray,
         y: np.ndarray,
         y_local: list[list[np.ndarray]],
-        texts: list[str] | None = None,
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
         self.y_local = y_local  # list[list[ndarray]] — per-sample, per-level
         self.samples = _SamplesHolder()
-        self.texts = texts  # raw documents, aligned with y (end-to-end methods)
 
 
 class AAPDHierarchyManager:

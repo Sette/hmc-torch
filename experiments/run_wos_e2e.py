@@ -44,6 +44,11 @@ from run_protocol import (  # noqa: E402  pylint: disable=wrong-import-position
 )
 
 
+def load_texts(fname):
+    with open(f"data/wos/{fname}", encoding="utf-8") as f:
+        return [json.loads(line)["token"] for line in f]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=0)
@@ -78,7 +83,9 @@ def _run(args, out_path):
     )
     train, valid, test = mgr.get_datasets()
     y = [np.asarray(s.y, dtype=np.float32) for s in (train, valid, test)]
-    texts = [s.texts for s in (train, valid, test)]
+    texts = [load_texts(f) for f in (
+        "WebOfScience_train.json", "WebOfScience_dev.json", "WebOfScience_test.json")]
+    assert [len(t) for t in texts] == [len(v) for v in y], "text/label split mismatch"
     m = np.asarray(mgr.to_eval, dtype=bool)
     n_nodes = mgr.output_dim
 

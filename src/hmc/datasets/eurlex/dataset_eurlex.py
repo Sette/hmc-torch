@@ -37,13 +37,11 @@ class EURLexSplit:
         y: np.ndarray,
         y_local: list[list[np.ndarray]],
         g: nx.DiGraph | None = None,
-        texts: list[str] | None = None,
     ) -> None:
         self.x = x  # (N, feat_dim) float32
         self.y = y  # (N, total_labels) float32 — global binary labels
         self.y_local = y_local  # list[list[ndarray]] — per-sample, per-level
         self.samples = _SamplesHolder()
-        self.texts = texts  # raw documents, aligned with y (end-to-end methods)
         # DiGraph for sparse R reconciliation (needed by BlockDiagonalR)
         self.g = g if g is not None else nx.DiGraph()
 

@@ -62,8 +62,6 @@ class WOSManager:
         self.local_nodes_idx: dict = {}
         self.to_eval: list = []
         self.hierarchy_map: dict = {}
-        # WOS terms are already the category names.
-        self.label_names: dict = {}
         self.input_dim: int = 0
         self.output_dim: int = 0
         self._fit()
@@ -106,13 +104,9 @@ class WOSManager:
         Yg_valid, Yl_valid = self._compute_labels(hierarchy, valid_label_ids)
         Yg_test, Yl_test = self._compute_labels(hierarchy, test_label_ids)
 
-        self._train = WOSSplit(
-            x=X_train, y=Yg_train, y_local=Yl_train, texts=train_texts
-        )
-        self._valid = WOSSplit(
-            x=X_valid, y=Yg_valid, y_local=Yl_valid, texts=valid_texts
-        )
-        self._test = WOSSplit(x=X_test, y=Yg_test, y_local=Yl_test, texts=test_texts)
+        self._train = WOSSplit(x=X_train, y=Yg_train, y_local=Yl_train)
+        self._valid = WOSSplit(x=X_valid, y=Yg_valid, y_local=Yl_valid)
+        self._test = WOSSplit(x=X_test, y=Yg_test, y_local=Yl_test)
 
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Yg_train.shape[1])
 
