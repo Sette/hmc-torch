@@ -71,6 +71,14 @@ def run_name(
     score_head: str = "verbalizer",
 ) -> str:
     suffix = "" if selection == "rec_val_micro" else f"_{selection}"
+    if label_text != "name":
+        suffix += f"_txt-{label_text}"
+    if label_encoder != "mean":
+        suffix += f"_enc-{label_encoder}"
+    if label_prompt_tokens != 1:
+        suffix += f"_k{label_prompt_tokens}"
+    if score_head != "verbalizer":
+        suffix += f"_{score_head}"
     return f"{backbone}_{loss}_{graph}{'' if mlm else '_nomlm'}{suffix}_seed{seed}"
 
 
