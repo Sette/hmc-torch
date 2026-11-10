@@ -582,10 +582,10 @@ ImCLEF07a/d ($+0.015/+0.035$), and text ($+0.121$ ArXiv, $+0.154$ WOS, $+0.069$
 AAPD). Pairing \texttt{SR-GAE} with sibling-boosted prototype + R-matrix Jaccard
 queue contrastive learning and $k$-NN (\texttt{H-MLCL+H-KNN}) lifts 3-seed test
 AUPRC over the matched baseline on 27/27 datasets ($p=1.5\times 10^{-8}$; 26/27 strict wins in the 3-seed
-controlled ablation, $p=4.5\times 10^{-8}$ two-sided), while adding
-$L$-parameter depth calibration lifts deep F1 on 10/10 FunCat ($+13.0\%$) and
-8/9 GO ($+24.1\%$ on Level 5) and micro-F1 on 26/27 datasets ($p=2.5\times
-10^{-6}$; 26/27 strict, $p=3.0\times 10^{-8}$ controlled).
+controlled ablation, $p=4.5\times 10^{-8}$ two-sided); depth calibration in
+the full pipeline improves deep F1 by $+13.0\%$ (FunCat) and $+24.1\%$ (GO L5)
+and micro-F1 on 26/27 ($p=2.5\times 10^{-6}$; 27/27 non-decreasing,
+$p=3.0\times 10^{-8}$ controlled), but alone trades AUPRC for F1 (11/27 vs.\ 18/27).
 
 \section{Discussion and Limitations}
 \label{sec:discussion}
@@ -627,7 +627,8 @@ drives the gains. BCE with reconciliation matches MCLoss while avoiding
 raw-score collapse, is statistically tied with C-HMCNN on FunCat and GO, and
 surpasses it on cross-domain ARFF. \texttt{SR-GAE}+\texttt{H-MLCL+H-KNN}
 resolves sibling collapse and lifts test AUPRC over the matched baseline (27/27,
-$p=1.5\times 10^{-8}$), while depth calibration lifts deep-level F1. Code is
+$p=1.5\times 10^{-8}$), while the full pipeline with depth calibration
+improves deep-level F1. Code is
 available at \url{https://github.com/Sette/hmc-torch}.
 
 \bibliographystyle{IEEEtran}
