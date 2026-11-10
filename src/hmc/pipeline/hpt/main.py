@@ -54,6 +54,10 @@ class HPTConfig:  # pylint: disable=too-many-instance-attributes
     mlm: bool = True
     graph_direction: str = "both"
     graph_layers: int = 1
+    label_text: str = "name"  # "name", "path", "definition" (Spec 10 M1)
+    label_encoder: str = "mean"  # "mean", "sentence", "random" (Spec 10 M1 / Control 1)
+    label_prompt_tokens: int = 1  # K virtual tokens per level (Spec 10 M2)
+    score_head: str = "verbalizer"  # "verbalizer", "crossattn" (Spec 10 M2)
     lr: float = 3e-5
     batch_size: int = 8  # x grad_accum = HPT's batch of 16 (fits 12 GB in bf16)
     grad_accum: int = 2
@@ -95,13 +99,36 @@ def label_space(mgr) -> dict:
         ],
         dtype=np.int64,
     ).reshape(-1, 2)
+    label_codes = [codes[c] for c in cols]
+    label_names = [names.get(codes[c], codes[c]) for c in cols]
+    parent_of: dict[int, int] = {int(c): int(p) for p, c in edges}
+    label_paths: list[str] = []
+    for k in range(len(cols)):
+        chain = [label_names[k] or label_codes[k]]
+        cur = k
+        seen = {k}
+        while cur in parent_of and parent_of[cur] not in seen:
+            cur = parent_of[cur]
+            seen.add(cur)
+            chain.append(label_names[cur] or label_codes[cur])
+        label_paths.append(" > ".join(reversed(chain)))
+    defs = getattr(mgr, "label_definitions", {}) or {}
+    label_definitions = [
+        defs.get(
+            label_codes[k],
+            f"{label_names[k] or label_codes[k]} (hierarchy path: {label_paths[k]})",
+        )
+        for k in range(len(cols))
+    ]
     return {
         **h,
         "eval_mask": m,
         "label_cols": cols,
         "label_depth": [int(h["depth"][c]) - 1 for c in cols],
-        "label_codes": [codes[c] for c in cols],
-        "label_texts": [names.get(codes[c], codes[c]) for c in cols],
+        "label_codes": label_codes,
+        "label_texts": label_names,
+        "label_paths": label_paths,
+        "label_definitions": label_definitions,
         "label_edges": edges,
     }
 
@@ -165,16 +192,28 @@ def fit_hpt(  # pylint: disable=too-many-locals,too-many-statements,logging-fstr
     n_total = ys[0].shape[1]
     m = space["eval_mask"]
 
+    text_key = {
+        "name": "label_texts",
+        "path": "label_paths",
+        "definition": "label_definitions",
+    }.get(cfg.label_text)
+    if text_key is None:
+        raise ValueError(
+            f"label_text must be 'name', 'path', or 'definition', got {cfg.label_text!r}"
+        )
     model = HPTPromptModel.from_pretrained(
         cfg.backbone,
         cfg.model_cache_dir,
-        label_texts=space["label_texts"],
+        label_texts=space[text_key],
         label_codes=space["label_codes"],
         label_depth=space["label_depth"],
         edges=space["label_edges"],
         graph_layers=cfg.graph_layers,
         graph_direction=cfg.graph_direction,
         use_mlm=cfg.mlm,
+        label_encoder=cfg.label_encoder,
+        label_prompt_tokens=cfg.label_prompt_tokens,
+        score_head=cfg.score_head,
     ).to(device)
     rows = [model.prompt_rows(t, cfg.max_length) for t in texts]
     label_cols = torch.from_numpy(space["label_cols"]).to(device)

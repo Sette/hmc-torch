@@ -16,6 +16,7 @@ import numpy as np
 
 from hmc.datasets.arxiv.manager import compute_transformer_embeddings
 from hmc.datasets.rcv1.dataset_rcv1 import RCV1HierarchyManager, RCV1Split
+from hmc.datasets.rcv1.download_rcv1 import _parse_topic_paths
 
 logger = logging.getLogger(__name__)
 
@@ -212,20 +213,22 @@ class RCV1Manager:
             logger.info("Truncated train to %d records.", len(train_texts))
 
         max_test = int(os.environ.get("RCV1_MAX_TEST_RECORDS", "0") or 0)
-        if max_test > 0 and len(test_texts) > max_test:
+        if 0 < max_test < len(test_texts):
             rng_te = np.random.default_rng(0)
-            sub_te = np.sort(rng_te.choice(len(test_texts), size=max_test, replace=False))
+            sub_te = np.sort(
+                rng_te.choice(len(test_texts), size=max_test, replace=False)
+            )
             test_texts = [test_texts[int(i)] for i in sub_te]
             test_labels = [test_labels[int(i)] for i in sub_te]
-            logger.info("Sampled %d test records (RCV1_MAX_TEST_RECORDS).", len(test_texts))
+            logger.info(
+                "Sampled %d test records (RCV1_MAX_TEST_RECORDS).", len(test_texts)
+            )
 
         # Build hierarchy from train + val labels + official RCV1-v2 taxonomy
         # (includes ECAT/E31/E312 and GCAT/GMIL which have 0 train docs in LYRL2004 — Spec 12 §3.1)
         extra_paths = [["ECAT/E31/E312", "GCAT/GMIL"]]
         hier_file = self._data_dir / ".lyrl2004" / "rcv1.topics.hier.orig"
         if hier_file.is_file():
-            from hmc.datasets.rcv1.download_rcv1 import _parse_topic_paths
-
             extra_paths.append(list(_parse_topic_paths(hier_file).values()))
         hierarchy = RCV1HierarchyManager.from_topic_paths(
             train_labels + val_labels + extra_paths
@@ -250,7 +253,9 @@ class RCV1Manager:
         Yg_val, Yl_val = self._compute_labels(hierarchy, val_labels)
         Yg_test, Yl_test = self._compute_labels(hierarchy, test_labels)
 
-        self._train = RCV1Split(x=X_train, y=Yg_train, y_local=Yl_train, texts=train_texts)
+        self._train = RCV1Split(
+            x=X_train, y=Yg_train, y_local=Yl_train, texts=train_texts
+        )
         self._valid = RCV1Split(x=X_val, y=Yg_val, y_local=Yl_val, texts=val_texts)
         self._test = RCV1Split(x=X_test, y=Yg_test, y_local=Yl_test, texts=test_texts)
 

@@ -100,6 +100,10 @@ def run_one(mgr, args, backbone, loss, graph, seed, out_path, score_test):  # py
             loss=loss,
             mlm=not args.no_mlm,
             graph_direction=graph,
+            label_text=args.label_text,
+            label_encoder=args.label_encoder,
+            label_prompt_tokens=args.label_prompt_tokens,
+            score_head=args.score_head,
             max_epochs=args.max_epochs or (10 if args.stage == "screen" else 20),
             patience=args.patience,
             selection=args.selection,
@@ -181,6 +185,38 @@ def main():
         ),
     )
     parser.add_argument(
+        "--label-text",
+        "--label_text",
+        dest="label_text",
+        default="name",
+        choices=["name", "path", "definition"],
+        help="Spec 10 M1: text used to initialize each label embedding",
+    )
+    parser.add_argument(
+        "--label-encoder",
+        "--label_encoder",
+        dest="label_encoder",
+        default="mean",
+        choices=["mean", "sentence", "random"],
+        help="Spec 10 M1 / Control 1: mean word embeddings, sentence pooling, or random",
+    )
+    parser.add_argument(
+        "--label-prompt-tokens",
+        "--label_prompt_tokens",
+        dest="label_prompt_tokens",
+        type=int,
+        default=1,
+        help="Spec 10 M2: K virtual hierarchy prompt tokens per level",
+    )
+    parser.add_argument(
+        "--score-head",
+        "--score_head",
+        dest="score_head",
+        default="verbalizer",
+        choices=["verbalizer", "crossattn"],
+        help="Spec 10 M2: MLM verbalizer dot-product or hierarchy cross-attention head",
+    )
+    parser.add_argument(
         "--patience",
         type=int,
         default=6,
@@ -194,7 +230,14 @@ def main():
 
     if args.stage == "screen":
         configs = [(b, loss, g, 0) for b, loss, g in SCREEN]
-        if args.backbone or args.loss:  # a single screen run
+        if (
+            args.backbone
+            or args.loss
+            or args.label_text != "name"
+            or args.label_encoder != "mean"
+            or args.label_prompt_tokens != 1
+            or args.score_head != "verbalizer"
+        ):  # a single screen run
             configs = [(args.backbone or "bert", args.loss or "none", args.graph, 0)]
     else:
         if args.auto:
@@ -211,7 +254,18 @@ def main():
     if args.limit:
         out_dir = os.path.join(args.out_dir, "smoke", args.stage, args.dataset)
     for backbone, loss, graph, seed in configs:
-        name = run_name(backbone, loss, graph, seed, not args.no_mlm, args.selection)
+        name = run_name(
+            backbone,
+            loss,
+            graph,
+            seed,
+            not args.no_mlm,
+            args.selection,
+            args.label_text,
+            args.label_encoder,
+            args.label_prompt_tokens,
+            args.score_head,
+        )
         run_one(
             mgr, args, backbone, loss, graph, seed,
             os.path.join(out_dir, f"{name}.json"),
