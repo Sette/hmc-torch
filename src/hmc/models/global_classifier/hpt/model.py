@@ -52,6 +52,32 @@ class GraphLayer(nn.Module):
         return self.norm(x + h)
 
 
+class HierarchyCrossAttentionHead(nn.Module):
+    """Cross-attention + FFN scoring head over GAT-contextualized hierarchy nodes (Spec 10 M2)."""
+
+    def __init__(self, hidden: int, dropout: float, heads: int = 4) -> None:
+        super().__init__()
+        n_heads = heads if hidden % heads == 0 else 1
+        self.attn = nn.MultiheadAttention(
+            hidden, num_heads=n_heads, dropout=dropout, batch_first=True
+        )
+        self.norm1 = nn.LayerNorm(hidden)
+        self.ffn = nn.Sequential(
+            nn.Linear(hidden, hidden),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden, hidden),
+        )
+        self.norm2 = nn.LayerNorm(hidden)
+
+    def forward(self, h_level: torch.Tensor, graph_nodes: torch.Tensor) -> torch.Tensor:
+        """Contextualize level [PRED] states (B, L, H) against hierarchy nodes (N+L, H)."""
+        kv = graph_nodes.to(h_level.dtype).unsqueeze(0).expand(h_level.shape[0], -1, -1)
+        attn_out, _ = self.attn(h_level, kv, kv, need_weights=False)
+        h = self.norm1(h_level + attn_out)
+        return self.norm2(h + self.ffn(h))
+
+
 def build_edge_index(
     edges: np.ndarray, label_depth: Sequence[int], direction: str = "both"
 ) -> torch.Tensor:
@@ -100,28 +126,57 @@ class HPTPromptModel(nn.Module):  # pylint: disable=too-many-instance-attributes
         graph_layers: int = 1,
         graph_direction: str = "both",
         use_mlm: bool = True,
+        label_encoder: str = "mean",
+        label_prompt_tokens: int = 1,
+        score_head: str = "verbalizer",
     ) -> None:
         super().__init__()
+        if label_encoder not in ("mean", "sentence", "random"):
+            raise ValueError(f"label_encoder must be 'mean', 'sentence', or 'random', got {label_encoder!r}")
+        if label_prompt_tokens < 1:
+            raise ValueError(f"label_prompt_tokens must be >= 1, got {label_prompt_tokens}")
+        if score_head not in ("verbalizer", "crossattn"):
+            raise ValueError(f"score_head must be 'verbalizer' or 'crossattn', got {score_head!r}")
         self.mlm = mlm
         self.tokenizer = tokenizer
         self.use_mlm = use_mlm
+        self.label_encoder = label_encoder
+        self.label_prompt_tokens = int(label_prompt_tokens)
+        self.score_head = score_head
         config = mlm.config
         hidden = config.hidden_size
         word = mlm.get_input_embeddings()
         self.vocab_size = word.num_embeddings
         self.n_labels = len(label_depth)
         self.n_levels = int(max(label_depth)) + 1
-        # Prompt-token ids live past the vocabulary: level i -> V + i, [PRED] -> V + L.
-        self.pred_id = self.vocab_size + self.n_levels
+        k_tok = self.label_prompt_tokens
+        # Prompt-token ids live past the vocabulary:
+        # level i, slot k -> V + i*K + k; [PRED] -> V + L*K.
+        self.n_virtual = self.n_levels * k_tok
+        self.pred_id = self.vocab_size + self.n_virtual
         self.prompt_ids = [
-            t for i in range(self.n_levels) for t in (self.vocab_size + i, self.pred_id)
+            t
+            for i in range(self.n_levels)
+            for t in (
+                *(self.vocab_size + i * k_tok + k for k in range(k_tok)),
+                self.pred_id,
+            )
         ] + [tokenizer.sep_token_id]
         self._special_ids = torch.tensor(
             sorted(set(tokenizer.all_special_ids)), dtype=torch.long
         )
 
         with torch.no_grad():
-            init = _label_init(word.weight, tokenizer, label_texts, label_codes, edges)
+            init = _label_init(
+                word.weight,
+                tokenizer,
+                label_texts,
+                label_codes,
+                edges,
+                label_encoder=label_encoder,
+                base_model=mlm.base_model,
+                init_range=config.initializer_range,
+            )
         self.label_emb = nn.Parameter(init)
         self.level_emb = nn.Parameter(
             torch.randn(self.n_levels, hidden) * config.initializer_range
@@ -137,6 +192,18 @@ class HPTPromptModel(nn.Module):  # pylint: disable=too-many-instance-attributes
             GraphLayer(hidden, config.attention_probs_dropout_prob)
             for _ in range(graph_layers)
         )
+        if k_tok > 1:
+            self.prompt_token_offset = nn.Parameter(
+                torch.randn(k_tok, hidden) * config.initializer_range
+            )
+        else:
+            self.register_parameter("prompt_token_offset", None)
+        if score_head == "crossattn":
+            self.cross_head: HierarchyCrossAttentionHead | None = (
+                HierarchyCrossAttentionHead(hidden, config.attention_probs_dropout_prob)
+            )
+        else:
+            self.cross_head = None
         self.register_buffer(
             "edge_index",
             build_edge_index(edges, label_depth, graph_direction),
@@ -237,8 +304,13 @@ class HPTPromptModel(nn.Module):  # pylint: disable=too-many-instance-attributes
         prompt = ids >= self.vocab_size
         embeds = word(ids.masked_fill(prompt, 0))
         nodes = self.graph_nodes()
-        table = torch.cat([nodes[self.n_labels :], self.pred_emb], 0).to(embeds.dtype)
-        prompt_rows = table[(ids - self.vocab_size).clamp(0, self.n_levels)]
+        level_nodes = nodes[self.n_labels :]
+        if self.prompt_token_offset is not None:
+            level_nodes = (
+                level_nodes.unsqueeze(1) + self.prompt_token_offset.unsqueeze(0)
+            ).reshape(self.n_virtual, -1)
+        table = torch.cat([level_nodes, self.pred_emb], 0).to(embeds.dtype)
+        prompt_rows = table[(ids - self.vocab_size).clamp(0, self.n_virtual)]
         embeds = torch.where(prompt.unsqueeze(-1), prompt_rows, embeds)
 
         hidden = self.mlm.base_model(
@@ -249,8 +321,13 @@ class HPTPromptModel(nn.Module):  # pylint: disable=too-many-instance-attributes
         batch = ids.shape[0]
         slots = (ids == self.pred_id).nonzero()[:, 1].view(batch, self.n_levels)
         h = hidden.gather(1, slots.unsqueeze(-1).expand(-1, -1, hidden.shape[-1]))
+        if self.cross_head is not None:
+            h = self.cross_head(h, nodes)
+            label_proto = nodes[: self.n_labels]
+        else:
+            label_proto = self.label_emb
         h = self.mlm.cls.predictions.transform(h)
-        scores = h @ self.label_emb.to(h.dtype).T + self.label_bias.to(h.dtype)
+        scores = h @ label_proto.to(h.dtype).T + self.label_bias.to(h.dtype)
         depth = self.label_depth.view(1, 1, -1).expand(batch, 1, -1)
         logits = scores.gather(1, depth).squeeze(1)
 
@@ -270,21 +347,35 @@ def _label_init(  # pylint: disable=too-many-arguments,too-many-positional-argum
     label_texts: Sequence[str | None],
     label_codes: Sequence[str],
     edges: np.ndarray,
+    label_encoder: str = "mean",
+    base_model: nn.Module | None = None,
+    init_range: float = 0.02,
 ) -> torch.Tensor:
-    """Mean word embedding of each label name.
+    """Initialise each label row via mean word embeddings, contextual sentence encoding, or random.
 
     Labels without a name take the mean of their children's rows (deepest
     first, so a chain of unnamed nodes resolves bottom-up); childless unnamed
     labels fall back to their code.
     """
+    n = len(label_codes)
+    if label_encoder == "random":
+        return torch.randn(
+            n, word_weight.shape[1], device=word_weight.device, dtype=torch.float32
+        ) * init_range
 
     def embed(text: str) -> torch.Tensor:
+        if label_encoder == "sentence" and base_model is not None:
+            tok = tokenizer(text, return_tensors="pt", truncation=True, max_length=64)
+            tok = {k: v.to(word_weight.device) for k, v in tok.items()}
+            out = base_model(**tok).last_hidden_state[0]
+            if out.shape[0] > 2:
+                return out[1:-1].mean(0).detach()
+            return out.mean(0).detach()
         ids = tokenizer(text, add_special_tokens=False)["input_ids"] or [
             tokenizer.unk_token_id
         ]
         return word_weight[ids].mean(0)
 
-    n = len(label_codes)
     rows: list[torch.Tensor | None] = [embed(t) if t else None for t in label_texts]
     children: dict[int, list[int]] = {}
     for p, c in edges:
