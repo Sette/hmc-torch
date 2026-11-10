@@ -52,6 +52,7 @@ from run_protocol import (  # noqa: E402  pylint: disable=wrong-import-position
 )
 
 from hmc.models.hierarchical.graph_autoencoder import (  # noqa: E402  pylint: disable=wrong-import-position
+    HierarchicalMultiLabelContrastiveLoss,
     pretrain_label_gae,
 )
 
@@ -90,16 +91,76 @@ class SrGaeHybrid(MLP):
 
     def __init__(self, d_in, hidden, d_out, dropout, z, init_scale: float = 5.0):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         super().__init__(d_in, hidden, d_out, dropout)
+        rng = torch.get_rng_state()
         z = torch.as_tensor(z, dtype=torch.float32)
         self.register_buffer("z", nn.functional.normalize(z, dim=1))
         self.proj = nn.Linear(hidden, z.shape[1])
         nn.init.zeros_(self.proj.weight)
         nn.init.zeros_(self.proj.bias)
         self.scale = nn.Parameter(torch.tensor(float(init_scale)))
+        torch.set_rng_state(rng)
 
     def forward(self, x):
         h = self.net[:-1](x)
         return torch.sigmoid(self.net[-1](h) + self.scale * (self.proj(h) @ self.z.T))
+
+
+class SrGaeMlclHybrid(MLP):
+    """SR-GAE Hybrid coupled with Hierarchical Multi-Label Contrastive Learning (H-MLCL).
+
+    Starts identically to the baseline MLP at epoch 0 (``scale = 0``), while
+    ``aux_loss`` trains the contrastive projection ``u = normalize(cl_proj(h))``
+    against the SR-GAE ontology prototypes and the R-Jaccard instance queue so
+    that the cosine residual ``scale * (u @ z.T)`` carries a strong, sibling-
+    discriminative signal as ``scale`` adapts during training.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        d_in,
+        hidden,
+        d_out,
+        dropout,
+        z,
+        edges,
+        cl_weight: float = 0.03,
+        trunk_grad_scale: float = 0.05,
+    ):
+        super().__init__(d_in, hidden, d_out, dropout)
+        rng = torch.get_rng_state()
+        z_t = torch.as_tensor(z, dtype=torch.float32)
+        self.register_buffer("z", nn.functional.normalize(z_t, dim=1))
+        dim = self.z.shape[1]
+        mid = max(hidden // 2, dim)
+        self.cl_proj = nn.Sequential(
+            nn.Linear(hidden, mid),
+            nn.ReLU(),
+            nn.Linear(mid, dim),
+        )
+        self.scale = nn.Parameter(torch.zeros(()))
+        self.cl_loss_fn = HierarchicalMultiLabelContrastiveLoss(z_t, edges)
+        self.cl_weight = float(cl_weight)
+        self.trunk_grad_scale = float(trunk_grad_scale)
+        torch.set_rng_state(rng)
+
+    def encode_contrastive(self, x: torch.Tensor) -> torch.Tensor:
+        """Project input features onto the unit H-MLCL hypersphere."""
+        h = self.net[:-1](x)
+        return nn.functional.normalize(self.cl_proj(h), dim=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.net[:-1](x)
+        h_scaled = self.trunk_grad_scale * h + (1.0 - self.trunk_grad_scale) * h.detach()
+        u = nn.functional.normalize(self.cl_proj(h_scaled), dim=1)
+        return torch.sigmoid(self.net[-1](h) + self.scale * (u @ self.z.T))
+
+    def aux_loss(self, xb: torch.Tensor, yb: torch.Tensor) -> torch.Tensor:
+        if self.cl_weight <= 0.0:
+            return xb.new_zeros(())
+        h = self.net[:-1](xb)
+        h_scaled = self.trunk_grad_scale * h + (1.0 - self.trunk_grad_scale) * h.detach()
+        u = self.cl_proj(h_scaled)
+        return self.cl_weight * self.cl_loss_fn(u, yb)
 
 
 class SrGaeCosine(MLP):
