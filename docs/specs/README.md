@@ -11,12 +11,12 @@ Atualize a tabela ao concluir cada spec.
 | 04 | [WOS 3 seeds](04-wos-3-seeds.md) | P0 | [x] rodado | — |
 | 05 | [Paper numbers](05-paper-numbers.md) | P0/P1 | [x] atualizado | 01–04 |
 | 06 | [Metadata](06-metadata.md) | — | [~] aguardando dados do usuário | usuário |
-| 07 | [Verify](07-verify.md) | — | [~] revisão editorial em andamento; RCV1 JSON pendente | 01–06 |
+| 07 | [Verify](07-verify.md) | — | [~] revisão editorial concluída; RCV1 JSON concluído; falta spec 06 (metadados) | 01–06 |
 | 08 | [Reviewer risks (KBS)](08-reviewer-risks.md) | P0/P1 | [x] mitigações aplicadas em `docs/hmc-paper/` | 01–07 |
 | 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] 6 p., 0 over/underfull após a revisão; falta apenas orientador | — |
 | 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [x] M1 e M2 implementados e testados (`tests/test_hpt.py`) | 11 |
 | 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); KBS 49 p., IJCNN 6 p. | — |
-| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [~] resultados no KBS/tese; run de regeneração interrompido por falta de memória em 10/11/2026 — reagendar | — |
+| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [x] resultados regenerados no KBS/tese; JSON em `output/protocol_rcv1/rcv1.json` (9 runs, 3 seeds) | — |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
@@ -24,10 +24,9 @@ Atualize a tabela ao concluir cada spec.
 >
 > **Next steps:** a revisão editorial de 10/11/2026 corrigiu a tabela fatorial, separou
 > AUPRC (sem DepthCal) de F1 (com DepthCal), padronizou H-MLCL+H-KNN e os desvios amostrais,
-> e alinhou RCV1 à rota aberta. O run de regeneração do RCV1 foi interrompido pelo sistema
-> por falta de memória em 10/11/2026 e deve ser reagendado (considerar lotes menores/cache
-> em disco). Faltam também o pacote de submissão final (`make submission`) e os metadados
-> do spec 06. O spec 10 (prompt encoder) tem go/no-go em 15/01/2027 para a KBS de março.
+> e regenerou o RCV1 (JSON em `output/protocol_rcv1/rcv1.json`, 9 runs; números atualizados
+> no KBS/tese). O pacote de submissão foi regenerado com `make submission`; faltam os
+> metadados do spec 06. O spec 10 (prompt encoder) tem go/no-go em 15/01/2027 para a KBS de março.
 
 Documento de apoio (não sequencial): [08 — Riscos de revisão na KBS](08-reviewer-risks.md) —
 objeções prováveis e mitigações.
@@ -43,8 +42,18 @@ objeções prováveis e mitigações.
 - Tese: abstract/resumo, cap. 1/5/6/7/8 alinhados; tabela fatorial corrigida; RCV1
   consistente; H-MLCL+H-KNN; Bessel em vez de Parseval; definições `w_i`/`\tilde{w}_{b,m}`;
   `L` por nível; título e siglas.
-- Pendências: spec 06 (metadados do usuário), JSON do RCV1, `submission/main.pdf`, e a
-  tabela 3-seed de suporte ao 27/27 na tese (recomendada).
+- RCV1: bateria completa em 10/11/2026 na GPU (pico de 7,25 GiB; cache de 2,4 GB
+  reutilizado); JSON `output/protocol_rcv1/rcv1.json`; números do KBS/tese atualizados
+  (`bce` 0,7634→0,7673; `hinge` 0,7656→0,7682; `mc` 0,7133→0,7629 AUPRC); GHV medido
+  removido (não gravado pelo `run_protocol.py`; reconciliação garante GHV=0 por construção).
+- DepthCal: corrigida a atribuição — o F1 26/27 é do pipeline completo (H-MLCL + DepthCal)
+  contra o baseline, não do DepthCal isolado; dentro do H-MLCL, o DepthCal isolado melhora
+  AUPRC em 11/27 e F1 em 18/27 (`output/sr_gae_depth`). A ressalva de independência dos 27
+  datasets foi adicionada às limitações do KBS/tese, e `consolidated_results.json` ganhou a
+  entrada `depthcal`.
+- Pendências: spec 06 (metadados do usuário). A tabela 3-seed de suporte ao 27/27 foi
+  omitida do corpo da tese porque gerava uma página em branco; o parágrafo de suporte já
+  traz as médias por família, os p-values e o trade-off do DepthCal.
 
 Regras:
 
