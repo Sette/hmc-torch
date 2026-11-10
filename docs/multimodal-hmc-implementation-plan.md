@@ -327,7 +327,7 @@ manual/noturno separado.
 
 ## Fora de escopo inicial
 
-- fine-tuning de ESM/ProtT5, DINOv2 ou LLMs grandes;
+- fine-tuning de ESM/ProtT5 ou DINOv2;
 - uso comercial dos pesos TabFM v1.0;
 - misturar exemplos entre datasets sem auditoria de IDs;
 - alegações de SOTA antes de reproduzir split, métrica e baseline publicados.

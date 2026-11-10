@@ -56,6 +56,9 @@ from hmc.datasets.registry import (  # noqa: E402  pylint: disable=wrong-import-
 from hmc.models.hierarchical.sparse_r import (  # noqa: E402  pylint: disable=wrong-import-position
     BlockDiagonalR,
 )
+from hmc.utils.datasets.scaling import (  # noqa: E402  pylint: disable=wrong-import-position
+    standardize_splits,
+)
 
 FUNCAT = [
     "cellcycle_FUN", "church_FUN", "derisi_FUN", "eisen_FUN", "expr_FUN",
@@ -93,17 +96,18 @@ def load_dataset(name: str) -> dict:
     train, valid, test = mgr.get_datasets()
     xs = [np.asarray(s.x, dtype=np.float32) for s in (train, valid, test)]
     ys = [np.asarray(s.y, dtype=np.float32) for s in (train, valid, test)]
+    # Keep the small hierarchy fields, then free the manager/splits before the
+    # large standardization: on RCV1 they hold 781k document texts (~1-2 GB).
+    adj = np.asarray(mgr.a)
+    eval_mask = np.asarray(mgr.to_eval, dtype=bool)
+    nodes_idx = getattr(mgr, "nodes_idx", {})
+    del train, valid, test, mgr
 
     # Impute (tabular features may have NaNs) and standardize with train stats.
-    mean = np.nanmean(xs[0], axis=0)
-    mean = np.where(np.isnan(mean), 0.0, mean)
-    xs = [np.where(np.isnan(x), mean, x) for x in xs]
-    std = xs[0].std(axis=0)
-    std[std == 0] = 1.0
-    xs = [((x - mean) / std).astype(np.float32) for x in xs]
+    # In-place avoids the two full 2.4 GB copies for RCV1 embeddings.
+    xs = standardize_splits(*xs, inplace=True)
 
-    # Hierarchy: mgr.a[i, j] = 1 means j is a parent of i (child -> parent).
-    adj = np.asarray(mgr.a)
+    # Hierarchy: adj[i, j] = 1 means j is a parent of i (child -> parent).
     graph = nx.DiGraph()
     graph.add_nodes_from(range(adj.shape[0]))
     child, parent = np.nonzero(adj)
@@ -125,9 +129,8 @@ def load_dataset(name: str) -> dict:
     for n, d in lengths.items():
         depth[n] = d
 
-    eval_mask = np.asarray(mgr.to_eval, dtype=bool)
     node_names = [None] * adj.shape[0]
-    for node, idx in getattr(mgr, "nodes_idx", {}).items():
+    for node, idx in nodes_idx.items():
         if idx < len(node_names):
             node_names[idx] = node
     return {
@@ -153,8 +156,13 @@ def hyperparams(name: str) -> dict:
         family = "FUN" if name.endswith("_FUN") else "GO" if name.endswith("_GO") else "others"
         key = name.rsplit("_", 1)[0]
         hidden = reg.hidden_dims[family][key]
-        batch = 64 if family == "GO" else 32
-        return {"hidden": hidden, "batch": batch, "max_epochs": 200, "patience": 20, "refit": True}
+        # FunCat and GO: dropout 0.7 / batch 4 (C-HMCNN's values) close the gap to
+        # C-HMCNN; see output/protocol_ablation/ and output/protocol_go_recipe/.
+        # _others keep the measured defaults.
+        batch = 4 if family in ("FUN", "GO") else 32
+        dropout = 0.7 if family in ("FUN", "GO") else 0.3
+        return {"hidden": hidden, "batch": batch, "dropout": dropout,
+                "max_epochs": 200, "patience": 20, "refit": True}
     return {"hidden": 512, "batch": 64, "max_epochs": 100, "patience": 10, "refit": False}
 
 
@@ -164,6 +172,13 @@ def hyperparams(name: str) -> dict:
 
 
 def _counts(y_true, scores, thr):
+    if y_true.size > 100_000 and torch.cuda.is_available():
+        yt = torch.as_tensor(y_true == 1, device="cuda")
+        st = torch.as_tensor(scores, device="cuda") >= float(thr)
+        tp = float((st & yt).sum().item())
+        pred_sum = float(st.sum().item())
+        pos_sum = float(yt.sum().item())
+        return tp, pred_sum - tp, pos_sum - tp
     pred = scores >= thr
     tp = float(np.logical_and(pred, y_true == 1).sum())
     fp = float(np.logical_and(pred, y_true == 0).sum())
@@ -186,27 +201,46 @@ def auprc(y_true, scores):
     on the larger label spaces, and early stopping calls this every epoch.
     """
     dev = "cuda" if torch.cuda.is_available() else "cpu"
-    y = torch.as_tensor(np.asarray(y_true).ravel(), device=dev)
-    s = torch.as_tensor(np.asarray(scores, dtype=np.float32).ravel(), device=dev)
+    y = (
+        y_true.reshape(-1).to(dev)
+        if torch.is_tensor(y_true)
+        else torch.as_tensor(np.asarray(y_true).ravel(), device=dev)
+    )
+    s = (
+        scores.reshape(-1).to(dev, dtype=torch.float32)
+        if torch.is_tensor(scores)
+        else torch.as_tensor(np.asarray(scores, dtype=np.float32).ravel(), device=dev)
+    )
     n_pos = y.sum()
     if n_pos == 0:
         return 0.0
     s, order = torch.sort(s, descending=True)
-    y = y[order]
-    tp = torch.cumsum(y, 0, dtype=torch.float64)
-    fp = torch.cumsum(1 - y, 0, dtype=torch.float64)
+    y = y[order].to(torch.int64)
+    tp = torch.cumsum(y, 0).to(torch.float32)
+    fp = torch.cumsum(1 - y, 0).to(torch.float32)
     # Keep the last position of every distinct score (sklearn's thresholds).
     last = torch.ones_like(s, dtype=torch.bool)
     last[:-1] = s[1:] != s[:-1]
     tp, fp = tp[last], fp[last]
     precision = tp / (tp + fp)
-    recall = tp / n_pos
+    recall = tp / n_pos.to(torch.float32)
     recall_prev = torch.cat([recall.new_zeros(1), recall[:-1]])
     return float(((recall - recall_prev) * precision).sum())
 
 
 def pick_threshold(y_val, s_val):
     """Threshold maximizing validation micro-F1."""
+    if y_val.size > 100_000 and torch.cuda.is_available():
+        yt = torch.as_tensor(y_val == 1, device="cuda")
+        st = torch.as_tensor(s_val, device="cuda")
+        pos_total = float(yt.sum().item())
+        f1s = []
+        for t in THRESHOLDS:
+            pred = st >= float(t)
+            tp = float((pred & yt).sum().item())
+            denom = float(pred.sum().item()) + pos_total
+            f1s.append((2.0 * tp / denom) if denom > 0 else 0.0)
+        return float(THRESHOLDS[int(np.argmax(f1s))])
     f1s = [prf(y_val, s_val, t)[2] for t in THRESHOLDS]
     return float(THRESHOLDS[int(np.argmax(f1s))])
 
@@ -276,12 +310,17 @@ def predict(model, x, device, batch=1024):
     return torch.cat(out).numpy()
 
 
-def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None, on_epoch=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Train a model for up to ``epochs`` epochs.
 
     With ``x_val``, stop early on the validation AUPRC of the reconciled outputs
     and return the best checkpoint; otherwise train for exactly ``epochs``.
     ``model_fn(input_dim, output_dim)`` builds the network (default: the MLP).
+    ``hp["lr"]`` (default 1e-4) and ``hp["optimizer"]`` (``"adamw"`` or
+    ``"adam"``) set the optimizer and ``hp["select"]`` (``"rec"`` or ``"raw"``)
+    which validation scores drive early stopping; ``on_epoch(epoch, model)`` is called after
+    every epoch (diagnostics only, it must not influence training).  A model with
+    ``aux_loss(xb, yb)`` gets that term added to the objective of every batch.
     """
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -291,32 +330,69 @@ def _fit(data, kind, seed, device, hp, x, y, epochs, x_val=None, model_fn=None):
     desc = torch.from_numpy(data["desc"]).to(device)
     sparse_r = data["sparse_r"]
     x_t, y_t = torch.from_numpy(x), torch.from_numpy(y)
+    keep_on_gpu = (x.nbytes + y.nbytes) < 1_200_000_000 and str(device).startswith("cuda")
+    if keep_on_gpu:
+        x_t, y_t = x_t.to(device), y_t.to(device)
+    if x_val is not None and x_val.shape[0] * int(m.sum()) > 10_000_000:
+        x_val_es = x_val[:1500]
+        y_val_es = data["y"][1][:1500, m]
+    else:
+        x_val_es = x_val
+        y_val_es = data["y"][1][:, m] if x_val is not None else None
+    x_val_t = torch.from_numpy(x_val_es).to(device) if x_val_es is not None else None
+    y_val_eval_t = (
+        torch.as_tensor(y_val_es.ravel(), device=device)
+        if y_val_es is not None
+        else None
+    )
 
-    model = (model_fn or (lambda d_in, d_out: MLP(d_in, hp["hidden"], d_out)))(
+    model = (model_fn or (lambda d_in, d_out: MLP(d_in, hp["hidden"], d_out, hp.get("dropout", 0.3))))(
         x.shape[1], y.shape[1]
     ).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    lr = hp.get("lr", 1e-4)
+    if hp.get("optimizer", "adamw") == "adam":
+        opt = torch.optim.Adam(model.parameters(), lr=lr)
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     gen = torch.Generator().manual_seed(seed)
     best, best_state, best_epoch, bad = -1.0, None, epochs, 0
     for epoch in range(epochs):
         model.train()
         perm = torch.randperm(len(x_t), generator=gen)
+        if keep_on_gpu:
+            perm = perm.to(device)
         for i in range(0, len(perm), hp["batch"]):
             idx = perm[i : i + hp["batch"]]
-            xb, yb = x_t[idx].to(device), y_t[idx].to(device)
+            xb = x_t[idx] if keep_on_gpu else x_t[idx].to(device)
+            yb = y_t[idx] if keep_on_gpu else y_t[idx].to(device)
             loss = objective_loss(kind, model(xb), yb, eval_cols, sparse_r, anc, desc)
+            if hasattr(model, "extra_loss"):
+                loss = loss + model.extra_loss()
+            if hasattr(model, "aux_loss"):  # batch-dependent auxiliary term (autoencoders)
+                loss = loss + model.aux_loss(xb, yb)
             opt.zero_grad()
             loss.backward()
             opt.step()
-        if x_val is None:
+        if on_epoch is not None:
+            on_epoch(epoch + 1, model)
+        if x_val_t is None:
             continue
-        s_val = _reconcile(data, predict(model, x_val, device), device)
-        score = auprc(data["y"][1][:, m], s_val[:, m])
+        val_step = 4 if (y.shape[1] > 2000 and len(x_t) > 10000) else (2 if y.shape[1] > 1000 else 1)
+        if (epoch + 1) % val_step != 0 and (epoch + 1) < epochs:
+            continue
+        with torch.no_grad():
+            model.eval()
+            s_val_t = torch.cat(
+                [model(x_val_t[i : i + 1024]) for i in range(0, len(x_val_t), 1024)]
+            )
+            if hp.get("select", "rec") == "rec":
+                s_val_t = sparse_r.reconcile(s_val_t)
+            score = auprc(y_val_eval_t, s_val_t[:, eval_cols])
         if score > best:
             best, best_epoch, bad = score, epoch + 1, 0
             best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
         else:
-            bad += 1
+            bad += val_step
             if bad >= hp["patience"]:
                 break
     if best_state is not None:
@@ -328,17 +404,22 @@ def _reconcile(data, scores, device):
     return data["sparse_r"].reconcile(torch.from_numpy(scores).to(device)).cpu().numpy()
 
 
-def train_mlp(data, kind, seed, device, hp, model_fn=None):
+def train_mlp(data, kind, seed, device, hp, model_fn=None, keep_scores=False, on_epoch=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Early-stop on validation, then (optionally) refit on train + validation.
 
     The decision threshold always comes from the validation scores of the
     early-stopped model, so the test split never influences any choice.
+    With ``keep_scores``, the raw and reconciled test scores are returned under
+    ``"raw_test_scores"`` and ``"rec_test_scores"`` (not JSON-serializable; pop
+    them before dumping).  ``on_epoch`` is passed to the first (early-stopped)
+    fit only.
     """
     x_tr, x_val, x_te = data["x"]
     y_tr, y_val = data["y"][0], data["y"][1]
     t0 = time.time()
     model, best_epoch, best = _fit(data, kind, seed, device, hp, x_tr, y_tr,
-                                   hp["max_epochs"], x_val=x_val, model_fn=model_fn)
+                                   hp["max_epochs"], x_val=x_val, model_fn=model_fn,
+                                   on_epoch=on_epoch)
     raw_val = predict(model, x_val, device)
     if hp["refit"]:
         model, _, _ = _fit(data, kind, seed, device, hp,
@@ -352,7 +433,9 @@ def train_mlp(data, kind, seed, device, hp, model_fn=None):
         "rec": (_reconcile(data, raw_val, device), _reconcile(data, raw_test, device)),
     }.items():
         results[mode] = evaluate(data, sv, st)
-    return {
+    extra = {"raw_test_scores": raw_test,
+             "rec_test_scores": _reconcile(data, raw_test, device)} if keep_scores else {}
+    return extra | {
         "objective": kind,
         "seed": seed,
         "best_epoch": best_epoch,
@@ -430,7 +513,7 @@ def run_gbdt(data, seed=0):
 # ---------------------------------------------------------------------------
 
 
-def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None):
+def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None, overrides=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     path = os.path.join(out_dir, f"{name}.json")
     if os.path.exists(path):
         print(f"[skip] {name}: {path} exists")
@@ -440,6 +523,7 @@ def run_dataset(name, seeds, device, out_dir, objectives, gbdt, max_epochs=None)
     hp = hyperparams(name)
     if max_epochs:
         hp["max_epochs"] = max_epochs
+    hp |= overrides or {}
     m = data["eval_mask"]
     record = {
         "dataset": name,
@@ -488,6 +572,8 @@ def main():
     parser.add_argument("--out_dir", default="./output/protocol")
     parser.add_argument("--no_gbdt", action="store_true")
     parser.add_argument("--max_epochs", type=int, default=None, help="Override (smoke tests)")
+    parser.add_argument("--dropout", type=float, default=None, help="Override the MLP dropout (0.3)")
+    parser.add_argument("--batch", type=int, default=None, help="Override the batch size")
     args = parser.parse_args()
 
     if args.datasets:
@@ -503,7 +589,9 @@ def main():
     device = torch.device(args.device)
     for name in names:
         run_dataset(name, seeds, device, args.out_dir, objectives,
-                    gbdt=name in FUNCAT and not args.no_gbdt, max_epochs=args.max_epochs)
+                    gbdt=name in FUNCAT and not args.no_gbdt, max_epochs=args.max_epochs,
+                    overrides={k: v for k, v in (("dropout", args.dropout), ("batch", args.batch))
+                               if v is not None})
 
 
 if __name__ == "__main__":
