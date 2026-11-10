@@ -162,14 +162,22 @@ class SparseRMatrix:
         Returns:
             torch.Tensor: depth-calibrated and reconciled probabilities ``(batch, N)``.
         """
-        col_offsets = scores.new_zeros(scores.shape[1])
-        for node, col in self.node_idx.items():
-            lvl = self.node_levels.get(node, 0)
-            if isinstance(level_offsets, dict):
-                val = float(level_offsets.get(lvl, 0.0))
-            else:
-                val = float(level_offsets[lvl]) if lvl < len(level_offsets) else 0.0
-            col_offsets[col] = val
+        col_lvls = getattr(self, "_col_lvls", None)
+        if col_lvls is None or len(col_lvls) != scores.shape[1]:
+            col_lvls = [0] * scores.shape[1]
+            for node, col in self.node_idx.items():
+                if 0 <= col < scores.shape[1]:
+                    col_lvls[col] = int(self.node_levels.get(node, 0))
+            self._col_lvls = col_lvls
+        if isinstance(level_offsets, dict):
+            off_list = [float(level_offsets.get(lvl, 0.0)) for lvl in col_lvls]
+        else:
+            n_off = len(level_offsets)
+            off_list = [
+                float(level_offsets[lvl]) if 0 <= lvl < n_off else 0.0
+                for lvl in col_lvls
+            ]
+        col_offsets = torch.tensor(off_list, dtype=scores.dtype, device=scores.device)
         clamped = scores.clamp(eps, 1.0 - eps)
         adjusted = torch.sigmoid(torch.logit(clamped) + col_offsets.unsqueeze(0))
         return self.reconcile(adjusted)
@@ -237,11 +245,12 @@ class BlockDiagonalR(SparseRMatrix):
         if child.numel() == 0:
             return result
         index = parent.unsqueeze(0).expand(scores.shape[0], -1)
+        is_cuda = scores.is_cuda
         for _ in range(len(self.levels)):
             updated = result.scatter_reduce(
                 1, index, result[:, child], reduce="amax", include_self=True
             )
-            if torch.equal(updated, result):
+            if not is_cuda and torch.equal(updated, result):
                 break
             result = updated
         return result
