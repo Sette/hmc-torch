@@ -56,6 +56,8 @@ class HierarchyData:  # pylint: disable=too-many-instance-attributes
     terms: list = field(default_factory=list)
     edge_index: dict = field(default_factory=dict)
     a: Any = None
+    root_depths: dict = field(default_factory=dict)
+    node_ancestors: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -242,22 +244,23 @@ class HMCDatasetArff:
         """
         g = self.hierarchy.g
         levels = self.hierarchy.levels
+        g_t = g.reverse()
+        root_depths = nx.shortest_path_length(g_t, "root") if self.is_go else {}
 
         nodes = sorted(
             g.nodes(),
             key=lambda x: (
-                (nx.shortest_path_length(g, x, "root"), x)
+                (root_depths[x], x)
                 if self.is_go
                 else (len(x.split(".")), x)
             ),
         )
         nodes_idx = dict(zip(nodes, range(len(nodes))))
-        g_t = g.reverse()
 
         if self.is_go:
             for label in nodes:
                 if label != "root":
-                    level = nx.shortest_path_length(g_t, "root").get(label) - 1
+                    level = root_depths.get(label) - 1
                     levels[level].append(label)
         else:
             # Non-GO (FunCat): assign every node (including root and
@@ -282,6 +285,10 @@ class HMCDatasetArff:
         self.hierarchy.levels_size = levels_size
         self.hierarchy.max_depth = max_depth
         self.hierarchy.local_nodes_idx = local_nodes_idx
+        self.hierarchy.root_depths = root_depths
+        self.hierarchy.node_ancestors = {
+            n: list(nx.ancestors(g_t, n)) for n in nodes
+        }
         return nodes
 
     def build_edge_index(self):
@@ -443,15 +450,18 @@ class HMCDatasetArff:
         for t in lab.split("@"):
             y_node = t.replace("/", ".")
             y_nodes.append(y_node)
-            y_[[h.nodes_idx.get(a) for a in nx.ancestors(h.g_t, y_node)]] = 1
+            ancs = h.node_ancestors.get(y_node)
+            if ancs is None:
+                ancs = list(nx.ancestors(h.g_t, y_node))
+            y_[[h.nodes_idx.get(a) for a in ancs]] = 1
             y_[h.nodes_idx[y_node]] = 1
 
             if self.is_go:
-                depth = nx.shortest_path_length(h.g_t, "root").get(y_node) - 1
+                depth = h.root_depths.get(y_node) - 1
                 y_local_[depth][h.local_nodes_idx[depth].get(y_node)] = 1
-                for ancestor in nx.ancestors(h.g_t, y_node):
+                for ancestor in ancs:
                     if ancestor != "root":
-                        depth = nx.shortest_path_length(h.g_t, "root").get(ancestor) - 1
+                        depth = h.root_depths.get(ancestor) - 1
                         y_local_[depth][h.local_nodes_idx[depth].get(ancestor)] = 1
             else:
                 depth = y_node.count(".") + 1
