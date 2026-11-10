@@ -1,6 +1,6 @@
 ---
 name: organize-commits
-description: 'Groups uncommitted files (modified and untracked) into cohesive semantic commits on a new branch, following the `[EMOJI] <type>(<scope>): <description>` format. Never uses `git add .`/`-A`, never commits secrets, never pushes, and only executes after plan confirmation. Usage: /organize-commits [optional context]'
+description: 'Groups uncommitted files (modified and untracked) into cohesive semantic commits on a new branch, following the `<type>(<scope>): <emoji> <description>` format. Never uses `git add .`/`-A`, never commits secrets, never pushes, and only executes after plan confirmation. Usage: /organize-commits [optional context]'
 allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git branch *), Bash(git checkout -b *), Bash(git switch -c *), Bash(git add *), Bash(git commit *), Bash(git rev-parse *), Bash(git tag -l *)
 version: 1.0.0
 ---
@@ -11,7 +11,7 @@ Groups modified/untracked files into cohesive semantic commits. Every message fo
 
 ## Message Rules
 
-- Format: `[EMOJI] <type>(<scope>): <description>`
+- Format: `<type>(<scope>): <emoji> <description>` — the type comes first so release-please can parse the commit
 - Required emoji: ✨ `feat` · 🐛 `fix` · 📝 `docs` · 💄 `style` · ♻️ `refactor` · ✅ `test` · 🔧 `chore` · ⚡️ `perf` · 🧹 `clean`
 - **English**, imperative (`add`, `fix`, `remove`), all lowercase, **no trailing period**
 - No co-authorship/footer lines unless the user requests them
@@ -44,15 +44,15 @@ Group by responsibility, in this priority order (also the commit order):
 
 | Group | Typical files | Message |
 | :--- | :--- | :--- |
-| **Project config** | `.gitignore`, `pyproject.toml`, `Makefile`, `.env.example`, `*.lock`, `sonar-*.properties`, `.python-version`, `.dockerignore` | `🔧 chore(config): ...` |
-| **Documentation** | `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/`, `*.md` at root | `📝 docs(<scope>): ...` |
-| **Core / entrypoint** | `__init__.py`, `main.py`, `settings.py`, `state.py`, `factory.py`, `service.py`, `arguments.py` | `✨ feat(core): ...` |
-| **Domain modules** | Each subfolder of `src/` with its own logic becomes **one separate commit** | `✨ feat(<module>): ...` |
-| **Utilities** | `utils/`, `helpers/`, auxiliary functions | `✨ feat(utils): ...` |
-| **Data / assets** | `data/`, config `.json`, `.sql`, `.csv` | `✨ feat(data)` or `🔧 chore(data)` |
-| **Tests** | `tests/`, `*_test.py`, `test_*.py`, `conftest.py` | `✅ test(<scope>): ...` |
-| **CI/CD and infra** | `.github/`, `Dockerfile`, `docker-compose.yml`, `k8s/`, deploy scripts | `🔧 chore(ci): ...` |
-| **AI tools** | `.claude/`, `.kiro/` | `🔧 chore(claude)` / `🔧 chore(kiro)` |
+| **Project config** | `.gitignore`, `pyproject.toml`, `Makefile`, `.env.example`, `*.lock`, `sonar-*.properties`, `.python-version`, `.dockerignore` | `chore(config): 🔧 ...` |
+| **Documentation** | `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/`, `*.md` at root | `docs(<scope>): 📝 ...` |
+| **Core / entrypoint** | `__init__.py`, `main.py`, `settings.py`, `state.py`, `factory.py`, `service.py`, `arguments.py` | `feat(core): ✨ ...` |
+| **Domain modules** | Each subfolder of `src/` with its own logic becomes **one separate commit** | `feat(<module>): ✨ ...` |
+| **Utilities** | `utils/`, `helpers/`, auxiliary functions | `feat(utils): ✨ ...` |
+| **Data / assets** | `data/`, config `.json`, `.sql`, `.csv` | `feat(data): ✨` or `chore(data): 🔧` |
+| **Tests** | `tests/`, `*_test.py`, `test_*.py`, `conftest.py` | `test(<scope>): ✅ ...` |
+| **CI/CD and infra** | `.github/`, `Dockerfile`, `docker-compose.yml`, `k8s/`, deploy scripts | `chore(ci): 🔧 ...` |
+| **AI tools** | `.claude/`, `.kiro/` | `chore(claude): 🔧` / `chore(kiro): 🔧` |
 
 - The table type is the default for **new** files. For **modified** files, read the diff and choose the real type (`fix`, `refactor`, `perf`, `style`, `clean`...).
 - Each domain module (e.g. `embeddings/`, `pipelines/`, `vectorstore/`) gets **its own commit**.
@@ -69,8 +69,8 @@ Branch: feat/<short-description>  (new, from <current-branch>)
 
 | # | Message | Files |
 |---|---|---|
-| 1 | 🔧 chore(config): add project configuration | .gitignore, pyproject.toml |
-| 2 | ✨ feat(embeddings): add embedding generation | src/.../embeddings/* |
+| 1 | chore(config): 🔧 add project configuration | .gitignore, pyproject.toml |
+| 2 | feat(embeddings): ✨ add embedding generation | src/.../embeddings/* |
 ...
 
 Out of plan (secrets/ignored): .env

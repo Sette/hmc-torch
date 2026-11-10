@@ -36,6 +36,20 @@ hmc-torch), com `make pdf` / `make check` no seu `Makefile`. Não há outra vers
 
 ---
 
+## Commits e release
+
+Commits seguem Conventional Commits com o **tipo na posição 1**: `tipo(escopo): emoji descrição`
+(ex.: `feat(hpt): ✨ add label-text encoder`). O emoji vem depois dos dois-pontos; no formato
+antigo (`✨ feat: ...`) o `release-please` não parseia o commit e não abre o PR de release.
+
+O `release-please` (`.github/workflows/release-please.yml`, config em `release-please-config.json`
+e `.release-please-manifest.json`) lê os commits da `main` desde a última tag `hmc-torch-vX.Y.Z`,
+atualiza `pyproject.toml`, `src/hmc/__init__.py`, `.bumpversion.toml` e `CHANGELOG.md` e abre um
+PR de release. Títulos de squash/merge também precisam seguir o formato — um merge inteiro fica
+invisível para ele se o subject não for parseável.
+
+---
+
 ## Métodos
 
 Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/hmc/main.py`:
