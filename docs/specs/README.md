@@ -16,7 +16,7 @@ Atualize a tabela ao concluir cada spec.
 | 09 | [IJCNN 2027](09-ijcnn.md) | P0 | [x] 6 p., 0 over/underfull após a revisão; falta apenas orientador | — |
 | 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [x] M1 e M2 implementados e testados (`tests/test_hpt.py`) | 11 |
 | 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); KBS 49 p., IJCNN 6 p. | — |
-| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [~] resultados no KBS/tese; run de regeneração do JSON em andamento | — |
+| 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [~] resultados no KBS/tese; run de regeneração interrompido por falta de memória em 10/11/2026 — reagendar | — |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
@@ -24,9 +24,10 @@ Atualize a tabela ao concluir cada spec.
 >
 > **Next steps:** a revisão editorial de 10/11/2026 corrigiu a tabela fatorial, separou
 > AUPRC (sem DepthCal) de F1 (com DepthCal), padronizou H-MLCL+H-KNN e os desvios amostrais,
-> e alinhou RCV1 à rota aberta. Falta o JSON de regeneração do RCV1 (run em andamento), o
-> pacote de submissão (`make submission`) e os metadados do spec 06. O spec 10 (prompt encoder)
-> tem go/no-go em 15/01/2027 para a KBS de março.
+> e alinhou RCV1 à rota aberta. O run de regeneração do RCV1 foi interrompido pelo sistema
+> por falta de memória em 10/11/2026 e deve ser reagendado (considerar lotes menores/cache
+> em disco). Faltam também o pacote de submissão final (`make submission`) e os metadados
+> do spec 06. O spec 10 (prompt encoder) tem go/no-go em 15/01/2027 para a KBS de março.
 
 Documento de apoio (não sequencial): [08 — Riscos de revisão na KBS](08-reviewer-risks.md) —
 objeções prováveis e mitigações.
