@@ -180,3 +180,62 @@ def test_selection_score_default_uses_reconciled_micro_f1():
 def test_hpt_config_selection_values():
     assert HPTConfig().selection == "rec_val_micro"
     assert HPTConfig(selection="hpt_raw").selection == "hpt_raw"
+
+
+def test_spec10_m1_sentence_and_random_label_encoders(tokenizer):
+    cfg = BertConfig(
+        vocab_size=tokenizer.vocab_size,
+        hidden_size=16,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        intermediate_size=32,
+        max_position_embeddings=64,
+    )
+    for enc in ("sentence", "random"):
+        mod = HPTPromptModel(
+            BertForMaskedLM(cfg),
+            tokenizer,
+            label_texts=["computer science", None, "computer science > machine learning", "biology > cell"],
+            label_codes=["cs", "bio", "ml", "cell"],
+            label_depth=[0, 0, 1, 1],
+            edges=np.array([[0, 2], [1, 3]]),
+            label_encoder=enc,
+        )
+        assert mod.label_emb.shape == (4, 16)
+        assert torch.isfinite(mod.label_emb).all()
+        batch = mod.collate(mod.prompt_rows(["the machine learning"] * 2, 32))
+        logits, _ = mod(**batch)
+        assert logits.shape == (2, 4)
+
+
+def test_spec10_m2_multi_token_prompts_and_crossattn_head(tokenizer):
+    cfg = BertConfig(
+        vocab_size=tokenizer.vocab_size,
+        hidden_size=16,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        intermediate_size=32,
+        max_position_embeddings=64,
+    )
+    mod = HPTPromptModel(
+        BertForMaskedLM(cfg),
+        tokenizer,
+        label_texts=["computer science", "biology", "machine learning", "cell biology"],
+        label_codes=["cs", "bio", "ml", "cell"],
+        label_depth=[0, 0, 1, 1],
+        edges=np.array([[0, 2], [1, 3]]),
+        label_encoder="sentence",
+        label_prompt_tokens=4,
+        score_head="crossattn",
+    )
+    # 2 levels * (4 virtual prompt tokens + 1 [PRED] slot) + [SEP] = 11 prompt ids
+    assert len(mod.prompt_ids) == 11
+    batch = mod.collate(mod.prompt_rows(["science computer", "cell biology"], 32))
+    assert (batch["input_ids"] == mod.pred_id).sum(1).tolist() == [2, 2]
+    mod.train()
+    logits, mlm_loss = mod(**batch)
+    assert logits.shape == (2, 4)
+    loss = logits.sum() + (mlm_loss if mlm_loss is not None else 0.0)
+    loss.backward()
+    assert mod.prompt_token_offset.grad is not None
+    assert mod.prompt_token_offset.grad.abs().sum() > 0
