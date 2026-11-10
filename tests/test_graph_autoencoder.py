@@ -1,6 +1,5 @@
-"""Tests for Surj: classifier, graph-autoencoder losses, hierarchy violations, CLI."""
+"""Tests for hierarchy violations, graph autoencoders, and hierarchical contrastive learning."""
 
-import json
 import os
 import sys
 
@@ -12,17 +11,18 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from hmc.models.hierarchical.graph_autoencoder import (  # noqa: E402
+    HierarchicalMultiLabelContrastiveLoss,
+    contrastive_knn_predict,
     pretrain_label_gae,
     sibling_pairs,
 )
 from hmc.models.hierarchical.sparse_r import BlockDiagonalR  # noqa: E402
-from hmc.models.hierarchical.surj import SurjClassifier  # noqa: E402
 from hmc.utils.metrics.hierarchy_violation import global_hierarchy_violation  # noqa: E402
 
-# The subtree of the Surj paper's Figure 3: root -> A; A -> B, C; B -> D, E; C -> F.
+# A small tree: root -> A; A -> B, C; B -> D, E; C -> F.
 ROOT, A, B, C, D, E, F = range(7)
 EDGES = np.array([[A, ROOT], [B, A], [C, A], [D, B], [E, B], [F, C]])  # child -> parent
-# Figure 3(a): B < D, B < E and A < E are the violations.
+# The violations in this example are B < D, B < E, and A < E.
 SCORES = np.array([[1.0, 0.7, 0.5, 0.6, 0.6, 0.8, 0.4]], dtype=np.float32)
 
 
@@ -43,13 +43,13 @@ EVAL = np.array([False] + [True] * 6)
 
 
 class TestGlobalHierarchyViolation:
-    def test_figure_3a(self):
+    def test_violation_example(self):
         out = global_hierarchy_violation(SCORES, ANC, DESC, EVAL)
         assert out["pairs"] == 8  # A-B, A-C, A-D, A-E, A-F, B-D, B-E, C-F
         assert out["violations"] == 3
         assert out["samples_with_violation"] == 1
 
-    def test_figure_3b_low_confidence_is_irrelevant(self):
+    def test_low_confidence_is_irrelevant(self):
         low = SCORES * 0.1
         assert global_hierarchy_violation(low, ANC, DESC, EVAL)["violations"] == 3
         assert global_hierarchy_violation(low, ANC, DESC, EVAL, threshold=0.5)["violations"] == 0
@@ -82,37 +82,6 @@ class TestGlobalHierarchyViolation:
         s = np.random.default_rng(0).random((50, 7)).astype(np.float32)
         full = global_hierarchy_violation(s, ANC, DESC, EVAL)
         assert global_hierarchy_violation(s, ANC, DESC, EVAL, chunk=7) == full
-
-
-class TestSurjClassifier:
-    def test_shapes_and_range(self):
-        model = SurjClassifier(10, 7, torch.randn(7, 4), hidden_dim=16)
-        out = model(torch.randn(5, 10))
-        assert out.shape == (5, 7)
-        assert torch.all((out > 0) & (out < 1))
-
-    def test_label_embeddings_frozen_and_normalized(self):
-        model = SurjClassifier(10, 7, torch.randn(7, 4), hidden_dim=16)
-        assert "label_embeddings" not in dict(model.named_parameters())
-        assert torch.allclose(model.label_embeddings.norm(dim=1), torch.ones(7))
-        model(torch.randn(3, 10)).sum().backward()
-        assert model.label_embeddings.grad is None
-
-    def test_onehot_is_identity(self):
-        model = SurjClassifier(10, 7, None, hidden_dim=16).eval()
-        assert torch.equal(model.label_embeddings, torch.eye(7))
-        x = torch.randn(3, 10)
-        h = torch.nn.functional.normalize(model.encoder(x), dim=1)
-        assert torch.allclose(model.similarities(x), h)
-
-    def test_cosine_fc_off(self):
-        model = SurjClassifier(10, 7, torch.randn(7, 4), hidden_dim=16, cosine_fc=False)
-        assert not hasattr(model, "fc")
-        assert model(torch.randn(2, 10)).shape == (2, 7)
-
-    def test_wrong_rows_raise(self):
-        with pytest.raises(ValueError):
-            SurjClassifier(10, 7, torch.randn(6, 4))
 
 
 class TestGraphAutoencoder:
@@ -171,36 +140,38 @@ class TestGraphAutoencoder:
         with pytest.raises(ValueError):
             pretrain_label_gae(EDGES, 7, loss="kl")
 
+    def test_hierarchical_multilabel_contrastive_loss_and_knn(self):
+        """H-MLCL computes finite gradients and k-NN preserves zero hierarchy violations."""
+        z = pretrain_label_gae(
+            EDGES, 7, dim=16, hidden_dim=32, epochs=20, loss="sibling_repulsive", seed=0
+        )
+        loss_fn = HierarchicalMultiLabelContrastiveLoss(z, EDGES, queue_size=8)
+        u = torch.randn(4, 16, requires_grad=True)
+        # Ancestor-closed labels on EDGES: (1->0, 2->1, 3->1, 4->2, 5->2, 6->3)
+        y = torch.tensor(
+            [
+                [1, 1, 1, 0, 1, 0, 0],
+                [1, 1, 1, 0, 0, 1, 0],
+                [1, 1, 0, 1, 0, 0, 1],
+                [1, 1, 0, 1, 0, 0, 0],
+            ],
+            dtype=torch.float32,
+        )
+        l1 = loss_fn(u, y)
+        l1.backward()
+        assert torch.isfinite(l1) and l1.item() > 0.0
+        assert u.grad is not None and torch.isfinite(u.grad).all()
+        assert int(loss_fn.queue_len[0].item()) == 4
 
-def test_cli_surj_smoke(tmp_path):
-    """``--method surj`` end to end on a synthetic seq_FUN ARFF dataset."""
-    from hmc.arguments import Args, DatasetConfig, TrainingConfig  # pylint: disable=import-outside-toplevel
-    from hmc.pipeline.surj.main import train_surj  # pylint: disable=import-outside-toplevel
-    from tests.fixtures.arff import SyntheticARFFFixture  # pylint: disable=import-outside-toplevel
-    from tests.test_gofun_loading import (  # pylint: disable=import-outside-toplevel
-        _patch_gofun_paths,
-        _restore_gofun_paths,
-    )
+        # Second step exercises the populated FIFO queue
+        u2 = torch.randn(4, 16, requires_grad=True)
+        l2 = loss_fn(u2, y)
+        l2.backward()
+        assert torch.isfinite(l2) and int(loss_fn.queue_len[0].item()) == 8
 
-    with SyntheticARFFFixture(
-        name="seq_FUN",
-        hierarchy="root.CC.CC01,root.CC.CC02,root.MF.MF01,root.BP.BP01",
-        num_train=30, num_valid=6, num_test=6,
-    ) as fixture:
-        _patch_gofun_paths(fixture._tmpdir.name)  # pylint: disable=protected-access
-        try:
-            args = Args(
-                dataset=DatasetConfig(dataset_path=fixture._tmpdir.name, dataset_name="seq_FUN"),  # pylint: disable=protected-access
-                output_path=str(tmp_path),
-                method="surj",
-                training=TrainingConfig(device="cpu", epochs=2, batch_size=8,
-                                        best_threshold=True, surj_gae_epochs=5),
-            )
-            args.results_path = str(tmp_path / "run")
-            metrics = train_surj("seq_FUN", args)
-        finally:
-            _restore_gofun_paths()
-    assert metrics["rec"]["ghv"]["violations"] == 0
-    assert 0.0 <= metrics["rec"]["auprc_micro"] <= 1.0
-    with open(tmp_path / "run" / "metrics.json", encoding="utf-8") as f:
-        assert json.load(f)["best_epoch"] >= 1
+        # Contrastive k-NN preserves parent >= child on every edge
+        u_eval = torch.randn(5, 16)
+        knn_scores = contrastive_knn_predict(u.detach(), y, u_eval, k=3, temp=0.1)
+        assert knn_scores.shape == (5, 7)
+        for child, parent in EDGES:
+            assert (knn_scores[:, parent] + 1e-6 >= knn_scores[:, child]).all()
