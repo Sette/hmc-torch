@@ -16,6 +16,7 @@ import numpy as np
 
 from hmc.datasets.arxiv.manager import compute_transformer_embeddings
 from hmc.datasets.rcv1.dataset_rcv1 import RCV1HierarchyManager, RCV1Split
+from hmc.datasets.rcv1.download_rcv1 import _parse_topic_paths
 
 logger = logging.getLogger(__name__)
 
@@ -186,14 +187,21 @@ class RCV1Manager:
         if "val" in files:
             val_texts, val_labels = self._load_json_records(files["val"])
         else:
-            # Create val split from train (80/20)
-            n_val = max(1, int(len(train_texts) * 0.2))
-            val_texts = train_texts[-n_val:]
-            val_labels = train_labels[-n_val:]
-            train_texts = train_texts[:-n_val]
-            train_labels = train_labels[:-n_val]
+            # Create val split from train (90/10 random split, seed 0 — Spec 12 §3.2)
+            n_val = max(1, int(len(train_texts) * 0.1))
+            rng = np.random.default_rng(0)
+            perm = rng.permutation(len(train_texts))
+            val_idx = set(perm[:n_val].tolist())
+            val_texts = [train_texts[i] for i in perm[:n_val]]
+            val_labels = [train_labels[i] for i in perm[:n_val]]
+            train_texts = [
+                train_texts[i] for i in range(len(train_texts)) if i not in val_idx
+            ]
+            train_labels = [
+                train_labels[i] for i in range(len(train_labels)) if i not in val_idx
+            ]
             logger.info(
-                "No val file found. Split train→%d train / %d val.",
+                "No val file found. Random 90/10 split (seed=0) train→%d train / %d val.",
                 len(train_texts),
                 len(val_texts),
             )
@@ -204,8 +212,27 @@ class RCV1Manager:
             train_labels = train_labels[: self._max_records]
             logger.info("Truncated train to %d records.", len(train_texts))
 
-        # Build hierarchy from train labels only (to avoid test leakage)
-        hierarchy = RCV1HierarchyManager.from_topic_paths(train_labels)
+        max_test = int(os.environ.get("RCV1_MAX_TEST_RECORDS", "0") or 0)
+        if 0 < max_test < len(test_texts):
+            rng_te = np.random.default_rng(0)
+            sub_te = np.sort(
+                rng_te.choice(len(test_texts), size=max_test, replace=False)
+            )
+            test_texts = [test_texts[int(i)] for i in sub_te]
+            test_labels = [test_labels[int(i)] for i in sub_te]
+            logger.info(
+                "Sampled %d test records (RCV1_MAX_TEST_RECORDS).", len(test_texts)
+            )
+
+        # Build hierarchy from train + val labels + official RCV1-v2 taxonomy
+        # (includes ECAT/E31/E312 and GCAT/GMIL which have 0 train docs in LYRL2004 — Spec 12 §3.1)
+        extra_paths = [["ECAT/E31/E312", "GCAT/GMIL"]]
+        hier_file = self._data_dir / ".lyrl2004" / "rcv1.topics.hier.orig"
+        if hier_file.is_file():
+            extra_paths.append(list(_parse_topic_paths(hier_file).values()))
+        hierarchy = RCV1HierarchyManager.from_topic_paths(
+            train_labels + val_labels + extra_paths
+        )
         self.hierarchy_manager = hierarchy
 
         # Compute embeddings
@@ -226,9 +253,11 @@ class RCV1Manager:
         Yg_val, Yl_val = self._compute_labels(hierarchy, val_labels)
         Yg_test, Yl_test = self._compute_labels(hierarchy, test_labels)
 
-        self._train = RCV1Split(x=X_train, y=Yg_train, y_local=Yl_train)
-        self._valid = RCV1Split(x=X_val, y=Yg_val, y_local=Yl_val)
-        self._test = RCV1Split(x=X_test, y=Yg_test, y_local=Yl_test)
+        self._train = RCV1Split(
+            x=X_train, y=Yg_train, y_local=Yl_train, texts=train_texts
+        )
+        self._valid = RCV1Split(x=X_val, y=Yg_val, y_local=Yl_val, texts=val_texts)
+        self._test = RCV1Split(x=X_test, y=Yg_test, y_local=Yl_test, texts=test_texts)
 
         self._expose_hierarchy_attrs(hierarchy, X.shape[1], Yg_train.shape[1])
 

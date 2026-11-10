@@ -371,6 +371,7 @@ returns a manager instance.
 | `localE2E` | Fine-tuned transformer + per-level MLPs |
 | `tabular_gbdt` | Gradient Boosting One-vs-Rest baseline |
 | `tabular_mlp` | Residual MLP baseline for tabular data |
+| `surj` | Surj (Yang & Howe, WWW'22): graph-autoencoder label embeddings + cosine classifier, BCE; scored raw and reconciled, with Global Hierarchy Violation |
 
 ---
 
