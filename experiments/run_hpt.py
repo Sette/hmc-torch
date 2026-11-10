@@ -65,6 +65,10 @@ def run_name(
     seed: int,
     mlm: bool = True,
     selection: str = "rec_val_micro",
+    label_text: str = "name",
+    label_encoder: str = "mean",
+    label_prompt_tokens: int = 1,
+    score_head: str = "verbalizer",
 ) -> str:
     suffix = "" if selection == "rec_val_micro" else f"_{selection}"
     return f"{backbone}_{loss}_{graph}{'' if mlm else '_nomlm'}{suffix}_seed{seed}"
