@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.1.0...hmc-torch-v0.1.1) (2026-11-10)
+
+
+### Documentation
+
+* **skills:** 📝 put emoji after the conventional type ([8abe521](https://github.com/Sette/hmc-torch/commit/8abe5212ff7cc86efab31025a3d1d8d39eb459bb))
+
 ## [0.1.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.0.11...hmc-torch-v0.1.0) (2026-11-10)
 
 
