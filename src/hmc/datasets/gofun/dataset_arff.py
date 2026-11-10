@@ -249,11 +249,7 @@ class HMCDatasetArff:
 
         nodes = sorted(
             g.nodes(),
-            key=lambda x: (
-                (root_depths[x], x)
-                if self.is_go
-                else (len(x.split(".")), x)
-            ),
+            key=lambda x: (root_depths[x], x) if self.is_go else (len(x.split(".")), x),
         )
         nodes_idx = dict(zip(nodes, range(len(nodes))))
 
@@ -286,9 +282,7 @@ class HMCDatasetArff:
         self.hierarchy.max_depth = max_depth
         self.hierarchy.local_nodes_idx = local_nodes_idx
         self.hierarchy.root_depths = root_depths
-        self.hierarchy.node_ancestors = {
-            n: list(nx.ancestors(g_t, n)) for n in nodes
-        }
+        self.hierarchy.node_ancestors = {n: list(nx.ancestors(g_t, n)) for n in nodes}
         return nodes
 
     def build_edge_index(self):

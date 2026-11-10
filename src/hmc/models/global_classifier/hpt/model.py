@@ -132,11 +132,17 @@ class HPTPromptModel(nn.Module):  # pylint: disable=too-many-instance-attributes
     ) -> None:
         super().__init__()
         if label_encoder not in ("mean", "sentence", "random"):
-            raise ValueError(f"label_encoder must be 'mean', 'sentence', or 'random', got {label_encoder!r}")
+            raise ValueError(
+                f"label_encoder must be 'mean', 'sentence', or 'random', got {label_encoder!r}"
+            )
         if label_prompt_tokens < 1:
-            raise ValueError(f"label_prompt_tokens must be >= 1, got {label_prompt_tokens}")
+            raise ValueError(
+                f"label_prompt_tokens must be >= 1, got {label_prompt_tokens}"
+            )
         if score_head not in ("verbalizer", "crossattn"):
-            raise ValueError(f"score_head must be 'verbalizer' or 'crossattn', got {score_head!r}")
+            raise ValueError(
+                f"score_head must be 'verbalizer' or 'crossattn', got {score_head!r}"
+            )
         self.mlm = mlm
         self.tokenizer = tokenizer
         self.use_mlm = use_mlm
@@ -359,9 +365,12 @@ def _label_init(  # pylint: disable=too-many-arguments,too-many-positional-argum
     """
     n = len(label_codes)
     if label_encoder == "random":
-        return torch.randn(
-            n, word_weight.shape[1], device=word_weight.device, dtype=torch.float32
-        ) * init_range
+        return (
+            torch.randn(
+                n, word_weight.shape[1], device=word_weight.device, dtype=torch.float32
+            )
+            * init_range
+        )
 
     def embed(text: str) -> torch.Tensor:
         if label_encoder == "sentence" and base_model is not None:

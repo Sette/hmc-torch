@@ -64,7 +64,9 @@ class _GCNEncoder(nn.Module):
 class _ResGCNEncoder(nn.Module):
     """Residual GCN encoder that preserves ego-node identity alongside neighbourhood smoothing."""
 
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, skip_scale: float = 0.5):
+    def __init__(
+        self, in_dim: int, hidden_dim: int, out_dim: int, skip_scale: float = 0.5
+    ):
         super().__init__()
         self.lin1 = nn.Linear(in_dim, hidden_dim)
         self.skip1 = nn.Linear(in_dim, hidden_dim)
@@ -73,6 +75,7 @@ class _ResGCNEncoder(nn.Module):
         self.skip_scale = skip_scale
 
     def forward(self, x: torch.Tensor, adjacency: torch.Tensor) -> torch.Tensor:
+        """Smooth neighbourhoods while preserving the ego-node signal via skips."""
         h = torch.relu(adjacency @ self.lin1(x) + self.skip_scale * self.skip1(x))
         return adjacency @ self.lin2(h) + self.skip_scale * self.skip2(h)
 
@@ -290,9 +293,7 @@ class HierarchicalMultiLabelContrastiveLoss(nn.Module):
             if all_u.shape[0] > 1:
                 inter = yb @ all_y.T
                 union = (
-                    yb.sum(dim=1, keepdim=True)
-                    + all_y.sum(dim=1).unsqueeze(0)
-                    - inter
+                    yb.sum(dim=1, keepdim=True) + all_y.sum(dim=1).unsqueeze(0) - inter
                 )
                 jaccard = inter / union.clamp_min(1.0)
                 self_mask = torch.zeros_like(jaccard, dtype=torch.bool)

@@ -100,6 +100,7 @@ class SparseRMatrix:
         self.levels = levels
         self.node_idx = node_index
         self._edges = None  # (child, parent) column tensors, built lazily
+        self._col_lvls = None  # cached depth level per score column
         self.nodes = nodes_sorted
         self._parents = parents_map
         # depth level per node (0 = root)
