@@ -61,14 +61,11 @@ def local_transformer_model_path(
 
 
 def ensure_transformer_model_cached(
-    model_name: str, model_cache_dir: str = "./models", auto_class: str = "AutoModel"
+    model_name: str, model_cache_dir: str = "./models"
 ) -> str:
     """Download model/tokenizer once and return a local path for future loads.
 
     If ``model_name`` is already a local path, it is returned unchanged.
-    ``auto_class`` names the ``transformers`` class used to download; anything
-    but ``AutoModel`` (e.g. ``AutoModelForMaskedLM``, which keeps the MLM head
-    that ``AutoModel`` drops) is cached in its own ``<name>__<class>`` folder.
     """
     os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
@@ -77,8 +74,6 @@ def ensure_transformer_model_cached(
         return str(model_path)
 
     local_path = local_transformer_model_path(model_name, model_cache_dir)
-    if auto_class != "AutoModel":
-        local_path = local_path.with_name(f"{local_path.name}__{auto_class}")
     if is_transformer_model_cached(local_path):
         logger.info("Loading transformer model from local cache: %s", local_path)
         return str(local_path)
@@ -86,13 +81,16 @@ def ensure_transformer_model_cached(
     local_path.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading transformer model %s to %s", model_name, local_path)
 
-    import transformers  # pylint: disable=import-outside-toplevel
+    from transformers import (  # pylint: disable=import-outside-toplevel
+        AutoModel,
+        AutoTokenizer,
+    )
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
-    model = getattr(transformers, auto_class).from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
     tokenizer.save_pretrained(local_path)
     model.save_pretrained(local_path)
-    metadata = {"source_model": model_name, "auto_class": auto_class}
+    metadata = {"source_model": model_name}
     (local_path / "hmc_model_cache.json").write_text(
         json.dumps(metadata, indent=2),
         encoding="utf-8",

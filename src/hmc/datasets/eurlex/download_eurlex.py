@@ -6,25 +6,18 @@ EUROVOC concepts. It is a standard benchmark for large-scale multi-label
 text classification with hierarchical labels.
 
 Source:
-  - The original EURLEX57K archive from the AUEB NLP group (mirrored on
-    archive.org): the split JSONL files with header, recitals and main body.
-    The manager's ``text`` field is ``header + "\\n" + recitals + "\\n" +
-    main_body``.
-  - A pinned Parquet export of the Hugging Face ``eurlex`` release is kept as
-    a fallback; its ``text`` field is ``header + "\\n" + recitals`` only.
+  - The pinned Parquet export of EURLEX57K on Hugging Face, loaded through the
+    generic Parquet reader (no repository dataset script is executed).
 
 Usage:
     python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
 """
 
 import argparse
-import ast
-import io
 import json
 import logging
 from pathlib import Path
 import urllib.error
-import zipfile
 from urllib.request import urlretrieve
 
 logging.basicConfig(
@@ -45,12 +38,6 @@ HF_SPLITS = {
     "test": ("test.json", "eurlex-test.parquet"),
 }
 EUROVOC_CONCEPTS_URL = "https://archive.org/download/EURLEX57K/eurovoc_concepts.jsonl"
-ORIGINAL_DATASET_URL = "https://archive.org/download/EURLEX57K/dataset.zip"
-ORIGINAL_SPLITS = {
-    "train": "train.jsonl",
-    "dev": "dev.jsonl",
-    "test": "test.jsonl",
-}
 
 # The EURLEX57K concept file lists ids and titles only.  The thesaurus structure
 # (concept -> broader concept -> top term -> microthesaurus -> domain) comes from
@@ -86,6 +73,7 @@ _EUROVOC_PREFIXES = {
 def _sparql_pairs(query: str) -> list[tuple[str, str]]:
     """Run a SPARQL query returning (?child, ?parent) and keep the URI tails."""
     import csv  # pylint: disable=import-outside-toplevel
+    import io  # pylint: disable=import-outside-toplevel
     from urllib.parse import urlencode  # pylint: disable=import-outside-toplevel
     from urllib.request import Request, urlopen  # pylint: disable=import-outside-toplevel
 
@@ -139,84 +127,6 @@ def add_eurovoc_relations(concept_path: Path) -> None:
     )
 
 
-def _full_text(record: dict) -> str:
-    """Full EURLEX57K document text: header, recitals and main body."""
-    body = record.get("main_body", "")
-    try:
-        parts = ast.literal_eval(body)
-    except (ValueError, SyntaxError):
-        parts = None
-    if isinstance(parts, list):
-        body = "\n".join(str(part) for part in parts)
-    else:
-        body = str(body)
-    return "\n".join(
-        [str(record.get("header", "")), str(record.get("recitals", "")), body]
-    )
-
-
-def _download_concepts(output_dir: Path) -> None:
-    """Download the EUROVOC concept file and add the hierarchy relations."""
-    concept_path = output_dir / "eurovoc_concepts.jsonl"
-    if not concept_path.exists():
-        try:
-            logger.info("Downloading EUROVOC concept hierarchy …")
-            urlretrieve(EUROVOC_CONCEPTS_URL, str(concept_path))
-            if concept_path.stat().st_size < 1024:
-                concept_path.unlink()
-                raise ValueError("Downloaded concept hierarchy is unexpectedly small")
-        except (urllib.error.URLError, OSError, ValueError) as exc:
-            logger.warning(
-                "Could not download EUROVOC concept hierarchy (%s); the manager "
-                "will use a flat hierarchy.",
-                exc,
-            )
-
-    if concept_path.exists():
-        try:
-            add_eurovoc_relations(concept_path)
-        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
-            logger.warning(
-                "Could not fetch EUROVOC relations (%s); the manager will use a "
-                "flat hierarchy.",
-                exc,
-            )
-
-
-def _download_original(output_dir: Path) -> None:
-    """Download the original AUEB EURLEX57K archive (full document text)."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = output_dir / ".eurlex57k.zip"
-    logger.info("Downloading the original EURLEX57K archive …")
-    urlretrieve(ORIGINAL_DATASET_URL, str(zip_path))
-    try:
-        with zipfile.ZipFile(zip_path) as archive:
-            for split, member in ORIGINAL_SPLITS.items():
-                output_path = output_dir / f"{split}.json"
-                if output_path.exists() and output_path.stat().st_size > 1024:
-                    logger.info("%s already exists. Skipping.", output_path.name)
-                    continue
-                records = []
-                with archive.open(member) as handle:
-                    for line in io.TextIOWrapper(handle, encoding="utf-8"):
-                        row = json.loads(line)
-                        records.append(
-                            {
-                                "celex_id": row.get("celex_id", ""),
-                                "title": row.get("title", ""),
-                                "text": _full_text(row),
-                                "eurovoc_concepts": row.get("eurovoc_concepts", [])
-                                or [],
-                            }
-                        )
-                with open(output_path, "w", encoding="utf-8") as f:
-                    json.dump(records, f, ensure_ascii=False)
-                logger.info("Saved %d records to %s", len(records), output_path)
-    finally:
-        zip_path.unlink(missing_ok=True)
-    _download_concepts(output_dir)
-
-
 def _download_huggingface(output_dir: Path) -> None:
     """Load the public Parquet splits and save the manager's JSON format."""
     try:
@@ -262,7 +172,30 @@ def _download_huggingface(output_dir: Path) -> None:
 
         logger.info("Saved %d records to %s", len(records), output_path)
 
-    _download_concepts(output_dir)
+    concept_path = output_dir / "eurovoc_concepts.jsonl"
+    if not concept_path.exists():
+        try:
+            logger.info("Downloading EUROVOC concept hierarchy …")
+            urlretrieve(EUROVOC_CONCEPTS_URL, str(concept_path))
+            if concept_path.stat().st_size < 1024:
+                concept_path.unlink()
+                raise ValueError("Downloaded concept hierarchy is unexpectedly small")
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            logger.warning(
+                "Could not download EUROVOC concept hierarchy (%s); the manager "
+                "will use a flat hierarchy.",
+                exc,
+            )
+
+    if concept_path.exists():
+        try:
+            add_eurovoc_relations(concept_path)
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            logger.warning(
+                "Could not fetch EUROVOC relations (%s); the manager will use a "
+                "flat hierarchy.",
+                exc,
+            )
 
 
 def main() -> None:
@@ -278,8 +211,8 @@ def main() -> None:
         "--method",
         type=str,
         default="auto",
-        choices=["auto", "original", "huggingface"],
-        help="Download method (original AUEB archive by default; HF fallback)",
+        choices=["auto", "huggingface"],
+        help="Download method (the stable Parquet source is used by default)",
     )
     args = parser.parse_args()
 
@@ -296,35 +229,18 @@ def main() -> None:
 
     method = args.method
 
-    if method in {"auto", "original"}:
+    if method in {"auto", "huggingface"}:
         try:
-            _download_original(output_dir)
-            return
+            _download_huggingface(output_dir)
         except (
             OSError,
+            ImportError,
+            RuntimeError,
             ValueError,
-            zipfile.BadZipFile,
             urllib.error.URLError,
         ) as exc:
-            if method == "original":
-                logger.error("EUR-Lex original download failed: %s", exc)
-                raise SystemExit(1) from exc
-            logger.warning(
-                "Original EUR-Lex download failed (%s); falling back to Hugging Face.",
-                exc,
-            )
-
-    try:
-        _download_huggingface(output_dir)
-    except (
-        OSError,
-        ImportError,
-        RuntimeError,
-        ValueError,
-        urllib.error.URLError,
-    ) as exc:
-        logger.error("EUR-Lex download failed: %s", exc)
-        raise SystemExit(1) from exc
+            logger.error("EUR-Lex download failed: %s", exc)
+            raise SystemExit(1) from exc
 
     # Verify
     if train_path.exists():
