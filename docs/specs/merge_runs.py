@@ -31,10 +31,10 @@ def main() -> int:
     for src in sorted(glob.glob(os.path.join(staging, "*.json"))):
         name = os.path.basename(src)
         dst = os.path.join(dest, name)
-        with open(src) as f:
+        with open(src, encoding="utf-8") as f:
             incoming = json.load(f)
         if os.path.exists(dst):
-            with open(dst) as f:
+            with open(dst, encoding="utf-8") as f:
                 record = json.load(f)
         else:
             record = json.loads(json.dumps(incoming))
