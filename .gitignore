@@ -176,3 +176,5 @@ gene-ontology-original.zip
 /models/
 /docs/hmc-paper/
 /docs/tese/
+# Reference implementation (HPT, EMNLP'22) — clone local, não versionado
+/HPT/
