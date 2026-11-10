@@ -203,8 +203,10 @@ def main():
     # --- Statistics on FunCat -----------------------------------------------
     fun = [d for d in LIT_FUN if f"{d}_FUN" in S and "gbdt" in S[f"{d}_FUN"]]
     if len(fun) == len(LIT_FUN):
-        methods = ["Surj", "C-HMCNN", "HMCN-F", "GBDT", "MLP+R", "MCLoss (ours)"]
-        table = np.array([[*LIT_FUN[d], S[f"{d}_FUN"]["gbdt"]["auprc"],
+        # Surj is left out: its code was never released and our reimplementation
+        # (surj_repro/) does not reach the reported numbers, so they cannot be ranked.
+        methods = ["C-HMCNN", "HMCN-F", "GBDT", "MLP+R", "MCLoss (ours)"]
+        table = np.array([[*LIT_FUN[d][1:], S[f"{d}_FUN"]["gbdt"]["auprc"],
                            m(S[f"{d}_FUN"], "bce_rec", "auprc"),
                            m(S[f"{d}_FUN"], "mc_rec", "auprc")] for d in fun])
         chi2, p = friedmanchisquare(*table.T)
@@ -255,7 +257,11 @@ def main():
         for ax, metric, title in zip(axes, ("f1", "auprc"), ("Micro-F1", "AUPRC")):
             for a, (arm, c) in enumerate(zip(arms, colors)):
                 for fi, (fam, ds) in enumerate(families):
-                    deltas = [m(S[d], f"{arm[0]}_{arm[1]}", metric) - m(S[d], "bce_raw", metric) for d in ds]
+                    # GO runs have no hinge arm: average over the datasets that have it.
+                    deltas = [m(S[d], f"{arm[0]}_{arm[1]}", metric) - m(S[d], "bce_raw", metric)
+                              for d in ds if f"{arm[0]}_{arm[1]}" in S[d]["arms"]]
+                    if not deltas:
+                        continue
                     x = fi + (a - (len(arms) - 1) / 2) * width
                     ax.bar(x, np.mean(deltas), width, color=c, label=ARM_LABELS[arm] if fi == 0 else None)
                     ax.scatter([x] * len(deltas), deltas, s=4, color="k", zorder=3, lw=0)

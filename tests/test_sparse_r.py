@@ -51,6 +51,34 @@ def test_reconcile_is_differentiable_and_consistent(graph):
         assert torch.all(out[:, order.index(parent)] >= out[:, order.index(child)])
 
 
+def _mcloss(reconcile, probs, y):
+    """C-HMCNN's MCLoss for a given reconciliation (dense or sparse)."""
+    out = (1 - y) * reconcile(probs) + y * reconcile(y * probs)
+    return torch.nn.functional.binary_cross_entropy(out, y)
+
+
+def test_mcloss_value_and_gradient_match_dense(graph):
+    order = ["root", "a", "b", "c", "d", "e"]
+    column_index = {n: i for i, n in enumerate(order)}
+    sparse = BlockDiagonalR(graph, column_index=column_index)
+    dense_r = _dense_r(order, column_index)
+    gen = torch.Generator().manual_seed(0)
+    logits = torch.randn(16, len(order), dtype=torch.float64, generator=gen)
+    # Hierarchy-consistent labels: a positive node makes all its ancestors positive.
+    y = (torch.rand(16, len(order), dtype=torch.float64, generator=gen) > 0.6).double()
+    y = get_constr_out(y, dense_r)
+
+    grads = []
+    for reconcile in (sparse.reconcile, lambda s: get_constr_out(s, dense_r)):
+        probs = torch.sigmoid(logits.clone().requires_grad_(True))
+        probs.retain_grad()
+        loss = _mcloss(reconcile, probs, y)
+        loss.backward()
+        grads.append((loss.detach(), probs.grad))
+    assert torch.allclose(grads[0][0], grads[1][0])
+    assert torch.allclose(grads[0][1], grads[1][1])
+
+
 class _FakeSplit:
     def __init__(self, n):
         self.samples = SampleData(

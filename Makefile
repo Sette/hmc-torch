@@ -16,6 +16,9 @@ download-aapd:
 download-rcv1:
 	python -m hmc.datasets.rcv1.download_rcv1 --output_dir ./data/rcv1
 
+download-rcv1-lyrl:
+	python -m hmc.datasets.rcv1.download_rcv1 --output_dir ./data/rcv1 --lyrl
+
 download-eurlex:
 	python -m hmc.datasets.eurlex.download_eurlex --output_dir ./data/eurlex
 

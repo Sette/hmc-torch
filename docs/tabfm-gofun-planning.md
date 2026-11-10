@@ -195,10 +195,10 @@ linha TabFM e investir no caminho de maior potencial abaixo.
 
 ## Caminho alternativo de maior potencial
 
-Para maximizar desempenho em função proteica, o avanço mais promissor não é um
-LLM textual, mas embeddings de modelos fundacionais de proteína (por exemplo,
-ESM ou ProtT5) a partir das sequências proteicas brutas, combinados com uma
-cabeça multi-label hierárquica/GCN de termos GO. Isso exige recuperar as
+Para maximizar desempenho em função proteica, o avanço mais promissor são
+embeddings de modelos fundacionais de proteína (por exemplo, ESM ou ProtT5)
+a partir das sequências proteicas brutas, combinados com uma cabeça
+multi-label hierárquica/GCN de termos GO. Isso exige recuperar as
 sequências originais, que não parecem estar disponíveis nas features tabulares
 atuais. O TabFM deve ser tratado como experimento tabular complementar, não
 como substituto garantido para esse caminho.
