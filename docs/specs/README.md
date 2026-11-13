@@ -22,6 +22,14 @@ Atualize a tabela ao concluir cada spec.
 | 15 | [FunCat/GO claims](15-funcat-go-claims.md) | P0 | [x] IJCNN corrigido; KBS/tese conferidas | — |
 | 16 | [GO scaling claims](16-go-scaling-claims.md) | P0 | [x] teste legado removido dos três manuscritos; memória medida em `output/scaling/dense_r_memory.json` | — |
 | 17 | [IJCNN editorial](17-ijcnn-editorial.md) | P2 | [x] 7 itens aplicados; 6 p., 0 over/underfull | 14–16 |
+| 18 | [Auditoria geral (2026-11-13)](18-audit-geral.md) | P0/P1/P2 | [ ] documento de apoio; 11 P0, 20 P1, 8 P2 | — |
+| 19 | [IJCNN: anonimização e IA](19-ijcnn-anonimizacao.md) | P0 | [ ] | — |
+| 20 | [Descrição do protocolo](20-descricao-do-protocolo.md) | P0 | [ ] | 22 (passo 1) |
+| 21 | [Números fora do protocolo](21-numeros-fora-do-protocolo.md) | P0 | [ ] | — |
+| 22 | [Proveniência e artefatos](22-proveniencia-artefatos.md) | P0 | [ ] | usuário (onde publicar) |
+| 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [ ] GPU ~7–8 h | 22 |
+| 24 | [Afirmações da KBS e da tese](24-afirmacoes-kbs-tese.md) | P1 | [ ] | 20, 21 |
+| 25 | [Tese: estrutura e arguição](25-tese-estrutura.md) | P1 | [ ] | 20, 21, 24 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
@@ -88,6 +96,23 @@ objeções prováveis e mitigações.
   root `663892f` (script de memória), `5cd367a` (IJCNN) e o commit dos specs. Nada foi enviado
   (sem push); o gitlink `docs/hmc-paper` não foi atualizado.
 - Pendências: spec 06 (metadados); regras do IJCNN 2027 (duplo-cego, limite do abstract).
+
+## Revisão 2026-11-13 — auditoria geral
+
+- Auditoria somente leitura da tese, da KBS, do IJCNN e dos scripts de `experiments/`
+  (relatório no [spec 18](18-audit-geral.md)); nenhum manuscrito, código ou resultado mudou.
+- Conferem com `output/`: tabela fatorial, tabelas GO/cross-domain/texto, avaliação pareada
+  (H-MLCL+H-KNN, protótipos aleatórios, DepthCal), ablação de receita, RCV1, paridade com o
+  C-HMCNN. Nenhum vazamento do test encontrado.
+- Não conferem: λ do hinge (texto 0,1; código 1,0), BCE “ponderado” (código sem pesos),
+  conclusão do Platt (compara modelos diferentes), F1 por nível e tabela de tempos (anteriores
+  ao protocolo), parágrafo de artefatos por run e cuDNN.
+- Proveniência: a tabela pareada depende de `run_sr_gae_sota.py` não commitado; `surj_repro/`
+  foi removido em `42aadba` e ainda é citado; `output/` não é público.
+- IJCNN: falta anonimizar (autores, URL) e declarar o uso de IA.
+- Ordem sugerida: 19 → 22 (passo 1) → 20 → 21 → 24 → 23 → 25. Para a submissão de 31/01
+  bastam 19, 20 e 22 no IJCNN.
+- Branch `docs/audit-specs-2026-11`; sem push.
 
 Regras:
 
