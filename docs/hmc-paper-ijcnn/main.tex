@@ -28,34 +28,31 @@ Hierarchical multi-label classification (HMC) requires predictions to be
 consistent with a class hierarchy: an ancestor must not score lower than its
 descendants. The R-matrix constraint enforces this property, but prior work
 evaluates it together with a specific architecture and training recipe, so it
-is unclear whether the benefit comes from the training-time consistency loss,
-from inference-time reconciliation, or from the architecture. We isolate these
-factors in a controlled study of three objectives (BCE, hinge, and MCLoss)
-with and without reconciliation on 27 datasets---text, FunCat, Gene Ontology,
-and cross-domain ARFF---under a validation-only protocol. We also introduce a
-sparse $O(C{+}E)$ formulation of the R-matrix that avoids materializing the dense
-$C\times C$ tensor. Reconciliation at inference time drives the gains, not the
-training-time consistency loss: it improves BCE on 26/27 datasets in AUPRC
-(area under the precision--recall curve; Wilcoxon
-$p=2.1\times 10^{-7}$) and 25/27 in micro-F1 ($p=1.3\times 10^{-6}$), whereas
-MCLoss raw scores frequently collapse. Our method is statistically tied with
-C-HMCNN on FunCat (0.263 vs.\ 0.264; Nemenyi $\text{CD}=2.16$), matches it on
-Gene Ontology (0.421 vs.\ 0.420, winning 5/8) while trailing HMCN-F by 0.001,
-and improves over C-HMCNN on three of four cross-domain datasets (0.859 vs.\
-0.849). On WOS it reaches 0.8704 $\pm$ 0.0040 micro-F1, 0.0012 below published
-HPT (0.8716; our re-execution: 0.8691 $\pm$ 0.0023). Auditing
-Surj shows its reported figures cannot be verified (no code was released);
-separately, standard ontology GAEs collapse siblings (median cosine up to
-0.9995). \texttt{SR-GAE} with Hierarchical Multi-Label Contrastive Learning and
-$k$-NN (\texttt{H-MLCL+H-KNN}) resolves this and improves test AUPRC over the
-matched baseline on 27/27 datasets ($p=1.5\times 10^{-8}$); depth calibration
-further lifts deep F1 by $+13\%$--$24\%$.
+is unclear whether the benefit comes from the training-time consistency loss
+or from inference-time reconciliation. We separate the two in a controlled
+study of three objectives (BCE, hinge, and MCLoss), each scored with and
+without reconciliation, on 27 datasets covering text, FunCat, Gene Ontology,
+and cross-domain benchmarks, with every choice made on validation data.
+Training with a consistency loss does not improve over plain BCE, and the raw
+scores of MCLoss degrade sharply. Reconciliation improves BCE on 26/27
+datasets in AUPRC (area under the precision--recall curve) and 25/27 in
+micro-F1, by small margins (median $+0.0016$ AUPRC), and makes the three
+objectives nearly equivalent. We also give a sparse formulation of the
+constraint with $O(C{+}E)$ memory that reproduces the dense one exactly and
+removes its batch-size limit on hierarchies with thousands of classes. With
+it, an MLP trained with MCLoss is within 0.003 AUPRC of C-HMCNN on FunCat
+(0.261 vs.\ 0.264) and Gene Ontology (0.418 vs.\ 0.420), and one trained with
+BCE is above it on three of four cross-domain datasets (0.857 vs.\ 0.849 on
+average). On WOS, a fine-tuned
+SPECTER2 with reconciliation reaches 0.8704 $\pm$ 0.0040 micro-F1, within
+seed noise of our reimplementation of HPT (0.8691 $\pm$ 0.0023). A
+reimplementation of Surj from its paper does not reach its reported results.
 Code: \url{https://github.com/Sette/hmc-torch}.
 \end{abstract}
 
 \begin{IEEEkeywords}
-hierarchical multi-label classification, R-matrix, reconciliation, ontology
-graph autoencoder, contrastive learning
+hierarchical multi-label classification, R-matrix, hierarchical consistency,
+reconciliation, reproducibility
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -78,14 +75,14 @@ bottom-up. Published HMC systems typically evaluate the combination of both,
 entangled with a specific neural architecture and training recipe. As a result,
 it remains unclear whether the constraint helps because of the training loss,
 because of post-hoc reconciliation, or because the underlying backbone is
-better tuned. A second obstacle is scalability: materializing the dense
-$C\times C$ ancestor-closure matrix is prohibitive in GPU memory for ontologies
-with thousands of classes.
+better tuned. A second obstacle is scalability: dense implementations of the
+constraint allocate a $B\times C\times C$ intermediate tensor, which bounds the
+batch size on ontologies with thousands of classes.
 
 This paper isolates the two mechanisms. We ask: (Q1) does a training-time
-consistency loss improve over plain binary cross-entropy (BCE)? (Q2) does
-inference-time reconciliation drive the empirical gain? (Q3) can exact
-R-matrix propagation scale to large DAGs without quadratic memory? We answer
+consistency loss improve over plain binary cross-entropy (BCE)? (Q2) how much
+does inference-time reconciliation add, and on which hierarchies? (Q3) can
+exact R-matrix propagation run on large DAGs without quadratic memory? We answer
 these questions with a factorial study of three training objectives (BCE,
 hinge, and MCLoss) $\times$ \{raw, reconciled\} across 27 datasets under a
 strict validation-only protocol: early-stopping epoch and decision threshold
@@ -100,20 +97,14 @@ Our contributions are:
   \item A \textbf{controlled factorial study} of three objectives (BCE, hinge,
   and MCLoss) with and without reconciliation across 27 datasets spanning text,
   FunCat, Gene Ontology, and cross-domain ARFF benchmarks.
-  \item The \textbf{central empirical finding} that inference-time reconciliation,
-  not the training-time consistency loss, drives the gains: plain BCE with
-  reconciliation is competitive with MCLoss across all families, whereas
-  unconstrained MCLoss raw scores frequently collapse.
-  \item \textbf{Ontology geometry, hierarchical contrastive learning, and depth calibration}:
-  auditing Surj~\cite{www2022ontology} shows its reported figures cannot be
-  independently verified because its code was never released, and, separately,
-  standard ontology GAEs collapse sibling classes (median sibling cosine up to
-  0.9995, consistent with a Bessel-type $1/\sqrt{K}$ bound); our Sibling-Repulsive
-  GAE (\texttt{SR-GAE}), Hierarchical Multi-Label Contrastive Learning with
-  $k$-NN (\texttt{H-MLCL+H-KNN}), and depth calibration restore sibling
-  orthogonality (median cosine $\le 0.038$); \texttt{SR-GAE}+\texttt{H-MLCL+H-KNN}
-  improves test AUPRC over the matched baseline on 27/27 datasets ($p=1.5\times 10^{-8}$), and depth
-  calibration lifts deep F1 by $+13\%$--$24\%$.
+  \item The \textbf{central empirical finding} that the training-time
+  consistency loss does not improve over plain BCE, while inference-time
+  reconciliation gives a small, consistent gain and the consistency guarantee:
+  plain BCE with reconciliation matches MCLoss in every family, and MCLoss
+  scores degrade sharply when reconciliation is omitted.
+  \item A \textbf{reproducibility check of published baselines}: a 3-seed
+  reimplementation of HPT on WOS, and a reimplementation of
+  Surj~\cite{www2022ontology}, whose reported results we could not reach.
   \item An open-source implementation with per-seed artifacts.
 \end{itemize}
 {\sloppy\hbadness=10000
@@ -127,8 +118,7 @@ training vs.\ inference, and the cross-domain conclusions.\par}
 Early HMC approaches train local classifiers per level or per node~\cite{silla2011hmc,cerri2014hmc},
 a paradigm standardized in toolkits such as CLUS-HMC~\cite{clus} and
 HiClass~\cite{miranda2023hiclass}. Global methods predict all classes jointly:
-HMCN~\cite{weihs2018hmc} couples hierarchy levels through residual feedforward
-links, whereas C-HMCNN~\cite{chmcnn} and its neuro-symbolic extension
+HMCN~\cite{weihs2018hmc} combines per-level outputs with a global output, whereas C-HMCNN~\cite{chmcnn} and its neuro-symbolic extension
 CCN+~\cite{giunchiglia2024ccn} enforce hard logical coherence via a maximum
 constraint module (MCM) and MCLoss.
 
@@ -197,8 +187,9 @@ class $i \in \{1,\dots,C\}$. We compare three training objectives:
   child--ancestor pairs ($\mathcal{P}=\mathcal{E}$ in the sparse formulation).
   \item \textbf{MCLoss}: the coherent loss of C-HMCNN~\cite{chmcnn}, which
   computes BCE on the max-constrained outputs $\tilde{p}_{b,i} = \max_{j:
-  R_{ij}=1} p_{b,j}$, while masking descendants that are positive only when the
-  target itself is negative so gradients flow to the true active classes.
+  R_{ij}=1} p_{b,j}$; for positive targets the maximum is taken only over
+  descendants that are themselves positive, so the gradient reaches the truly
+  active classes.
 \end{itemize}
 
 \subsection{Inference-Time Reconciliation}
@@ -218,37 +209,39 @@ cleanly isolates the inference-time effect from the training objective.
 {\sloppy\hbadness=10000
 Materializing the dense matrix $R \in \{0,1\}^{C\times C}$ requires $O(C^2)$
 storage, and batched dense max propagation ($\max_j R_{ij} p_{b,j}$) also
-allocates a $B\times C\times C$ intermediate tensor. For Gene Ontology ($C
-\approx 4{,}134$), a batch of size $B=64$ peaks at $\approx 8.8$~GB in float64
-($\approx 4.3$~GB in float32), exhausting commodity GPU memory.\par}
+allocates a $B\times C\times C$ intermediate tensor. On \texttt{seq\_GO}
+($C = 4{,}134$), the reference operator of C-HMCNN, which broadcasts in
+float64, peaks at 8.2~GiB for one reconciliation step at $B=64$ (4.1~GiB in
+float32) and runs out of memory on a 12~GB GPU once gradients are
+back-propagated through it (Section~\ref{sec:scaling}).\par}
 
 {\sloppy\hbadness=10000
 To eliminate quadratic memory, our sparse operator (\texttt{BlockDiagonalR})
-stores only the directed edge index vectors $\mathbf{c}, \mathbf{p} \in
-\{1,\dots,C\}^E$ (where edge $e$ connects child $c_e$ to parent $p_e$) and
+stores only the directed edge index vectors $\mathbf{s}, \mathbf{t} \in
+\{1,\dots,C\}^E$ (where edge $e$ connects child $s_e$ to parent $t_e$) and
 computes breadth-first-search depth levels from the roots in $O(C{+}E)$
 space. Given scores $\mathbf{P}^{(0)} = \mathbf{P} \in [0,1]^{B\times C}$,
-each step $t \in \{1,\dots,D\}$ (up to max depth $D$) updates all
+each step $k \in \{1,\dots,D\}$ (up to max depth $D$) updates all
 parents in parallel via a vectorized scatter-max reduction over the $E$ edges:\par}
 \begin{equation}
-P^{(t)}_{b,v} = \max\Big(P^{(t-1)}_{b,v},\ \max_{e:\,p_e = v} P^{(t-1)}_{b,c_e}\Big),
+P^{(k)}_{b,v} = \max\Big(P^{(k-1)}_{b,v},\ \max_{e:\,t_e = v} P^{(k-1)}_{b,s_e}\Big),
 \label{eq:sparse_step}
 \end{equation}
-terminating early as soon as $\mathbf{P}^{(t)} = \mathbf{P}^{(t-1)}$. By
+terminating early as soon as $\mathbf{P}^{(k)} = \mathbf{P}^{(k-1)}$. By
 induction on path length, after at most $D$ passes every node holds the maximum
 over all of its reachable descendants: $P^{(D)}_{b,i} = \max_{j:R_{ij}=1}
 P_{b,j} = p_{b,i}^{\text{rec}}$.
 
 Because PyTorch's \texttt{scatter\_reduce} (\texttt{amax}) admits subgradients,
-the exact same $O(B\cdot E)$ operator serves both inference-time
+the same operator, at $O(B\cdot E)$ per pass and at most $D$ passes, serves both inference-time
 reconciliation and training-time MCLoss. Furthermore, by enforcing
 Eq.~\eqref{eq:hinge} directly on the $E$ parent--child edges ($\mathcal{P} =
 \mathcal{E}$), zero edge violations ($p_u \le p_v$ for all $(u\rightarrow v)\in
 \mathcal{E}$) imply zero transitive violations across the entire closure $R$.
-On \texttt{cellcycle\_GO} ($C=4{,}126$, $E=5{,}827$, $D=13$),
+On \texttt{cellcycle\_GO} ($C=4{,}126$, $E=5{,}827$, $D=12$),
 \texttt{BlockDiagonalR} reduces structural storage from 65~MB to 46~KB
-($>1{,}400\times$) and enables fast training at batch 64 with zero hierarchy
-violations.
+and, more importantly, replaces the $B\times C\times C$ intermediate by
+one of size $B\times E$, so the batch size is no longer bounded by $C^2$.
 
 \section{Experimental Setup}
 \label{sec:setup}
@@ -264,15 +257,15 @@ violations.
 Family & \# & Eval.\ Classes & Internal & Hierarchy \\
 \midrule
 Text & 4 & 61--4{,}519 & 7--1{,}308 & tree / DAG \\
-FunCat & 10 & 455--499 & 143--157 & tree \\
-Gene Ontology & 9 & 3{,}124--4{,}130 & 1{,}397--1{,}828 & DAG \\
-Cross-domain ARFF & 4 & 46--398 & 11--87 & tree \\
+FunCat & 10 & 455--499 & 165--175 & tree \\
+Gene Ontology & 9 & 3{,}124--4{,}130 & 1{,}725--2{,}086 & DAG \\
+Cross-domain ARFF & 4 & 46--398 & 4--87 & tree \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{Datasets.} Table~\ref{tab:datasets} summarizes the 27 datasets across
-four benchmark families: (i) \emph{Text}---ArXiv (158 evaluated classes), WOS
+four benchmark families: (i) \emph{Text}---ArXiv (50{,}000 abstracts, 158 evaluated classes), WOS
 (141 classes)~\cite{hpt}, AAPD (61 classes)~\cite{aapd}, and EUR-Lex 57K
 (standard 45k/6k/6k split; 4{,}271 dataset concepts, 4{,}520 total hierarchy
 nodes, and 4{,}519 evaluated nodes after excluding the synthetic root; depth 8,
@@ -299,8 +292,7 @@ datasets that ship without a separate validation file, 20\% of the training
 file is held out for validation before the refit. On text benchmarks, no refit
 is performed, matching HPT~\cite{hpt}. All neural results are means over
 three random seeds (0, 42, and 123); the gradient-boosted decision tree (GBDT)
-baseline is a single run, the
-inference-only GO ablation is seed 0, and the Surj audit uses 10 FunCat and 3
+baseline is a single run, and the Surj audit uses 10 FunCat and 3
 GO seeds. Following domain conventions, we report
 micro-F1 as the primary metric on text and micro-AUPRC on FunCat, GO, and
 cross-domain ARFF. Published baseline numbers are taken from their respective
@@ -327,7 +319,7 @@ All experiments run on a single NVIDIA RTX 3060 (12~GB).
 \begin{table}[t]
 \caption{Factorial decomposition across all 27 datasets (mean over datasets of
 3-seed means): three training objectives $\times$ \{raw, reconciled\}. Best per
-row in \textbf{bold}.}
+row before rounding in \textbf{bold}.}
 \label{tab:decomp}
 \centering
 \footnotesize
@@ -361,7 +353,7 @@ datasets from three families---ArXiv, \texttt{cellcycle\_FUN}, and
 \texttt{cellcycle\_GO}: plain BCE (raw), training-time consistency loss alone
 (MCLoss raw), inference-time reconciliation only (BCE + rec.), and both (MCLoss
 + rec.). Training with the consistency loss alone does not consistently beat
-plain BCE; inference-time reconciliation drives the gain.}
+plain BCE; the gain comes from inference-time reconciliation.}
 \label{fig:decomp}
 \end{figure*}
 
@@ -390,8 +382,9 @@ micro-F1 on 25 of 27 datasets (median $\Delta = +0.0003$, $p = 1.3\times
 10^{-6}$). Figure~\ref{fig:decomp} illustrates this on ArXiv,
 \texttt{cellcycle\_FUN}, and \texttt{cellcycle\_GO} in micro-F1: on
 \texttt{cellcycle\_GO}, MCLoss raw ($0.4086$) falls well below BCE raw
-($0.4333$), whereas reconciliation brings BCE to $0.4332$ and MCLoss to
-$0.4372$.
+($0.4333$), whereas reconciliation leaves BCE at $0.4332$ and brings MCLoss to
+$0.4372$; on ArXiv and \texttt{cellcycle\_FUN} it raises BCE by $0.0010$
+and $0.0016$.
 
 Third, once inference reconciliation is applied, \emph{all three objectives
 converge to nearly identical performance} (within $0.001$--$0.004$ AUPRC and
@@ -424,7 +417,6 @@ Ours BCE (raw / + rec.) & 0.257 / 0.259 & 0.414 / 0.416 \\
 Ours Hinge (raw / + rec.) & 0.258 / 0.259 & 0.415 / 0.417 \\
 Ours MCLoss (raw / + rec.) & 0.241 / 0.261 & 0.375 / 0.418 \\
 Ours MCLoss + GAE + rec. & 0.262 & -- \\
-Ours (SR-GAE + H-MLCL+H-KNN) & 0.263 & 0.421 \\
 Ours GBDT + rec. & 0.226 & -- \\
 \bottomrule
 \end{tabular}
@@ -435,23 +427,23 @@ FunCat and 8 GO datasets shared with HMCN-F~\cite{weihs2018hmc} and
 C-HMCNN~\cite{chmcnn} (\texttt{church\_FUN}, \texttt{pheno\_FUN}, and
 \texttt{pheno\_GO} have no published baselines and are included in
 Table~\ref{tab:decomp}). On FunCat, our MCLoss + rec.\ model matches HMCN-F
-($0.261$) and is within $0.003$ of C-HMCNN ($0.264$); a Friedman test across the
-8 datasets ($\chi^2 = 28.30$, $p = 1.1\times 10^{-5}$) followed by a Nemenyi
-post-hoc test ($\text{CD} = 2.16$ at $\alpha = 0.05$) confirms that our model
-(average rank $2.62$) is statistically tied with both HMCN-F ($2.62$) and
-C-HMCNN ($1.00$), while outperforming the GBDT baseline ($0.226$, rank $5.00$).
+($0.261$) and is within $0.003$ of C-HMCNN ($0.264$), while BCE + rec.\ is $0.005$ below it. A Friedman test
+across the 8 datasets over five methods (C-HMCNN, HMCN-F, our MCLoss + rec.,
+our BCE + rec., and GBDT; $\chi^2 = 28.30$, $p = 1.1\times 10^{-5}$) followed by
+a Nemenyi post-hoc test ($\text{CD} = 2.16$ at $\alpha = 0.05$) does not
+separate MCLoss + rec.\ (average rank $2.62$) from HMCN-F ($2.62$) or C-HMCNN
+($1.00$), but it does separate BCE + rec.\ ($3.75$) and GBDT ($5.00$) from
+C-HMCNN; with eight datasets the test has limited power, and C-HMCNN is ahead
+on all eight.
 Adding a variational graph-autoencoder~\cite{kipf2016vgae} branch over the label
-hierarchy (\texttt{MCLoss + GAE + rec.}) raises the FunCat average to $0.262$
-(beating C-HMCNN on \texttt{derisi\_FUN} at $0.197$ vs.\ $0.195$ and
-\texttt{spo\_FUN} at $0.217$ vs.\ $0.215$), whereas feature denoising and
+hierarchy (\texttt{MCLoss + GAE + rec.}) changes the FunCat average by $+0.002$
+($0.262$ vs.\ $0.261$) and is below MCLoss + rec.\ on three of the eight
+datasets, whereas feature denoising and
 C2AE-style label autoencoders degrade validation AUPRC by $0.0003$ to $0.0155$.
 
 On Gene Ontology, our reconciled objectives reach $0.416$ (BCE), $0.417$
-(Hinge), and $0.418$ (MCLoss), and adding \texttt{SR-GAE + H-MLCL+H-KNN} reaches
-$0.421$, surpassing C-HMCNN ($0.420$) overall and on 5/8 GO datasets, but
-0.001 below HMCN-F ($0.422$). Across
-all families, per-level F1 drops steeply with depth, confirming that deep,
-sparse levels are where bottom-up reconciliation modifies the most predictions.
+(Hinge), and $0.418$ (MCLoss), against $0.420$ for C-HMCNN and $0.422$ for
+HMCN-F.
 
 \subsection{Scaling to Gene Ontology}
 \label{sec:scaling}
@@ -471,13 +463,13 @@ Figure~\ref{fig:go} shows the paired reconciliation gain ($\text{reconciled} -
 $\pm$ std over 3 seeds). Under the full FunCat/GO protocol of
 Table~\ref{tab:main}, \texttt{BlockDiagonalR} reconciliation improves BCE AUPRC
 on 8 of the 9 datasets (up to $+0.0046$ on \texttt{seq\_GO}; $-0.0003$ on
-\texttt{pheno\_GO}) with zero hierarchy violations. Moreover, in a
-high-throughput batch-64 scaling test (20 epochs, dropout 0.3) where the dense
-$B\times C\times C$ R-matrix tensor ($\approx 8.8$~GB in float64; 4.3~GB in
-float32) causes an out-of-memory failure on a 12~GB GPU, the sparse operator uses
-only $\sim 46$~KB for edge
-indices, trains in seconds per dataset, and improves AUPRC on all 9 datasets
-(mean $+0.0055$, up to $+0.0193$ on \texttt{eisen\_GO}).
+\texttt{pheno\_GO}) with zero hierarchy violations. The two operators differ in memory, not in
+output. On \texttt{seq\_GO} ($C = 4{,}134$, $E = 5{,}839$) and a 12~GB GPU, one
+reconciliation step at $B = 64$ peaks at 8.2~GiB with the reference dense
+float64 operator and at 4~MB with the sparse one. With a backward pass, as
+MCLoss requires, the dense operator runs out of memory at $B = 64$ (at
+$B = 128$ in float32), whereas the sparse one needs 43~MB at $B = 64$ and
+171~MB at $B = 256$. The dense and sparse outputs are identical.
 
 \subsection{Text and Cross-Domain Benchmarks}
 \label{sec:text_cross}
@@ -486,21 +478,22 @@ indices, trains in seconds per dataset, and improves AUPRC on all 9 datasets
 \caption{micro-F1 on WOS under the canonical HPT split (30{,}070 / 7{,}518 /
 9{,}397) and frozen-encoder text results (mean $\pm$ std over 3 seeds). ArXiv
 and AAPD use our 64/16/20 splits and are not like-for-like with published
-leaderboard splits.}
+leaderboard splits. $^\dagger$F1 at HPT's fixed threshold; + Rec.\ at the
+validation threshold.}
 \label{tab:wos}
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lcc}
 \toprule
-Method / Dataset & Raw F1 & Reconciled F1 \\
+Method / Dataset & F1 & + Rec. \\
 \midrule
-\multicolumn{3}{l}{\textit{WOS end-to-end comparison (like-for-like)}} \\
-HiAGM (ACL'20)~\cite{zhou2020hiagm} & -- & 0.8604 \\
-HTCInfoMax (NAACL'21)~\cite{htcinfomax} & -- & 0.8630 \\
-HGCLR (ACL'22)~\cite{hgclr} & -- & 0.8711 \\
-HPT (EMNLP'22, reported)~\cite{hpt} & -- & \textbf{0.8716} \\
-HPT (re-executed, raw@0) & 0.8691 $\pm$ 0.0023 & -- \\
+\multicolumn{3}{l}{\textit{WOS end-to-end comparison (same split)}} \\
+HiAGM (ACL'20)~\cite{zhou2020hiagm} & 0.8604 & -- \\
+HTCInfoMax (NAACL'21)~\cite{htcinfomax} & 0.8630 & -- \\
+HGCLR (ACL'22)~\cite{hgclr} & 0.8711 & -- \\
+HPT (EMNLP'22, reported)~\cite{hpt} & \textbf{0.8716} & -- \\
+HPT (our reimpl.)$^\dagger$ & 0.8691 $\pm$ 0.0023 & 0.8712 $\pm$ 0.0029 \\
 Ours (SPECTER2 E2E + BCE) & 0.8702 $\pm$ 0.0041 & 0.8704 $\pm$ 0.0040 \\
 \midrule
 \multicolumn{3}{l}{\textit{Frozen SPECTER2 + BCE across text benchmarks}} \\
@@ -539,10 +532,11 @@ Table~\ref{tab:wos} reports the text benchmarks. On WOS, fine-tuned
 SPECTER2~\cite{specter2} with reconciliation reaches $0.8704 \pm 0.0040$
 micro-F1 ($0.8702$ raw), outperforming HiAGM ($0.8604$) and HTCInfoMax
 ($0.8630$, BERT re-executions from~\cite{hpt}) and trailing the published
-HGCLR ($0.8711$) and HPT ($0.8716$) by $0.0007$ and $0.0012$. Re-executing
-HPT's official code and selection rule on the exact same split across seeds 0,
-42, and 123 yields $0.8691 \pm 0.0023$, placing our simpler architecture within
-seed noise of both; newer contrastive HTC models (HILL~\cite{hill2024} $0.8728$,
+HGCLR ($0.8711$) and HPT ($0.8716$) by $0.0007$ and $0.0012$. Our
+reimplementation of HPT, run with its published configuration and selection
+rule on the same split across seeds 0, 42, and 123, yields $0.8691 \pm 0.0023$
+($0.8712 \pm 0.0029$ reconciled), so the two models are within seed noise of
+each other; newer contrastive HTC models (HILL~\cite{hill2024} $0.8728$,
 MLCL-KNN~\cite{mlclknn2024} $0.8737$, HTC-CLIP~\cite{htcclip2023} $0.8786$) rely
 on text label semantics without guaranteeing zero hierarchy violations
 ($\text{GHV}=0$). With frozen
@@ -550,42 +544,33 @@ SPECTER2 embeddings, reconciliation consistently improves micro-F1 across all
 four datasets ($+0.0076$ F1 on EUR-Lex 57K).
 
 Table~\ref{tab:others} details the four cross-domain ARFF benchmarks. Here,
-plain BCE with inference reconciliation achieves $0.857$ mean AUPRC
-(\textbf{0.859} with \texttt{SR-GAE + H-MLCL+H-KNN}: Enron $0.765$, ImCLEF07a
-$0.957$, ImCLEF07d $0.925$, Diatoms $0.788$) vs.\ $0.849$ for C-HMCNN and $0.781$
-for HMCN-F, improving over C-HMCNN on Enron ($+0.009$), ImCLEF07a ($+0.001$), and
-Diatoms ($+0.030$, 398 classes). On these benchmarks, MCLoss underperforms BCE on
+plain BCE with inference reconciliation achieves $0.857$ mean AUPRC vs.\
+$0.849$ for C-HMCNN and $0.781$ for HMCN-F, improving over C-HMCNN on Enron
+($+0.006$), ImCLEF07a ($+0.001$), and Diatoms ($+0.027$, 398 classes). On these benchmarks, MCLoss underperforms BCE on
 three of four datasets even after reconciliation ($0.853$ vs.\ $0.857$ average),
 because its raw scores collapse prior to reconciliation ($0.537$ on Diatoms and
-$0.649$ on ImCLEF07a; Table~\ref{tab:decomp}).
+$0.649$ on ImCLEF07a; family mean $0.684$ in Table~\ref{tab:decomp}).
 
-\subsection{Reproducibility of Surj, SR-GAE, and H-MLCL}
+\subsection{Reproducibility of Surj}
 \label{sec:repro}
 
 Surj~\cite{www2022ontology} is the only published method reporting large margins
 above C-HMCNN on FunCat ($0.312$ vs.\ $0.264$) and GO ($0.468$ vs.\ $0.420$),
 but its code was never released. We reimplemented its 2-layer GCN graph
-autoencoder~\cite{kipf2016vgae} and cosine classifier on C-HMCNN's pipeline
-(reproducing C-HMCNN within $0.003$ AUPRC) across 25 validation configs. Across
-10 seeds on FunCat and 3 on GO, our reimplementation averages $0.232$ and
-$0.352$, below C-HMCNN on every dataset; alternative AUPRC aggregations inflate
-both models by $1.09\times$--$1.45\times$, and Table~4 ``V1'' in~\cite{www2022ontology}
-repeats its Table~2 verbatim. By Bessel's inequality on $\mathbb{S}^{D-1}$, if
-the $K$ parent--child cosines of a parent $p$ are equal, they satisfy
-$\cos(\hat{z}_p, \hat{z}_{c_i}) \le 1/\sqrt{K}$; forcing them to $1$ therefore
-collapses siblings onto one ray (median sibling cosine $0.89$--$1.00$ on
-FunCat/GO, $0.096$--$0.9995$ across all 27 datasets). Adding a residual GCN skip
-and sibling angular hinge penalty (\texttt{SR-GAE}) cuts the median sibling
-cosine to $\le 0.038$ and improves cosine-head test AUPRC on 10/10 FunCat
-($+0.013$ mean, $p=0.002$; $+0.044$ Eisen), 6/9 GO (up to $+0.021$),
-ImCLEF07a/d ($+0.015/+0.035$), and text ($+0.121$ ArXiv, $+0.154$ WOS, $+0.069$
-AAPD). Pairing \texttt{SR-GAE} with sibling-boosted prototype + R-matrix Jaccard
-queue contrastive learning and $k$-NN (\texttt{H-MLCL+H-KNN}) lifts 3-seed test
-AUPRC over the matched baseline on 27/27 datasets ($p=1.5\times 10^{-8}$; 26/27 strict wins in the 3-seed
-controlled ablation, $p=4.5\times 10^{-8}$ two-sided); depth calibration in
-the full pipeline improves deep F1 by $+13.0\%$ (FunCat) and $+24.1\%$ (GO L5)
-and micro-F1 on 26/27 ($p=2.5\times 10^{-6}$; 27/27 non-decreasing,
-$p=3.0\times 10^{-8}$ controlled), but alone trades AUPRC for F1 (11/27 vs.\ 18/27).
+autoencoder~\cite{kipf2016vgae} and cosine classifier on C-HMCNN's own
+pipeline, which reproduces C-HMCNN's published numbers within $0.003$ AUPRC,
+and chose every hyperparameter the paper leaves unspecified among 25
+configurations on validation. Across 10 seeds on FunCat and 3 on GO, our
+reimplementation averages $0.232$ and $0.352$, below C-HMCNN on every dataset.
+The ontology embeddings do help the cosine head ($+0.076$ over one-hot labels,
+close to the $+0.085$ Surj reports), but the head itself is weaker than a
+free output layer: the embeddings of sibling labels are nearly collinear
+(cosine $\ge 0.997$ for the closest 10\% of pairs). Alternative AUPRC
+aggregations do not explain the gap: the variants that bring our average
+closest to the reported values also inflate C-HMCNN to
+$1.40\times$--$1.45\times$ its published numbers. We therefore list Surj's figures as reported and
+keep them out of rankings and tests; we do not claim they are wrong, only
+that the published description is not sufficient to reach them.
 
 \section{Discussion and Limitations}
 \label{sec:discussion}
@@ -594,26 +579,27 @@ $p=3.0\times 10^{-8}$ controlled), but alone trades AUPRC for F1 (11/27 vs.\ 18/
 nodes' raw scores are violated by active descendants: on cross-domain ARFF,
 BCE + rec.\ gains $+0.008$ AUPRC over C-HMCNN ($+0.027$ on Diatoms), and on
 EUR-Lex 57K reconciliation adds $+0.0076$ micro-F1 ($+0.0083$ AUPRC). On FunCat
-and GO, the sparse R-matrix reaches statistical parity with C-HMCNN and HMCN-F
-while lifting the $O(C^2)$ memory ceiling.
+and GO, MCLoss + rec.\ stays within $0.003$ AUPRC of C-HMCNN and BCE + rec.\
+within $0.005$, without the batch-size ceiling of the dense operator.
 
 \textbf{Practical guidance.} (i) \emph{Apply bottom-up reconciliation at
 inference time}: it is parameter-free, guarantees zero violations, and improves
 26/27 datasets in AUPRC. (ii) \emph{Do not rely on a training-time consistency
 loss alone}: hinge adds negligible gain and MCLoss raw scores collapse without
-reconciliation. (iii) \emph{Use the sparse $O(C{+}E)$ operator} above
-$\sim 1{,}000$ classes: it is exact and avoids the $B\times C\times C$
+reconciliation. (iii) \emph{Use the sparse $O(C{+}E)$ operator} on hierarchies with
+thousands of classes: it is exact and avoids the $B\times C\times C$
 bottleneck. (iv) \emph{Report raw and reconciled metrics separately}.
 
 \textbf{Limitations and threats to validity.} First, reconciliation gains are
-consistent in sign (Wilcoxon $p < 10^{-5}$) but modest in magnitude on several
-datasets; we report 3-seed means and paired deltas. On EUR-Lex 57K, 29\% of
+consistent in sign (Wilcoxon $p < 10^{-5}$) but small in magnitude (median
+$+0.0016$ AUPRC), and the 27 datasets are not independent: the FunCat and GO
+suites annotate the same genes. We read the pooled test as descriptive. On EUR-Lex 57K, 29\% of
 evaluated labels are internal, yet reconciliation modifies 10.7\% of internal
 scores because the classifier is already largely coherent. Second, ArXiv and
 AAPD use 64/16/20 splits, whereas WOS and EUR-Lex use standard splits; RCV1-V2
 is evaluated through the open LYRL2004 release as a structural diagnostic, and
 raw Reuters XML is not used. Third, we mitigate external-baseline reliance by
-re-executing HPT on WOS ($0.8691 \pm 0.0023$), reproducing C-HMCNN within
+reimplementing HPT on WOS ($0.8691 \pm 0.0023$), reproducing C-HMCNN within
 $0.003$ AUPRC on FunCat, and auditing Surj across 25 configurations.
 
 \section{Conclusion}
@@ -622,13 +608,12 @@ $0.003$ AUPRC on FunCat, and auditing Surj across 25 configurations.
 We presented a study isolating the R-matrix constraint in HMC across 27
 datasets. Our sparse $O(C{+}E)$ operator (\texttt{BlockDiagonalR}) scales exact
 max propagation to DAGs with up to 4{,}520 hierarchy nodes (4{,}519 evaluated),
-and inference-time reconciliation, not the training-time consistency loss,
-drives the gains. BCE with reconciliation matches MCLoss while avoiding
-raw-score collapse, is statistically tied with C-HMCNN on FunCat and GO, and
-surpasses it on cross-domain ARFF. \texttt{SR-GAE}+\texttt{H-MLCL+H-KNN}
-resolves sibling collapse and lifts test AUPRC over the matched baseline (27/27,
-$p=1.5\times 10^{-8}$), while the full pipeline with depth calibration
-improves deep-level F1. Code is
+and the training-time consistency loss does not improve over plain BCE, while
+inference-time reconciliation adds a small, consistent gain and guarantees
+consistency. BCE with reconciliation matches MCLoss while avoiding raw-score
+collapse. On FunCat and GO, the best reconciled objective (MCLoss) is within
+$0.003$ AUPRC of C-HMCNN and BCE within $0.005$; on cross-domain data, BCE is
+above C-HMCNN on three of four datasets. Code is
 available at \url{https://github.com/Sette/hmc-torch}.
 
 \bibliographystyle{IEEEtran}
