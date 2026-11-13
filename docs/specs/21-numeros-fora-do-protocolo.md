@@ -29,10 +29,18 @@ O texto compara 0,219 (refeito) com 0,212 (só-treino + Platt). Na comparação 
 
 | Dataset | Texto atual | Protocolo |
 |---|---|---|
-| ArXiv | 0,93 → 0,59 | 0,814 → 0,575 |
-| WOS | 0,86 → 0,65 | 0,837 → 0,645 |
+| ArXiv | 0,93 → 0,59 (raiz → folhas) | 0,814 → 0,575 |
+| WOS | 0,86 → 0,65 (raiz → folhas) | 0,837 → 0,645 |
 | `cellcycle_FUN` | — | 0,42 / 0,267 / 0,20 / 0,20 / 0,088 / 0,237 |
 | `cellcycle_GO` | “nível mais alto, um único nó, perto de zero; o seguinte 0,68” | começa no nível 2 (0,674); níveis 11–12 = 0,0 |
+
+A figura atual (conferida renderizada) tem um nível L0 com n = 1 em ArXiv e WOS — o nó raiz,
+que o protocolo não avalia — e um L1 com n = 1 no GO. O texto compara a raiz com as folhas.
+
+**Arquivos consolidados (E1):** `consolidated_results.json` ainda traz `depthcal.full_pipeline`
+com 27/27 e fonte `output/sr_gae_sota` (o pareado dá 25/27), `gpu_speedup` legado e desvios de
+`wos_frozen`/`arxiv` diferentes do texto; `docs/tese/data/protocol_summary.json` tem as 324
+médias corretas e desvios com ddof = 0 (o texto usa ddof = 1).
 
 **Tempos (protocolo, `train_time_s`, RTX 3060):** FunCat MCLoss 254 s em média (99–518 s);
 BCE 103 s; GBDT ~303 s. A tabela atual (15,7 s CPU / 5,5 s GPU; tabular MLP 5,0 s / 2,8 s) é
@@ -75,7 +83,10 @@ de uma configuração legada e não tem origem em `output/`.
    (`fig2_ablation.pdf`, `fig3_go_sparse.pdf`, `fig_scaling_laws.pdf`) depois de confirmar com
    `grep -n "includegraphics" main.tex` e com os `\includegraphics` da tese (que lê a mesma
    pasta via `\graphicspath`).
-9. Atualizar `docs/hmc-paper/data/consolidated_results.json` para os números alterados.
+9. Atualizar `docs/hmc-paper/data/consolidated_results.json`: números alterados aqui, bloco
+   `depthcal` (trocar pelo resultado pareado), `gpu_speedup`, desvios de texto e a fonte do
+   EUR-Lex. Em `make_paper_artifacts.py`, gravar desvio amostral (ddof = 1) no
+   `protocol_summary.json`.
 10. `make check` na KBS e na tese; `make submission` na KBS.
 
 ## Saídas esperadas

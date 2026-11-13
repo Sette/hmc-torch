@@ -22,14 +22,14 @@ Atualize a tabela ao concluir cada spec.
 | 15 | [FunCat/GO claims](15-funcat-go-claims.md) | P0 | [x] IJCNN corrigido; KBS/tese conferidas | — |
 | 16 | [GO scaling claims](16-go-scaling-claims.md) | P0 | [x] teste legado removido dos três manuscritos; memória medida em `output/scaling/dense_r_memory.json` | — |
 | 17 | [IJCNN editorial](17-ijcnn-editorial.md) | P2 | [x] 7 itens aplicados; 6 p., 0 over/underfull | 14–16 |
-| 18 | [Auditoria geral (2026-11-13)](18-audit-geral.md) | P0/P1/P2 | [ ] documento de apoio; 11 P0, 20 P1, 8 P2 | — |
+| 18 | [Auditoria geral (2026-11-13)](18-audit-geral.md) | P0/P1/P2 | [ ] documento de apoio; 11 P0, 20 P1, 11 P2 | — |
 | 19 | [IJCNN: anonimização e IA](19-ijcnn-anonimizacao.md) | P0 | [ ] | — |
 | 20 | [Descrição do protocolo](20-descricao-do-protocolo.md) | P0 | [ ] | 22 (passo 1) |
 | 21 | [Números fora do protocolo](21-numeros-fora-do-protocolo.md) | P0 | [ ] | — |
 | 22 | [Proveniência e artefatos](22-proveniencia-artefatos.md) | P0 | [ ] | usuário (onde publicar) |
 | 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [ ] GPU ~7–8 h | 22 |
 | 24 | [Afirmações da KBS e da tese](24-afirmacoes-kbs-tese.md) | P1 | [ ] | 20, 21 |
-| 25 | [Tese: estrutura e arguição](25-tese-estrutura.md) | P1 | [ ] | 20, 21, 24 |
+| 25 | [Posicionamento frente ao C-HMCNN + tese](25-tese-estrutura.md) | P0/P1 | [ ] passo 4 (P0) vale para IJCNN, KBS e tese | 20, 21, 24 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
@@ -110,8 +110,11 @@ objeções prováveis e mitigações.
 - Proveniência: a tabela pareada depende de `run_sr_gae_sota.py` não commitado; `surj_repro/`
   foi removido em `42aadba` e ainda é citado; `output/` não é público.
 - IJCNN: falta anonimizar (autores, URL) e declarar o uso de IA.
-- Ordem sugerida: 19 → 22 (passo 1) → 20 → 21 → 24 → 23 → 25. Para a submissão de 31/01
-  bastam 19, 20 e 22 no IJCNN.
+- Segunda passada (mesmo dia): conferidos PyPI, baselines publicados, normas do PPGCC,
+  arquivos consolidados, figuras 5–6 e os scripts restantes. O artigo do C-HMCNN já traz uma
+  ablação MCM × MCLoss (Seção 5.5) que os manuscritos não citam: virou P0 (spec 25, passo 4).
+- Ordem sugerida: 19 → 25 (passo 4) → 22 (passo 1) → 20 → 21 → 24 → 23 → 25 (resto). Para a
+  submissão de 31/01 bastam 19, 20, 22 e o passo 4 do 25 no IJCNN.
 - Branch `docs/audit-specs-2026-11`; sem push.
 
 Regras:
