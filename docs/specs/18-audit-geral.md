@@ -146,6 +146,10 @@ Já cobertos: B10 e metadados → spec 06.
   0,420; 0,422; 0,849; 0,781). WOS — HiAGM 86,04, HTC-infoMAX 86,30, HiMatch 86,70, HGCLR
   87,11 e HILL 87,28 conferem com a Tabela 2 do HILL (arXiv 2403.17307); HPT 87,16 confere com
   arXiv 2402.18825; HTC-CLIP 87,86 confere com arXiv 2506.04381.
+- **Surj:** os valores por dataset das tabelas (FunCat, GO e cross-domain) conferem com a
+  Tabela 2 do artigo (WWW'22 Companion, cópia NSF PAR 10354452). O artigo diz “Code for all
+  experiments will be published on github” e cita o AWX (Masera et al.) como camada de saída
+  coerente por construção — referência a incluir na revisão da tese (spec 25, passo 3).
 - **Protocolo do C-HMCNN:** Adam, weight decay 1e-5, paciência 20, dropout 0,7, batch 4, refit
   em treino+validação, 10 execuções, dimensão oculta e learning rate ajustados por dataset na
   validação. O nosso protocolo usa 3 seeds e learning rate fixo — diferença a declarar.
@@ -178,8 +182,7 @@ Já cobertos: B10 e metadados → spec 06.
 
 ## Não verificado
 
-- MLCL-KNN no WOS (0,8737): artigo da Neurocomputing sem acesso aberto.
-- Números reportados pelo Surj (0,312 / 0,468 e por dataset): copiados de
-  `surj_repro/results.md`, não conferidos no artigo original.
+- MLCL-KNN no WOS (0,8737): artigo da Neurocomputing 577:127323 (2024) sem acesso aberto; a
+  busca não confirmou o valor. Conferir no PDF antes de submeter.
 - Tamanho do efeito de A4 (época escolhida pelo score reconciliado): só o spec 23 mede.
 - Classificação Qualis atual do IJCNN e da KBS e a data de matrícula (ver PPGCC acima).
