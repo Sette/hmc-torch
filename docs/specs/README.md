@@ -17,6 +17,11 @@ Atualize a tabela ao concluir cada spec.
 | 10 | [Prompt hierarchy](10-prompt-hierarchy.md) | P1 (KBS 2027) | [x] M1 e M2 implementados e testados (`tests/test_hpt.py`) | 11 |
 | 11 | [Baselines re-run](11-baselines-rerun.md) | P0 | [x] HPT reexecutado (0,8691 ± 0,0023); KBS 49 p., IJCNN 6 p. | — |
 | 12 | [RCV1 rota aberta](12-rcv1.md) | P2 | [x] resultados regenerados no KBS/tese; JSON em `output/protocol_rcv1/rcv1.json` (9 runs, 3 seeds) | — |
+| 13 | [Review IJCNN (2026-11-11)](13-review-ijcnn.md) | P0/P1/P2 | [ ] documento de apoio; 4 P0, 4 P1, 6 P2 | — |
+| 14 | [HPT provenance + WOS table](14-hpt-provenance-wos.md) | P0 | [x] “reimplementation” nos três manuscritos; célula reconciliada do HPT (0,8712 ± 0,0029) | — |
+| 15 | [FunCat/GO claims](15-funcat-go-claims.md) | P0 | [x] IJCNN corrigido; KBS/tese conferidas | — |
+| 16 | [GO scaling claims](16-go-scaling-claims.md) | P0 | [x] teste legado removido dos três manuscritos; memória medida em `output/scaling/dense_r_memory.json` | — |
+| 17 | [IJCNN editorial](17-ijcnn-editorial.md) | P2 | [x] 7 itens aplicados; 6 p., 0 over/underfull | 14–16 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
@@ -60,6 +65,29 @@ objeções prováveis e mitigações.
   (tag `ijcnn-metadata-2026-11-10`) e `417b0c8` (tag `metadata-2026-11-10`); tese
   arquivada em `/home/brunos/hmc-tese-2026-11-10.tar.gz`.
 - Pendências: spec 06 (metadados do usuário).
+
+## Revisão 2026-11-11
+
+- Revisão do IJCNN (spec 13) e correções dos specs 14–16 aplicadas a IJCNN, KBS e tese.
+- HPT: os números são da reimplementação do hmc-torch, não do código oficial (que não roda
+  com transformers 5.3 / PyG 2.7); texto e tabelas dizem “reimplementation” e trazem a célula
+  reconciliada (0,8712 ± 0,0029; Δ −0,0008 contra o nosso E2E).
+- GO: o teste batch-64 (+0,0055 AUPRC) vinha de `run_go_experiments.py` (legado: treino em
+  train+valid, limiar no test, seed 42) e saiu dos três manuscritos. No lugar entram os ganhos
+  do protocolo (8 de 9 datasets, média +0,0016) e a memória medida por
+  `experiments/measure_dense_r_memory.py` (denso float64: 8,16 GiB na inferência e OOM no
+  treino em batch 64; esparso: 4 MB / 43 MB).
+- IJCNN: “within 0.003” atribuído ao MCLoss + rec. (BCE + rec. fica a 0,005); Nemenyi com os
+  5 métodos; frase de F1 por nível removida; GAE suavizado. 6 páginas, 0 over/underfull.
+- KBS: 48 páginas, sem referências indefinidas. Tese compila; os 2 overfull hbox restantes (cap. 3 e apêndice A) são
+  anteriores a esta revisão.
+- 13/11/2026: spec 17 aplicado no IJCNN; na KBS e na tese, GAE suavizado (+0,002 na média),
+  vetores de arestas renomeados para `s`/`t`, e a tese passou a citar o par C-HMCNN × BCE + rec.
+  do Nemenyi.
+- Repositórios: KBS `0b24288` (branch `docs/paper-revision`, `make submission` regenerado);
+  root `663892f` (script de memória), `5cd367a` (IJCNN) e o commit dos specs. Nada foi enviado
+  (sem push); o gitlink `docs/hmc-paper` não foi atualizado.
+- Pendências: spec 06 (metadados); regras do IJCNN 2027 (duplo-cego, limite do abstract).
 
 Regras:
 
