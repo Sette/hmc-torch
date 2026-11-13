@@ -1,4 +1,4 @@
-# 25 — Tese: título, revisão bibliográfica, RQs, ameaças à validade e arguição (P1)
+# 25 — Posicionamento frente ao C-HMCNN (P0) e tese: título, revisão, RQs, ameaças, arguição (P1)
 
 ## Objetivo
 
@@ -11,8 +11,12 @@ que existem no repositório e não são reportados. Fecha os achados C1–C9 do
 
 - Specs 20, 21 e 24 aplicados na tese.
 - Backup da tese antes de editar (o diretório não é versionado no hmc-torch).
-- Regras do PPGCC/UFSCar para o texto da tese (idioma, estrutura): **não verificadas** — obter
-  com a secretaria ou o orientador.
+- Regras do PPGCC/UFSCar conferidas em 13/11/2026 (Normas Complementares 2024, Regimento
+  Interno 2022): tese em inglês permitida (Art. 4); publicação ou aceite no Índice Restrito do
+  Qualis + submissão a periódico do Índice Restrito (Art. 63), aluno primeiro autor e
+  orientador coautor (Art. 64), comprovação no pedido de banca (Art. 66); versão original em
+  até 1.460 dias e defesa em até 1.490 dias da matrícula. Falta confirmar com a secretaria o
+  estrato atual do IJCNN e da KBS e os prazos contra a data de matrícula.
 
 ## Fatos a usar
 
@@ -28,6 +32,21 @@ que existem no repositório e não são reportados. Fecha os achados C1–C9 do
     originais; `seq_GO` 0,601 ± 0,004 contra 0,446. O mapeamento linha → ORF
     (`experiments/recover_seq_ids.py`) não foi auditado.
   - `output/label_embeddings/mc/` — só `cellcycle_FUN`.
+- **Ablação do C-HMCNN** (arXiv 2010.10151, Seção 5.5, Tabela 3; AUPRC na validação dos 8
+  FunCat, BCE nos dois primeiros):
+
+  | | `h+` (pós-processamento) | `h+MCM` | C-HMCNN (MCM + MCLoss) |
+  |---|---|---|---|
+  | Média (8) | 0,225 | 0,237 | 0,241 |
+  | Ranking médio | 2,94 | 2,06 | 1,00 |
+
+  O artigo conclui: “C-HMCNN(h), by exploiting both MCM and MCLoss, always outperforms h+ and
+  h+MCM”. No nosso protocolo (test, 8 comuns) o sentido é o mesmo no FunCat: MCLoss + rec.
+  0,2608 contra BCE + rec. 0,2593, e só o BCE + rec. é separado do C-HMCNN pelo Nemenyi.
+- Protocolo do C-HMCNN: 10 execuções; dimensão oculta e learning rate ajustados por dataset na
+  validação. O nosso: 3 seeds, learning rate fixo em 1e-4.
+- ESM-2: `recover_seq_ids.py` foi auditado — usa só features, sem rótulos; 3 ORFs aparecem em
+  test e em treino/validação (de ~3.700).
 - Build: 4 overfull (um `\vbox` de 90 pt, um `\hbox` de 75 pt), 11 underfull.
 
 ## Passos
@@ -59,12 +78,19 @@ que existem no repositório e não são reportados. Fecha os achados C1–C9 do
    - HMC-LMLP e demais métodos locais brasileiros além de Cerri et al.
    Os nomes acima são pistas de busca, não referências: nenhuma entrada entra no `.bib` sem a
    referência conferida.
-4. **Novidade da RQ1 (C9).** Reler o artigo do C-HMCNN (seção de exemplo motivador e
-   ablações) e registrar o que ele já compara (rede com pós-processamento, MCM sem MCLoss).
-   Ajustar `01-introducao.tex:48-57` e `02-fundamentacao.tex:135-138` para dizer exatamente o
-   que é novo: 27 datasets, três objetivos, protocolo só de validação, DAGs grandes. Se o
-   artigo original conclui o contrário em algum benchmark, discutir a diferença (protocolo,
-   seleção de época, métrica).
+4. **Novidade da RQ1 (C9, P0 — vale para os três manuscritos e vem antes de qualquer
+   submissão).** Retirar “as an indivisible package” (tese `01-introducao.tex:48-51`; KBS
+   `main.tex:123`), “are always applied together” (tese `02-fundamentacao.tex:135-136`) e
+   “bundle” (resumos: tese `frontmatter/abstract.tex:5`, KBS `:63`); no IJCNN (`main.tex:72-77`)
+   trocar “typically evaluate the combination of both” por uma frase que cite a ablação.
+   Texto-base: “Giunchiglia and Lukasiewicz ablate the two components on the validation splits
+   of eight FunCat datasets and find that MCLoss adds to the max module on all of them; we
+   extend that comparison to 27 datasets, a third objective, DAG ontologies, and test-set
+   evaluation under a validation-only protocol.” Em seguida, discutir o resultado no lugar
+   certo: no FunCat e no GO os nossos dados concordam em sentido com a ablação original
+   (MCLoss + rec. é o melhor braço, por 0,001–0,002); a afirmação “training-time losses do not
+   improve over BCE” vale para a média das quatro famílias e para cross-domain/texto, e precisa
+   dessa ressalva em resumo, contribuições e conclusões.
 5. **Ameaças à validade (C5).** Acrescentar em `07-discussao.tex:91-125`:
    - interna: época escolhida pelo score reconciliado (ou o controle do spec 23); teto de
      épocas no EUR-Lex; limiar transferido do modelo só-treino ao refeito; objetivo citado por
@@ -74,8 +100,8 @@ que existem no repositório e não são reportados. Fecha os achados C1–C9 do
      reexecutados); um único hardware;
    - conclusão estatística: 3 seeds; p-values sem correção (spec 24).
 6. **Resultados não reportados (C6).** Decidir e executar:
-   - ESM-2: (a) auditar `recover_seq_ids.py` (o mapeamento usa só features, nunca rótulos? os
-     ORFs do test aparecem no treino?) e reportar como seção curta do capítulo 5 — o resultado
+   - ESM-2: (a) reportar como seção curta do capítulo 5 (o mapeamento já foi auditado: sem
+     rótulos; 3 ORFs repetidos entre test e treino, a declarar) — o resultado
      mostra que as features pesam mais que qualquer restrição, o que reforça a leitura da tese
      e ajuda a responder “por que os ganhos são tão pequenos?”; ou (b) deixar fora e manter
      como trabalho futuro, sem dizer que não foi testado. Retirar “rather than end-to-end
@@ -115,6 +141,8 @@ que existem no repositório e não são reportados. Fecha os achados C1–C9 do
 
 ## Critério de aceite
 
+- [ ] Os três manuscritos citam a ablação da Seção 5.5 do C-HMCNN e nenhum diz que os
+      mecanismos nunca foram separados.
 - [ ] Cada RQ tem uma contribuição e uma resposta com o mesmo rótulo; nenhuma resposta traz
       resultado que a pergunta não pede.
 - [ ] `refs.bib` ≥ 60 entradas, todas citadas e conferidas.
@@ -141,8 +169,8 @@ salvo a opção de rodar `run_label_embeddings.py --group go` (~3 h de GPU).
 
 - Tese: `main.tex:60`, `frontmatter/abstract.tex`, `frontmatter/resumo.tex`, capítulos 1, 2, 5,
   7 e 8, `refs.bib`.
-- KBS: o passo 4 também vale para a introdução e os trabalhos relacionados
-  (`hmc-paper/main.tex`, seção 2); o IJCNN não tem espaço para mais que uma frase.
+- KBS: passo 4 em `hmc-paper/main.tex:63`, `:123` e na seção de trabalhos relacionados.
+- IJCNN: passo 4 em `hmc-paper-ijcnn/main.tex:72-77` (uma frase; conferir as 6 páginas).
 - `/home/brunos/git/phd/plano-defesa-2027.md`: cronograma da revisão bibliográfica.
 
 ## Checklist
@@ -150,7 +178,7 @@ salvo a opção de rodar `run_label_embeddings.py --group go` (~3 h de GPU).
 - [ ] Título decidido.
 - [ ] RQs e contribuições realinhadas.
 - [ ] Capítulo 2 ampliado.
-- [ ] Novidade frente ao C-HMCNN conferida no artigo.
+- [ ] Posicionamento frente à ablação do C-HMCNN corrigido em IJCNN, KBS e tese.
 - [ ] Ameaças à validade.
 - [ ] ESM-2 e embeddings de texto: decisão e execução.
 - [ ] RQ2 com tempo ou restrita a memória.
