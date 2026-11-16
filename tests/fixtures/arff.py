@@ -5,7 +5,11 @@ from pathlib import Path
 
 
 def _make_arff_content(
-    hierarchy_str: str, num_features: int, num_samples: int, is_go: bool = False
+    hierarchy_str: str,
+    num_features: int,
+    num_samples: int,
+    is_go: bool = False,
+    seed: int = 42,
 ) -> str:
     """Build a minimal valid HMC ARFF file as a string.
 
@@ -15,6 +19,8 @@ def _make_arff_content(
         num_features: Number of numeric features.
         num_samples: Number of data rows (samples).
         is_go: If True, treat as Gene Ontology format.
+        seed: Seed for the synthetic rows; use different seeds across splits
+            when a test needs rows to be identifiable by file.
 
     Returns:
         Full ARFF file content as a string.
@@ -28,7 +34,7 @@ def _make_arff_content(
 
     import random
 
-    rng = random.Random(42)
+    rng = random.Random(seed)
     for _ in range(num_samples):
         feats = ",".join(f"{rng.uniform(-1, 1):.4f}" for _ in range(num_features))
         # Pick one or two branches as labels

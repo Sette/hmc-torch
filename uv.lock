@@ -1033,7 +1033,7 @@ wheels = [
 
 [[package]]
 name = "hmc-torch"
-version = "0.0.10"
+version = "0.1.1"
 source = { editable = "." }
 default-groups = "all"
 dependencies = [
