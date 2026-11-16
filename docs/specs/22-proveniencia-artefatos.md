@@ -106,7 +106,9 @@ que as declarações de disponibilidade sejam verdadeiras. Fecha os achados A16,
 - Passo 1: `run_sr_gae_sota.py` testado em `enron_others` (0,7624 → 0,7636; aleatório 0,7642,
   igual ao JSON de 11/11) e commitado (`0cba69f`); `CLAUDE.md` lista os dois scripts.
 - Passo 2: rota (b) — tag local `surj-repro-2026-11` em `42aadba^`; KBS e tese citam a tag.
-  **A tag precisa ser enviada (`git push origin surj-repro-2026-11`) para o texto valer.**
+  **Atualização (2026-11-16):** em vez de enviar a tag ao hmc-torch, o código foi extraído para o
+  repositório próprio `github.com/Sette/surj-repro` (mesma tag, `surj-repro-2026-11`); KBS e tese
+  citam esse repositório.
 - Passo 3: rota (b) — KBS diz “available from the corresponding author on request”; IJCNN diz
   “to be released upon acceptance”. Publicar o arquivo (Zenodo/release) continua em aberto.
 - Falta: decidir a publicação dos artefatos; alinhar a versão do `pyproject.toml` (0.0.11) com
