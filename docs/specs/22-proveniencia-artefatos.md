@@ -107,8 +107,8 @@ que as declarações de disponibilidade sejam verdadeiras. Fecha os achados A16,
   igual ao JSON de 11/11) e commitado (`0cba69f`); `CLAUDE.md` lista os dois scripts.
 - Passo 2: rota (b) — tag local `surj-repro-2026-11` em `42aadba^`; KBS e tese citam a tag.
   **Atualização (2026-11-16):** em vez de enviar a tag ao hmc-torch, o código foi extraído para o
-  repositório próprio `github.com/Sette/surj-repro` (mesma tag, `surj-repro-2026-11`); KBS e tese
-  citam esse repositório.
+  repositório próprio `github.com/Sette/surj-repro` (mesma tag, `surj-repro-2026-11`), sem o
+  `email_authors.md` e sem código copiado do C-HMCNN; KBS e tese citam esse repositório.
 - Passo 3: rota (b) — KBS diz “available from the corresponding author on request”; IJCNN diz
   “to be released upon acceptance”. Publicar o arquivo (Zenodo/release) continua em aberto.
 - Falta: decidir a publicação dos artefatos; alinhar a versão do `pyproject.toml` (0.0.11) com
