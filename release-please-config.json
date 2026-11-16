@@ -6,8 +6,11 @@
     ".": {
       "package-name": "hmc-torch",
       "extra-files": [
-        "src/hmc/__init__.py",
-        ".bumpversion.toml"
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='hmc-torch')].version"
+        }
       ]
     }
   }

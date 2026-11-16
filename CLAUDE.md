@@ -44,9 +44,11 @@ antigo (`✨ feat: ...`) o `release-please` não parseia o commit e não abre o 
 
 O `release-please` (`.github/workflows/release-please.yml`, config em `release-please-config.json`
 e `.release-please-manifest.json`) lê os commits da `main` desde a última tag `hmc-torch-vX.Y.Z`,
-atualiza `pyproject.toml`, `src/hmc/__init__.py`, `.bumpversion.toml` e `CHANGELOG.md` e abre um
-PR de release. Títulos de squash/merge também precisam seguir o formato — um merge inteiro fica
-invisível para ele se o subject não for parseável.
+atualiza `pyproject.toml`, `uv.lock` e `CHANGELOG.md` e abre um PR de release. A versão tem
+uma fonte só, o `project.version` do `pyproject.toml`: `hmc.__version__` o lê em runtime (com
+fallback para o metadata do pacote instalado) — não escreva a versão em outro arquivo.
+Títulos de squash/merge também precisam seguir o formato — um merge inteiro fica invisível para
+ele se o subject não for parseável.
 
 ---
 
