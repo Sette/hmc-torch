@@ -148,3 +148,50 @@ ignore = [
     "PLW1510", # subprocess.run without explicit check (handled via git wrappers)
     "I001",    # isort ordering: ruff format already handles import sorting
 ]
+
+# The project.version above is the single version source. Keep release and
+# development bumps in this file, and update uv.lock alongside the metadata.
+[tool.bumpversion]
+parse = """(?x)
+    (?P<major>0|[1-9]\\d*)\\.
+    (?P<minor>0|[1-9]\\d*)\\.
+    (?P<patch>0|[1-9]\\d*)
+    (?:
+        .                             # dash seperator for pre-release section
+        (?P<pre_l>[a-zA-Z-]+)         # pre-release label
+        (?P<pre_n>0|[1-9]\\d*)        # pre-release version number
+    )?                                # pre-release section is optional
+"""
+serialize = [
+    "{major}.{minor}.{patch}.{pre_l}{pre_n}",
+    "{major}.{minor}.{patch}",
+]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+ignore_missing_files = false
+tag = false
+sign_tags = false
+tag_name = "{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+allow_dirty = false
+commit = false
+message = "Bump version: {current_version} → {new_version}"
+commit_args = ""
+
+[tool.bumpversion.parts.pre_l]
+values = ["dev", "rc"]
+optional_value = "dev"
+
+[[tool.bumpversion.files]]
+filename = "./pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "./uv.lock"
+search = '''name = "hmc-torch"
+version = "{current_version}"'''
+replace = '''name = "hmc-torch"
+version = "{new_version}"'''

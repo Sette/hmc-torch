@@ -29,6 +29,9 @@ Quick start::
 from __future__ import annotations
 
 import os
+import tomllib
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 from hmc.arguments import Args, parse_args
 from hmc.data.base import DatasetBundle, FeatureMetadata, Modality, Split
@@ -62,7 +65,21 @@ _reg_builtins()
 # ---------------------------------------------------------------------------
 # Version
 # ---------------------------------------------------------------------------
-__version__ = "0.0.11"  # x-release-please-version
+_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+
+
+def _read_version() -> str:
+    """Read the package version from the project metadata."""
+    if _PYPROJECT.is_file():
+        project = tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))
+        return project["project"]["version"]
+    try:
+        return version("hmc-torch")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+__version__ = _read_version()
 
 # ---------------------------------------------------------------------------
 # Exports
