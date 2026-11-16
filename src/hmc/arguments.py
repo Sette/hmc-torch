@@ -19,7 +19,7 @@ class DatasetConfig:
 
 
 @dataclass
-class TrainingConfig:
+class TrainingConfig:  # pylint: disable=too-many-instance-attributes
     """Training loop and optimization settings."""
 
     batch_size: int = 32
@@ -33,6 +33,18 @@ class TrainingConfig:
     consistency_loss: str = "mc"
     lambda_hier: float = 1.0
     lr_transformer: float = 2e-5
+    lr: float = 1e-3
+    dropout: float = 0.3
+    surj_dim: int = 128
+    surj_gae_epochs: int = 200
+    surj_gae_loss: str = "full"
+    hpt_backbone: str = "bert"
+    hpt_mlm: bool = True
+    hpt_graph: str = "both"
+    hpt_lr: float = 3e-5
+    hpt_batch_size: int = 8
+    grad_accum: int = 2
+    patience: int = 6
 
 
 @dataclass
@@ -118,6 +130,26 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--lambda_hier", type=float, default=1.0)
     parser.add_argument("--lr_transformer", type=float, default=2e-5)
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate (surj)")
+    parser.add_argument("--dropout", type=float, default=0.3, help="MLP dropout (surj)")
+    parser.add_argument(
+        "--surj_dim",
+        type=int,
+        default=128,
+        help="Label-embedding size of the graph autoencoder",
+    )
+    parser.add_argument("--surj_gae_epochs", type=int, default=200)
+    parser.add_argument(
+        "--surj_gae_loss",
+        type=str,
+        default="full",
+        choices=["full", "sampled", "sibling_repulsive"],
+        help=(
+            "'full' = Kipf & Welling's adjacency reconstruction; "
+            "'sampled' = negative sampling; "
+            "'sibling_repulsive' = SR-GAE with sibling cosine repulsion"
+        ),
+    )
     parser.add_argument(
         "--non_lin", type=str, default="relu", choices=["relu", "tanh", "sigmoid"]
     )
@@ -137,7 +169,35 @@ def get_parser() -> argparse.ArgumentParser:
             "localE2E",
             "tabular_gbdt",
             "tabular_mlp",
+            "surj",
+            "globalHPT",
         ],
+    )
+    hpt = parser.add_argument_group("globalHPT (prompt tuning + R-matrix)")
+    hpt.add_argument(
+        "--hpt_backbone",
+        type=str,
+        default="bert",
+        help="'bert' (bert-base-uncased, HPT's), 'specter2', or any HF masked-LM id",
+    )
+    hpt.add_argument("--hpt_mlm", type=str, default="true", choices=["true", "false"])
+    hpt.add_argument(
+        "--hpt_graph",
+        type=str,
+        default="both",
+        choices=["both", "down"],
+        help="GAT edges: 'down' = HPT's (parent->child, level->label); 'both' adds the reverse",
+    )
+    hpt.add_argument("--hpt_lr", type=float, default=3e-5)
+    hpt.add_argument("--hpt_batch_size", type=int, default=8)
+    hpt.add_argument(
+        "--grad_accum",
+        type=int,
+        default=2,
+        help="Gradient accumulation steps (globalHPT)",
+    )
+    hpt.add_argument(
+        "--patience", type=int, default=6, help="Early-stopping patience (globalHPT)"
     )
     parser.add_argument(
         "--best_threshold", type=str, default="false", choices=["true", "false"]
@@ -168,6 +228,18 @@ def parse_args() -> Args:
         consistency_loss=ns.consistency_loss,
         lambda_hier=ns.lambda_hier,
         lr_transformer=ns.lr_transformer,
+        lr=ns.lr,
+        dropout=ns.dropout,
+        surj_dim=ns.surj_dim,
+        surj_gae_epochs=ns.surj_gae_epochs,
+        surj_gae_loss=ns.surj_gae_loss,
+        hpt_backbone=ns.hpt_backbone,
+        hpt_mlm=_str_to_bool(ns.hpt_mlm),
+        hpt_graph=ns.hpt_graph,
+        hpt_lr=ns.hpt_lr,
+        hpt_batch_size=ns.hpt_batch_size,
+        grad_accum=ns.grad_accum,
+        patience=ns.patience,
     )
     return Args(
         dataset=dataset,

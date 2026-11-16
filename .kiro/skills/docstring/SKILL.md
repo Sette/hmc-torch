@@ -1,0 +1,56 @@
+---
+name: docstring
+description: Generate Google-style Python docstrings from source code.
+---
+
+# Skill: Python Docstring Generator
+
+## Description
+This skill analyzes Python source code (functions, classes, and methods) to generate detailed, standardized docstrings following the **Google Python Style Guide**.
+
+## Usage Context
+Apply this skill whenever a user requests code documentation, or when a Python file/block is identified as lacking documentation. It ensures consistency across research modules and production scripts.
+
+## Style Guidelines
+* **Format:** Google Style Docstrings.
+* **Language:** English.
+* **Type Hinting:** Extract types directly from Python type hints. If hints are missing, infer types from the logic or mark them as `Any`.
+* **Indentation:** Strictly maintain the 4-space indentation standard.
+
+## Docstring Components
+1.  **Summary:** A concise, one-line description of the purpose (imperative mood).
+2.  **Extended Description:** (Optional) Deeper explanation of the logic or mathematical background.
+3.  **Args:** List of arguments with name, type (in parentheses), and description.
+4.  **Returns:** Description of the return value and its type.
+5.  **Raises:** Explicitly list any errors or exceptions raised by the code.
+6.  **Example:** A `>>>` code block for complex logic or API usage.
+
+## Few-Shot Examples
+
+**Input:**
+```python
+def train_hmc_model(data_loader, model, optimizer, epochs=10):
+    # training logic
+    return history
+```
+
+**Output:**
+```python
+def train_hmc_model(data_loader, model, optimizer, epochs=10):
+    """Train a hierarchical multi-label classification model.
+
+    Runs the full training loop over the provided data loader for a given
+    number of epochs, updating model weights via the supplied optimizer.
+
+    Args:
+        data_loader: An iterable yielding (inputs, labels) batches.
+        model: The PyTorch model to train.
+        optimizer: The optimizer used to update model parameters.
+        epochs (int): Number of full passes over the dataset. Defaults to 10.
+
+    Returns:
+        dict: A dictionary containing loss and metric history per epoch.
+    """
+    # training logic
+    return history
+```

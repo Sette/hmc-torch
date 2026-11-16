@@ -23,6 +23,7 @@ uv run pytest tests/test_hierarchy.py::TestTreeHierarchy::test_nodes  # um teste
 make download-arff             # FunCat + GO + others → data/HMC_data_arff/ (tarball do repo C-HMCNN)
 make download-arxiv | wos | aapd | eurlex
 make download-rcv1             # corpus NIST em data/rcv1; roda HBGL (--raw_dir / --source_dir / --sample)
+make download-rcv1-lyrl        # rota aberta LYRL2004/JMLR (tokens com stem, sem texto bruto)
 
 # Treino
 ./run.sh                       # wos, global, cuda
@@ -30,8 +31,22 @@ python -m hmc.main --dataset_name wos --method global --device cuda \
   --dataset_path ./data --output_path ./output --consistency_loss none
 ```
 
-O manuscrito está em `docs/paper.tex` e `docs/paper/`; `docs/paper.pdf` é o PDF versionado.
-Não há alvo de compilação LaTeX no `Makefile` atual.
+O manuscrito é `docs/hmc-paper/main.tex`, um repositório git próprio (fora do versionamento do
+hmc-torch), com `make pdf` / `make check` no seu `Makefile`. Não há outra versão do paper no repo.
+
+---
+
+## Commits e release
+
+Commits seguem Conventional Commits com o **tipo na posição 1**: `tipo(escopo): emoji descrição`
+(ex.: `feat(hpt): ✨ add label-text encoder`). O emoji vem depois dos dois-pontos; no formato
+antigo (`✨ feat: ...`) o `release-please` não parseia o commit e não abre o PR de release.
+
+O `release-please` (`.github/workflows/release-please.yml`, config em `release-please-config.json`
+e `.release-please-manifest.json`) lê os commits da `main` desde a última tag `hmc-torch-vX.Y.Z`,
+atualiza `pyproject.toml`, `src/hmc/__init__.py`, `.bumpversion.toml` e `CHANGELOG.md` e abre um
+PR de release. Títulos de squash/merge também precisam seguir o formato — um merge inteiro fica
+invisível para ele se o subject não for parseável.
 
 ---
 
@@ -46,11 +61,13 @@ Escolhas reais de `--method` (ver `src/hmc/arguments.py`), despachadas em `src/h
 | `globalSOTA` | transformer fine-tuned + GCN + R-matrix |
 | `local` / `localE2E` | um MLP por nível da hierarquia |
 | `tabular_gbdt` / `tabular_mlp` | baselines tabulares (baselines da tabela FunCat) |
+| `surj` | Surj (WWW'22): GAE sobre a hierarquia → embeddings congelados; MLP → cosine → FC(V→V) → sigmoid, BCE |
+| `globalHPT` | HPT (EMNLP'22) + matriz R: prompt com um `[PRED]` por nível, tokens de rótulo via GAT, ZMLCE + MLM; `--consistency_loss` vira `none` (HPT puro) / `mc` (MCLoss nos logits) / `hinge` |
 
 Cada método aceito pela CLI está em `src/hmc/arguments.py` e tem sua função de treino em
 `src/hmc/pipeline/`; os modelos ficam em `src/hmc/models/`. Embora o dispatch em
-`src/hmc/main.py` conserve alguns aliases internos, `globalGNN`, `globalLM` e `global_baseline`
-não são escolhas válidas no parser atual. Não há métodos LLM/Ollama neste repositório.
+`src/hmc/main.py` conserve alguns aliases internos, `globalGNN` e `global_baseline`
+não são escolhas válidas no parser atual.
 
 `--consistency_loss {mc,hinge,none}` (para `global` e `globalE2E`): `mc` (default) é o MCLoss
 do C-HMCNN (BCE sobre as saídas constrangidas), `hinge` soma a Eq. 2 do paper com peso
@@ -169,3 +186,26 @@ Depois registre o manager (ver "Register your own dataset" no README.md).
    `src/hmc/datasets/gofun/__init__.py`.
 3. Dispatch em `src/hmc/datasets/dataset_manager.py`, defaults em `src/hmc/datasets/registry.py`,
    entrada em `src/hmc/datasets/download_all.py` e alvo no `Makefile`.
+
+---
+
+## HPT + matriz R (`globalHPT`, `experiments/run_hpt.py`)
+
+- Código: `models/global_classifier/hpt/` (modelo + losses) e `pipeline/hpt/main.py` (`fit_hpt` /
+  `evaluate_hpt`, compartilhados pelo CLI e pelo script). Reimplementação sobre transformers 5 / PyG 2.7;
+  `HPT/` (fora do versionamento) é só a referência.
+- `--hpt_graph down` é o grafo do HPT: com arestas só pai→filho e nível→rótulo, os tokens de nível
+  (os únicos que entram no prompt) não recebem mensagem nenhuma além do self-loop — a hierarquia não
+  chega ao encoder. `both` (default) adiciona as arestas reversas.
+- O cache de modelos (`ensure_transformer_model_cached`) salva via `AutoModel`, que **descarta a cabeça
+  MLM**; o HPT usa `auto_class="AutoModelForMaskedLM"` (pasta `models/<nome>__AutoModelForMaskedLM`).
+  O SPECTER2 não publica cabeça MLM: o transform começa aleatório.
+- Métricas: micro/macro-F1 (definição do HPT: média sobre todos os rótulos, ausentes contam 0, em
+  `utils/metrics/multilabel.py`), AUPRC e GHV; raw e reconciliado, no threshold fixo do HPT
+  (logit 0 = 0,5) e no escolhido na validação. Splits de texto agora carregam `split.texts`.
+- Custo (RTX 3060, bf16, batch 8 × accum 2): ~17 min por época no WOS.
+- `--selection {rec_val_micro,hpt_raw}`: o default é o nosso protocolo (micro-F1 reconciliado na
+  validação, threshold ajustado); `hpt_raw` reproduz o loop do HPT (macro-F1 **cru** na validação
+  em logit 0, paciência 5) para a reexecução do baseline. `experiments/summarize_hpt.py` agrega
+  os JSONs por seed em `summary.json`.
+
