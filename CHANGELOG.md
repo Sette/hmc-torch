@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.1](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.1.0...hmc-torch-v0.1.1) (2026-11-10)
+
+
+### Documentation
+
+* **skills:** 📝 put emoji after the conventional type ([8abe521](https://github.com/Sette/hmc-torch/commit/8abe5212ff7cc86efab31025a3d1d8d39eb459bb))
+
+## [0.1.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.0.11...hmc-torch-v0.1.0) (2026-11-10)
+
+
+### Features
+
+* paper experiments — HPT, SR-GAE, autoencoders ([b12606a](https://github.com/Sette/hmc-torch/commit/b12606a37400e87e8ce5e71c5c96646c0a761157))
+
 ## [0.0.11](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.0.10...hmc-torch-v0.0.11) (2026-10-17)
 
 
