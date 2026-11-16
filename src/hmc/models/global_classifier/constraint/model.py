@@ -3,6 +3,7 @@ This module contains the ConstrainedModel, ConstrainedGNNModel, and
 ConstrainedLightningModel classes for global hierarchical classification.
 """
 
+import itertools
 import os
 
 import torch
@@ -11,12 +12,20 @@ from lightning import LightningModule
 from sklearn.metrics import average_precision_score
 from torch import nn
 
-from hmc.models.global_classifier.constraint.utils import get_constr_out
+from hmc.models.global_classifier.constraint.utils import (
+    get_constr_out,
+    mc_training_outputs,
+)
 
 
 class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attributes
-    """C-HMCNN(h) model - during training it returns the not-constrained
-    output that is then passed to MCLoss"""
+    """Feed-forward global classifier with the hierarchy max-constraint.
+
+    An MLP with sigmoid outputs, one per class.  In training mode it returns
+    the raw outputs (MCLoss applies the constraint itself, see
+    :func:`mc_training_outputs`); in eval mode it returns them constrained by
+    :func:`get_constr_out`, unless ``baseline_model`` is set.
+    """
 
     def __init__(self, **kwargs):
         """
@@ -26,9 +35,10 @@ class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             input_dim: Input dimension.
             hidden_dim: Hidden dimension.
             output_dim: Output dimension.
-            hyperparams: Hyperparameters.
+            hyperparams: ``num_layers`` (linear layers, at least 2),
+                ``dropout`` and ``non_lin`` (``"tanh"`` or ReLU otherwise).
             r_matrix: Constraint matrix.
-            baseline_model: Whether to use baseline model.
+            baseline_model: Whether to skip the constraint at inference.
         """
         super().__init__()
 
@@ -42,40 +52,29 @@ class ConstrainedModel(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         self.nb_layers = self.hyperparams["num_layers"]
 
-        fc = []
-        for i in range(self.nb_layers):
-            if i == 0:
-                fc.append(nn.Linear(self.input_dim, self.hidden_dim))
-            elif i == self.nb_layers - 1:
-                fc.append(nn.Linear(self.hidden_dim, self.output_dim))
-            else:
-                fc.append(nn.Linear(self.hidden_dim, self.hidden_dim))
-        self.fc = nn.ModuleList(fc)
+        widths = (
+            [self.input_dim]
+            + [self.hidden_dim] * (self.nb_layers - 1)
+            + [self.output_dim]
+        )
+        self.fc = nn.ModuleList(
+            nn.Linear(n_in, n_out) for n_in, n_out in itertools.pairwise(widths)
+        )
 
         self.drop = nn.Dropout(self.hyperparams["dropout"])
 
         self.sigmoid = nn.Sigmoid()
-        if self.hyperparams["non_lin"] == "tanh":
-            self.f = nn.Tanh()
-        else:
-            self.f = nn.ReLU()
+        self.f = nn.Tanh() if self.hyperparams["non_lin"] == "tanh" else nn.ReLU()
 
     def forward(self, x):
         """Forward pass for the ConstrainedModel."""
-        for i in range(self.nb_layers):
-            if i == self.nb_layers - 1:
-                x = self.sigmoid(self.fc[i](x))
-            else:
-                x = self.f(self.fc[i](x))
-                x = self.drop(x)
-        if self.baseline_model:
-            output = x
-        else:
-            if self.training:
-                output = x
-            else:
-                output = get_constr_out(x, self.r_matrix)
-        return output
+        *hidden_layers, output_layer = self.fc
+        for layer in hidden_layers:
+            x = self.drop(self.f(layer(x)))
+        x = self.sigmoid(output_layer(x))
+        if self.baseline_model or self.training:
+            return x
+        return get_constr_out(x, self.r_matrix)
 
 
 class ConstrainedGNNModel(nn.Module):  # pylint: disable=too-many-instance-attributes
@@ -266,11 +265,7 @@ class ConstrainedLightningModel(LightningModule):  # pylint: disable=too-many-in
 
         output = self.model(x.float())
         if not self.baseline_model:
-            output = get_constr_out(output, self.r_matrix)
-
-            output = y * output.double()
-            output = get_constr_out(output, self.r_matrix)
-            output = (1 - y) * output.double() + y * output
+            output = mc_training_outputs(output, y, self.r_matrix)
 
         loss = self.criterion(output[:, self.to_eval], y[:, self.to_eval])
         self.log("train_loss", loss, prog_bar=True, logger=True)

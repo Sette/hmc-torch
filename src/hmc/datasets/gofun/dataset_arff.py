@@ -8,7 +8,6 @@ and adjacency matrices representing the class hierarchy.
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from itertools import chain
 from typing import Any
 
 import networkx as nx
@@ -40,6 +39,52 @@ def get_depth_by_root(g_t, t, roots):
         if depth is not None:
             return depth
     return None
+
+
+def _impute_column_means(x):
+    """Replace every NaN of ``x`` in place with the mean of its column."""
+    missing = np.isnan(x)
+    if missing.any():
+        column_means = np.nanmean(x, axis=0)
+        x[missing] = np.take(column_means, np.nonzero(missing)[1])
+
+
+def _branch_edges(path, is_go):
+    """Child → parent edges declared by one entry of the hierarchy attribute.
+
+    A GO entry is a single ``parent.child`` pair.  A FunCat entry is a full
+    dotted path such as ``01.01.03``: it declares one edge per prefix, from the
+    longer prefix to the shorter one, and a top-level path hangs from ``root``.
+    """
+    parts = path.split(".")
+    if is_go:
+        parent, child = parts[0], parts[1]
+        return [(child, parent)]
+    if len(parts) == 1:
+        return [(parts[0], "root")]
+    prefixes = [".".join(parts[:k]) for k in range(1, len(parts) + 1)]
+    return list(zip(prefixes[1:], prefixes[:-1]))
+
+
+@dataclass
+class _Column:
+    """One feature column of the ARFF header: numeric, or nominal (one-hot)."""
+
+    categories: tuple = ()
+
+    @property
+    def width(self):
+        """Number of values the column expands to."""
+        return len(self.categories) or 1
+
+    def encode(self, token):
+        """Encode a raw token; ``?`` is NaN (numeric) or all zeros (nominal)."""
+        if not self.categories:
+            return [np.nan] if token == "?" else [float(token)]
+        encoded = [0.0] * len(self.categories)
+        if token in self.categories:
+            encoded[self.categories.index(token)] = 1.0
+        return encoded
 
 
 @dataclass
@@ -102,10 +147,7 @@ class HMCDatasetArff:
         self.parse_arff()
 
         self.to_eval = [t not in to_skip for t in self.hierarchy.terms]
-        r_, c_ = np.where(np.isnan(self.samples.x))
-        m = np.nanmean(self.samples.x, axis=0)
-        for i, j in zip(r_, c_):
-            self.samples.x[i, j] = m[j]
+        _impute_column_means(self.samples.x)
 
     # ------------------------------------------------------------------
     # Convenience properties that preserve the original flat attribute API
@@ -248,23 +290,11 @@ class HMCDatasetArff:
         g = nx.DiGraph()
         levels = defaultdict(list)
 
-        for branch in h.split(","):
-            branch = branch.replace("/", ".")
-            terms = branch.split(".")
-
-            if self.is_go:
-                g.add_edge(terms[1], terms[0])
-            else:
-                level = len(terms) - 1
-                levels[level].append(branch)
-                if len(terms) == 1:
-                    g.add_edge(terms[0], "root")
-                else:
-                    for i in range(2, len(terms) + 1):
-                        g.add_edge(
-                            ".".join(terms[:i]),
-                            ".".join(terms[: i - 1]),
-                        )
+        for entry in h.split(","):
+            path = entry.replace("/", ".")
+            if not self.is_go:
+                levels[path.count(".")].append(path)
+            g.add_edges_from(_branch_edges(path, self.is_go))
 
         self.hierarchy.g = g
         self.hierarchy.levels = levels
@@ -290,11 +320,13 @@ class HMCDatasetArff:
         g_t = g.reverse()
         root_depths = nx.shortest_path_length(g_t, "root") if self.is_go else {}
 
-        nodes = sorted(
-            g.nodes(),
-            key=lambda x: (root_depths[x], x) if self.is_go else (len(x.split(".")), x),
-        )
-        nodes_idx = dict(zip(nodes, range(len(nodes))))
+        # Columns are ordered by depth, then by name: the order the benchmark's
+        # published results (and our saved R-matrices) are indexed with.
+        if self.is_go:
+            nodes = sorted(g.nodes(), key=lambda n: (root_depths[n], n))
+        else:
+            nodes = sorted(g.nodes(), key=lambda n: (n.count(".") + 1, n))
+        nodes_idx = {node: i for i, node in enumerate(nodes)}
 
         if self.is_go:
             for label in nodes:
@@ -397,65 +429,30 @@ class HMCDatasetArff:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _parse_feature_attribute(self, f_type, d, cats_lens):
-        """Return a feature parsing function for one non-class ``@ATTRIBUTE`` line.
-
-        For numeric attributes the returned callable converts a string token to
-        a single-element ``float`` list (or ``[nan]`` for missing values).  For
-        categorical attributes it builds a one-hot encoding lookup table and
-        returns a callable that maps a category string to its one-hot vector.
+    @staticmethod
+    def _column_from_type(f_type):
+        """Build the :class:`_Column` for the type of a non-class ``@ATTRIBUTE``.
 
         Args:
-            f_type (str): The type token from the ``@ATTRIBUTE`` line, either
-                ``"numeric"`` / ``"NUMERIC"`` or a brace-enclosed category list
-                such as ``"{cat1,cat2,cat3}"``.
-            d (list): Accumulator for categorical lookup dictionaries; mutated
-                in place.
-            cats_lens (list[int]): Accumulator for the width of each feature
-                column; mutated in place.
+            f_type (str): ``numeric`` (any case) or a brace-enclosed category
+                list such as ``{cat1,cat2,cat3}``.
 
         Returns:
-            Callable[[str, int], list[float]]: A function that accepts a raw
-            string token and the feature column index and returns a list of
-            floats representing that feature.
+            _Column: The column spec; nominal columns are one-hot encoded.
         """
-        if f_type in ("numeric", "NUMERIC"):
-            d.append([])
-            cats_lens.append(1)
-            return lambda x, i: [float(x)] if x != "?" else [np.nan]
+        f_type = f_type.strip()
+        if f_type.lower() == "numeric":
+            return _Column()
+        categories = [c.strip() for c in f_type.strip("{}").split(",")]
+        return _Column(categories=tuple(categories))
 
-        cats = f_type[1:-1].split(",")
-        cats_lens.append(len(cats))
-        d.append(
-            {
-                key: np.eye(len(cats), dtype=np.float32)[i].tolist()
-                for i, key in enumerate(cats)
-            }
-        )
-        return lambda x, i: d[i].get(x, [0.0] * cats_lens[i])
-
-    def _parse_feature_vector(self, d_line, feature_types):
-        """Parse feature columns from a data line into a flat float list.
-
-        Applies each per-column parsing function from ``feature_types`` to the
-        corresponding token in ``d_line`` and concatenates the results.
-
-        Args:
-            d_line (list[str]): Tokenised data line (split on ``","``).
-            feature_types (list[Callable]): Per-column parsing functions as
-                returned by :meth:`_parse_feature_attribute`.
-
-        Returns:
-            list[float]: Flat list of feature values for one sample.
-        """
-        return list(
-            chain(
-                *[
-                    feature_types[i](x, i)
-                    for i, x in enumerate(d_line[: len(feature_types)])
-                ]
-            )
-        )
+    @staticmethod
+    def _encode_features(tokens, columns):
+        """Encode the feature tokens of one data line into a flat float list."""
+        encoded = []
+        for column, token in zip(columns, tokens):
+            encoded.extend(column.encode(token))
+        return encoded
 
     def _parse_sample_labels(self, lab):
         """Parse the label column for one sample into global and local label vectors.
@@ -490,8 +487,9 @@ class HMCDatasetArff:
             ancs = h.node_ancestors.get(y_node)
             if ancs is None:
                 ancs = list(nx.ancestors(h.g_t, y_node))
-            y_[[h.nodes_idx.get(a) for a in ancs]] = 1
-            y_[h.nodes_idx[y_node]] = 1
+            # A sample belongs to its labels and to all of their ancestors.
+            for node in (y_node, *ancs):
+                y_[h.nodes_idx[node]] = 1
 
             if self.is_go:
                 depth = h.root_depths.get(y_node) - 1
@@ -519,7 +517,7 @@ class HMCDatasetArff:
         Dispatches the ``@ATTRIBUTE class hierarchical`` line to
         :meth:`build_hierarchy_graph` and :meth:`build_node_structures`, and
         collects a parsing callable for every other ``@ATTRIBUTE`` line via
-        :meth:`_parse_feature_attribute`.
+        :meth:`_column_from_type`.
 
         Args:
             f (IO[str]): Open file object positioned at the start of the ARFF
@@ -527,27 +525,20 @@ class HMCDatasetArff:
                 (just after ``@DATA``) as a side effect.
 
         Returns:
-            list[Callable]: Per-column feature parsing functions in declaration
-            order.
+            list[_Column]: One column spec per feature, in declaration order.
         """
-        feature_types = []
-        d = []
-        cats_lens = []
-
+        columns = []
         for line in f:
             if line.startswith("@DATA"):
                 break
             if line.startswith("@ATTRIBUTE class"):
-                h = line.split("hierarchical")[1].strip()
-                self.build_hierarchy_graph(h)
+                declaration = line.partition("hierarchical")[2].strip()
+                self.build_hierarchy_graph(declaration)
                 self.build_node_structures()
             elif line.startswith("@ATTRIBUTE"):
-                _, _, f_type = line.split()
-                feature_types.append(
-                    self._parse_feature_attribute(f_type, d, cats_lens)
-                )
-
-        return feature_types
+                _, _, f_type = line.split(maxsplit=2)
+                columns.append(self._column_from_type(f_type))
+        return columns
 
     def _parse_data_lines(self, f, feature_types):
         """Read data lines from an open file object and populate ``self.samples``.
@@ -561,19 +552,24 @@ class HMCDatasetArff:
         Args:
             f (IO[str]): Open file object positioned just after the ``@DATA``
                 line (i.e. at the first data record).
-            feature_types (list[Callable]): Per-column parsing functions as
-                returned by :meth:`_parse_attributes`.
+            feature_types (list[_Column]): Column specs as returned by
+                :meth:`_parse_attributes`.
         """
         x = []
         y = []
         y_nodes = []
         y_local = []
 
+        n_features = len(feature_types)
         for line in f:
-            d_line = line.split("%")[0].strip().split(",")
-            lab = d_line[len(feature_types)].strip()
-            x.append(self._parse_feature_vector(d_line, feature_types))
-            y_, sample_y_nodes, y_local_ = self._parse_sample_labels(lab)
+            record = line.partition("%")[0].strip()
+            if not record:
+                continue
+            tokens = record.split(",")
+            x.append(self._encode_features(tokens[:n_features], feature_types))
+            y_, sample_y_nodes, y_local_ = self._parse_sample_labels(
+                tokens[n_features].strip()
+            )
             y.append(y_)
             y_nodes.append(sample_y_nodes)
             y_local.append([np.stack(yy) for yy in y_local_])
