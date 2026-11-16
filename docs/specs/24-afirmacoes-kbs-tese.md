@@ -111,3 +111,12 @@ ou contradiz o resultado negativo que o próprio texto reporta. Fecha os achados
 - [ ] Limitações estatísticas.
 - [ ] `make check` e `make submission`.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- Feito: highlights; objetivo nomeado em resumo, contribuições e conclusões (KBS e tese);
+  “primary driver”, calibração, “C > 1,000”, “strongly”, “over 80%”, explicações causais
+  marcadas como conjectura; GAE híbrido (+0,0014 nos 10, +0,0016 nos 8); frases quebradas;
+  limitação de comparações múltiplas.
+- Falta: título da KBS e carta de apresentação (decisão do orientador); negrito das tabelas
+  em diferenças dentro do ruído; correção de Holm, se quiser reportar.

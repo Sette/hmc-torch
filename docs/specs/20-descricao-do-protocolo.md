@@ -118,3 +118,13 @@ Tamanho de treino efetivo no texto: WOS 30.070; AAPD 35.737; ArXiv 32.000; EUR-L
 - [ ] Subamostragens do H-MLCL.
 - [ ] `make check` ×3.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- Feito nos três manuscritos: λ = 1, BCE sem pesos, pares do fecho, regra de seleção de época,
+  subconjunto de validação e teto de épocas do EUR-Lex, limiar transferido ao modelo refeito,
+  tamanhos de treino de texto, parágrafo de reprodutibilidade, `LocalLevelHead`/“Tabular MLP”
+  fora dos métodos avaliados, 512 tokens e dropout 0,3 no E2E, subamostragens do H-MLCL,
+  apêndices A, B e D da tese. Acrescentada a diferença para o protocolo do C-HMCNN (10
+  execuções, hidden/LR por dataset).
+- KBS `bbb24c3`; IJCNN `ae112ff`; tese editada (repositório próprio, sem commit).

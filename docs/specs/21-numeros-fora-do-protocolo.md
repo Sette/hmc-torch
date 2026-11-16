@@ -134,3 +134,15 @@ de uma configuração legada e não tem origem em `output/`.
 - [ ] `consolidated_results.json` atualizado.
 - [ ] `make check` e `make submission`.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- Platt: opção (a) — reescrito na KBS e na tese (0,202 → 0,212 no mesmo modelo; sem afirmação
+  para o modelo refeito). As frases “overfits rare leaves” saíram.
+- F1 por nível: `fig5_per_level_f1.pdf` regenerada de `output/protocol/` (KBS e tese), texto e
+  legenda atualizados (ArXiv 0,81 → 0,58; WOS 0,84 → 0,65).
+- Tempos: opção (b) — tabela da KBS trocada pelos `train_time_s` do protocolo por família e
+  objetivo; a tese cita os mesmos números. RQ2 passou a dizer que a evidência é de memória.
+- `consolidated_results.json` atualizado (KBS `9b84d4f`). Diagrama CD conferido, sem troca.
+- Falta: `make_fig4_cross_domain.py` ainda tem valores fixos (só a legenda foi corrigida);
+  `protocol_summary.json` ainda grava desvio com ddof = 0; `make submission` da KBS.

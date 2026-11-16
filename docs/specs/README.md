@@ -23,13 +23,13 @@ Atualize a tabela ao concluir cada spec.
 | 16 | [GO scaling claims](16-go-scaling-claims.md) | P0 | [x] teste legado removido dos três manuscritos; memória medida em `output/scaling/dense_r_memory.json` | — |
 | 17 | [IJCNN editorial](17-ijcnn-editorial.md) | P2 | [x] 7 itens aplicados; 6 p., 0 over/underfull | 14–16 |
 | 18 | [Auditoria geral (2026-11-13)](18-audit-geral.md) | P0/P1/P2 | [ ] documento de apoio; 11 P0, 20 P1, 11 P2 | — |
-| 19 | [IJCNN: anonimização e IA](19-ijcnn-anonimizacao.md) | P0 | [ ] | — |
-| 20 | [Descrição do protocolo](20-descricao-do-protocolo.md) | P0 | [ ] | 22 (passo 1) |
-| 21 | [Números fora do protocolo](21-numeros-fora-do-protocolo.md) | P0 | [ ] | — |
-| 22 | [Proveniência e artefatos](22-proveniencia-artefatos.md) | P0 | [ ] | usuário (onde publicar) |
-| 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [ ] GPU ~7–8 h | 22 |
-| 24 | [Afirmações da KBS e da tese](24-afirmacoes-kbs-tese.md) | P1 | [ ] | 20, 21 |
-| 25 | [Posicionamento frente ao C-HMCNN + tese](25-tese-estrutura.md) | P0/P1 | [ ] passo 4 (P0) vale para IJCNN, KBS e tese | 20, 21, 24 |
+| 19 | [IJCNN: anonimização e IA](19-ijcnn-anonimizacao.md) | P0 | [x] anônimo, declaração de IA, 6 p.; falta só o suplemento anônimo, se houver | — |
+| 20 | [Descrição do protocolo](20-descricao-do-protocolo.md) | P0 | [x] aplicado em IJCNN, KBS e tese | 22 (passo 1) |
+| 21 | [Números fora do protocolo](21-numeros-fora-do-protocolo.md) | P0 | [~] Platt, F1 por nível e tempos corrigidos; faltam script da fig. 4 e `make submission` | — |
+| 22 | [Proveniência e artefatos](22-proveniencia-artefatos.md) | P0 | [~] script pareado commitado, tag do Surj criada (falta push), texto ajustado; falta publicar artefatos | usuário (onde publicar) |
+| 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [~] código commitado; bateria rodando desde 16/11 | 22 |
+| 24 | [Afirmações da KBS e da tese](24-afirmacoes-kbs-tese.md) | P1 | [~] texto corrigido; faltam título e negrito das tabelas | 20, 21 |
+| 25 | [Posicionamento frente ao C-HMCNN + tese](25-tese-estrutura.md) | P0/P1 | [~] passo 4 (P0) feito nos três; faltam título, cap. 2, ESM-2, arguição | 20, 21, 24 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
