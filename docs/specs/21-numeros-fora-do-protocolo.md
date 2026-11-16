@@ -130,7 +130,7 @@ de uma configuração legada e não tem origem em `output/`.
 - [ ] Diagrama CD regenerado.
 - [ ] Tabela de tempos resolvida.
 - [ ] Legenda e script da figura cross-domain.
-- [ ] Figuras órfãs removidas.
+- [x] Figuras órfãs removidas (KBS `b5fd3b8`, 16/11/2026; nenhuma figura incluída na KBS ou na tese ficou faltando).
 - [ ] `consolidated_results.json` atualizado.
 - [ ] `make check` e `make submission`.
 - [ ] Spec marcado como concluído no `README.md`.
