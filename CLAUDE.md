@@ -47,6 +47,12 @@ e `.release-please-manifest.json`) lê os commits da `main` desde a última tag 
 atualiza `pyproject.toml`, `uv.lock` e `CHANGELOG.md` e abre um PR de release. A versão tem
 uma fonte só, o `project.version` do `pyproject.toml`: `hmc.__version__` o lê em runtime (com
 fallback para o metadata do pacote instalado) — não escreva a versão em outro arquivo.
+**Nunca edite à mão** `.release-please-manifest.json`, `project.version` nem as seções do
+`CHANGELOG.md`: o manifest tem que apontar para uma tag `hmc-torch-vX.Y.Z` que exista. Uma versão
+sem tag (como o 0.2.0 manual de nov/2026) faz o release-please não achar a última release, varrer
+o histórico inteiro e obedecer a um `Release-As: 0.0.11` antigo — o PR de release sai com uma
+versão que já existe (`Duplicate release tag`). Para forçar uma versão, use um commit com footer
+`Release-As: X.Y.Z`.
 Títulos de squash/merge também precisam seguir o formato — um merge inteiro fica invisível para
 ele se o subject não for parseável.
 
