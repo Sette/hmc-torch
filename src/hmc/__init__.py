@@ -29,6 +29,9 @@ Quick start::
 from __future__ import annotations
 
 import os
+import tomllib
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 from hmc.arguments import Args, parse_args
 from hmc.data.base import DatasetBundle, FeatureMetadata, Modality, Split
@@ -60,9 +63,24 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 _reg_builtins()
 
 # ---------------------------------------------------------------------------
-# Version
+# Version — single source: ``project.version`` in pyproject.toml
 # ---------------------------------------------------------------------------
-__version__ = "0.2.0"  # x-release-please-version
+_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+
+
+def _read_version() -> str:
+    # In a checkout (and with PYTHONPATH=src) the pyproject sits at the repo
+    # root; in an installed wheel the package metadata holds the version.
+    if _PYPROJECT.is_file():
+        pyproject = tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))
+        return pyproject["project"]["version"]
+    try:
+        return version("hmc-torch")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+__version__ = _read_version()
 
 # ---------------------------------------------------------------------------
 # Exports
