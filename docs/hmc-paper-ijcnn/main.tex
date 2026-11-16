@@ -13,23 +13,22 @@
 
 \title{When Do Hierarchical Constraints Help? A Systematic Study of R-Matrix Consistency and Reconciliation in Hierarchical Multi-Label Classification}
 
-% NOTE: For double-blind IJCNN initial submission, uncomment the anonymous
-% author block below and comment out the camera-ready author block.
-% \author{\IEEEauthorblockN{Anonymous Authors}
-% \IEEEauthorblockA{Paper under double-blind review}}
-\author{\IEEEauthorblockN{Bruno Silva Sette\IEEEauthorrefmark{1} and Diego Furtado Silva\IEEEauthorrefmark{1}}
-\IEEEauthorblockA{\IEEEauthorrefmark{1}Federal University of S\~ao Carlos (UFSCar), S\~ao Carlos, SP, Brazil\\
-Email: bruno.sette@ufscar.br}}
+% Double-blind submission (IJCNN 2027). CAMERA-READY: restore the block below
+% and the items listed in CAMERA_READY.md.
+\author{\IEEEauthorblockN{Anonymous Authors}}
+% CAMERA-READY: \author{\IEEEauthorblockN{Bruno Silva Sette\IEEEauthorrefmark{1} and Diego Furtado Silva\IEEEauthorrefmark{1}}
+% CAMERA-READY: \IEEEauthorblockA{\IEEEauthorrefmark{1}Federal University of S\~ao Carlos (UFSCar), S\~ao Carlos, SP, Brazil\\
+% CAMERA-READY: Email: bruno.sette@ufscar.br}}
 
 \maketitle
 
 \begin{abstract}
 Hierarchical multi-label classification (HMC) requires predictions to be
 consistent with a class hierarchy: an ancestor must not score lower than its
-descendants. The R-matrix constraint enforces this property, but prior work
-evaluates it together with a specific architecture and training recipe, so it
-is unclear whether the benefit comes from the training-time consistency loss
-or from inference-time reconciliation. We separate the two in a controlled
+descendants. The R-matrix constraint enforces this property with a
+training-time consistency loss and inference-time reconciliation, whose
+effects have been separated only on the validation splits of eight FunCat
+datasets. We separate the two in a controlled
 study of three objectives (BCE, hinge, and MCLoss), each scored with and
 without reconciliation, on 27 datasets covering text, FunCat, Gene Ontology,
 and cross-domain benchmarks, with every choice made on validation data.
@@ -47,7 +46,6 @@ average). On WOS, a fine-tuned
 SPECTER2 with reconciliation reaches 0.8704 $\pm$ 0.0040 micro-F1, within
 seed noise of our reimplementation of HPT (0.8691 $\pm$ 0.0023). A
 reimplementation of Surj from its paper does not reach its reported results.
-Code: \url{https://github.com/Sette/hmc-torch}.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -72,10 +70,12 @@ it has been applied in two ways: a differentiable \emph{training-time
 consistency loss} (such as a pairwise hinge penalty or the MCLoss of C-HMCNN)
 and an \emph{inference-time reconciliation} operator that propagates scores
 bottom-up. Published HMC systems typically evaluate the combination of both,
-entangled with a specific neural architecture and training recipe. As a result,
-it remains unclear whether the constraint helps because of the training loss,
-because of post-hoc reconciliation, or because the underlying backbone is
-better tuned. A second obstacle is scalability: dense implementations of the
+entangled with a specific neural architecture and training recipe. The one
+ablation we know of, in the C-HMCNN paper~\cite{chmcnn}, compares the two on
+the validation splits of eight FunCat datasets and finds that MCLoss adds to
+the max module on all of them. Beyond that setting, it remains unclear whether
+the constraint helps because of the training loss, because of post-hoc
+reconciliation, or because the underlying backbone is better tuned. A second obstacle is scalability: dense implementations of the
 constraint allocate a $B\times C\times C$ intermediate tensor, which bounds the
 batch size on ontologies with thousands of classes.
 
@@ -105,7 +105,8 @@ Our contributions are:
   \item A \textbf{reproducibility check of published baselines}: a 3-seed
   reimplementation of HPT on WOS, and a reimplementation of
   Surj~\cite{www2022ontology}, whose reported results we could not reach.
-  \item An open-source implementation with per-seed artifacts.
+  \item An implementation and per-seed metric files, to be released upon
+  acceptance.
 \end{itemize}
 {\sloppy\hbadness=10000
 We credit the R-matrix formulation to Giunchiglia and Lukasiewicz~\cite{chmcnn};
@@ -173,18 +174,18 @@ All models share the same classification head producing raw per-class
 probabilities $p_{b,i} = \sigma(z_{b,i})$ for sample $b \in \{1,\dots,B\}$ and
 class $i \in \{1,\dots,C\}$. We compare three training objectives:
 \begin{itemize}
-  \item \textbf{BCE}: prevalence-weighted binary cross-entropy applied directly
+  \item \textbf{BCE}: unweighted binary cross-entropy applied directly
   to the raw probabilities $p_{b,i}$ without structural penalties.
   \item \textbf{Hinge}: BCE combined with a differentiable penalty
   $\mathcal{L} = \mathcal{L}_{\text{BCE}} + \lambda\mathcal{L}_{\text{hier}}$
-  that penalizes child--parent score inversions:
+  ($\lambda=1$) that penalizes child--parent score inversions:
   \begin{equation}
   \mathcal{L}_{\text{hier}} = \frac{1}{B|\mathcal{P}|}\sum_{b=1}^{B}\sum_{(u,v)\in\mathcal{P}}
   \max(0,\,p_{b,u}-p_{b,v}+\gamma),
   \label{eq:hinge}
   \end{equation}
   where $\gamma=0$ is the margin and $\mathcal{P}$ is the set of constrained
-  child--ancestor pairs ($\mathcal{P}=\mathcal{E}$ in the sparse formulation).
+  child--ancestor pairs (all pairs of the ancestor closure in our experiments).
   \item \textbf{MCLoss}: the coherent loss of C-HMCNN~\cite{chmcnn}, which
   computes BCE on the max-constrained outputs $\tilde{p}_{b,i} = \max_{j:
   R_{ij}=1} p_{b,j}$; for positive targets the maximum is taken only over
@@ -278,13 +279,15 @@ ARFF}---Enron email, Diatoms microscopy, and ImCLEF07a/d medical
 imaging~\cite{clus}. RCV1-V2 is supported through the open LYRL2004 release and
 evaluated as a structural diagnostic; raw Reuters XML requires the NIST license
 and is not used. Text datasets use SPECTER2-base~\cite{specter2} (768-d, CLS
-pooling, 256-token limit), either frozen or fine-tuned end-to-end; tabular and
+pooling; 256 tokens when frozen, 512 when fine-tuned end-to-end); tabular and
 cross-domain datasets use standardized pre-extracted ARFF features.
 
 \textbf{Protocol.} Every model is trained on the training partition only. Early
 stopping and the decision threshold (swept over $[0.05, 0.95]$ in steps of
 0.05) are selected exclusively on the validation split, and the test split is
-evaluated once. On the ARFF benchmarks (FunCat, GO, and cross-domain), once the
+evaluated once. The stopping epoch maximizes the validation AUPRC of the
+reconciled scores for every objective, and raw scores are evaluated at that
+same epoch; on EUR-Lex the 100-epoch budget is reached. On the ARFF benchmarks (FunCat, GO, and cross-domain), once the
 stopping epoch is chosen on validation, the network is refit on training +
 validation for that exact number of epochs, matching the protocol of
 HMCN~\cite{weihs2018hmc} and C-HMCNN~\cite{chmcnn}; for the four cross-domain
@@ -613,8 +616,13 @@ inference-time reconciliation adds a small, consistent gain and guarantees
 consistency. BCE with reconciliation matches MCLoss while avoiding raw-score
 collapse. On FunCat and GO, the best reconciled objective (MCLoss) is within
 $0.003$ AUPRC of C-HMCNN and BCE within $0.005$; on cross-domain data, BCE is
-above C-HMCNN on three of four datasets. Code is
-available at \url{https://github.com/Sette/hmc-torch}.
+above C-HMCNN on three of four datasets. Code and per-seed metrics will be
+released upon acceptance.
+
+\section*{Acknowledgment}
+The authors used Claude (Anthropic) for language editing, consistency checks,
+and \LaTeX{} formatting, reviewed the result, and take full responsibility for
+the content.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
