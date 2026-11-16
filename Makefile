@@ -64,8 +64,3 @@ build:
 
 pipeline: lint test
 
-# ── Versioning (releases on main are cut by release-please) ─────────
-
-bump-patch bump-minor bump-major:
-	uv run bump-my-version bump $(subst bump-,,$@)
-	@uv run bump-my-version show current_version
