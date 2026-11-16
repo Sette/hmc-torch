@@ -186,3 +186,15 @@ salvo a opção de rodar `run_label_embeddings.py --group go` (~3 h de GPU).
 - [ ] Respostas de arguição.
 - [ ] `make check` e arquivo datado.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- Passo 4 (P0) feito nos três manuscritos: a ablação da Seção 5.5 do C-HMCNN é citada na
+  introdução (e no cap. 2 da tese), “indivisible package”/“always applied together”/“bundle”
+  saíram, e resumo, contribuições, cap. 6 e cap. 7 dizem que o MCLoss + rec. segue à frente
+  em FunCat/GO por 0,001–0,002.
+- Feito na tese: RQ4 reescrita em (a) comparação e reprodutibilidade e (b) parte exploratória;
+  ameaças à validade ampliadas; RQ2 restrita a memória; “halves the epochs” retirado; overfull
+  do cap. 3 e do apêndice A corrigidos (restam os 2 `\vbox` da capa).
+- Falta (decisão sua ou do orientador): título; ampliar o capítulo 2 (60+ referências);
+  reportar ou não o ESM-2; respostas de arguição.

@@ -101,3 +101,14 @@ embeddings); C2 ≈ 1 h; C3 ≈ 40 min de CPU. Total ~7–8 h, uma noite.
 - [ ] Tabela de comparação gerada.
 - [ ] Texto atualizado.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- `run_protocol.py --select {rec,raw}` e `experiments/summarize_controls.py` commitados
+  (`2f503d8`). O controle roda o BCE com a época escolhida pelo score cru; a comparação
+  simétrica usa o braço raw desse run e o braço rec do protocolo.
+- Bateria disparada em 16/11: `output/protocol_controls/run_controls.sh` (C1 nos 27 datasets,
+  C2 = EUR-Lex com 200 épocas); log em `output/protocol_controls/run.log`.
+- C3 (Platt no modelo refeito) dispensado: o parágrafo do Platt não faz afirmação sobre o
+  modelo refeito.
+- Falta: rodar `summarize_controls.py` ao fim da bateria e levar o resultado ao texto.

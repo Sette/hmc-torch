@@ -83,3 +83,11 @@ revisão.
 - [ ] `CAMERA_READY.md` criado.
 - [ ] `make check` passa.
 - [ ] Spec marcado como concluído no `README.md`.
+
+## Execução (16/11/2026)
+
+- Feito: autores anônimos (bloco original em comentários `% CAMERA-READY:`), URLs removidas do
+  abstract e da conclusão, seção Acknowledgment com a declaração de IA, `CAMERA_READY.md`,
+  metadados do PDF sem autor. 6 páginas, 0 over/underfull (`ae112ff`).
+- Falta: material suplementar anônimo, se for enviar código (passo 5); reconferir as regras no
+  site antes de submeter.
