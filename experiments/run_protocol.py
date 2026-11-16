@@ -574,6 +574,9 @@ def main():
     parser.add_argument("--max_epochs", type=int, default=None, help="Override (smoke tests)")
     parser.add_argument("--dropout", type=float, default=None, help="Override the MLP dropout (0.3)")
     parser.add_argument("--batch", type=int, default=None, help="Override the batch size")
+    parser.add_argument("--select", choices=["rec", "raw"], default=None,
+                        help="Scores whose validation AUPRC picks the epoch (default: rec). "
+                             "'raw' is the control for the raw arms; write it to another --out_dir")
     args = parser.parse_args()
 
     if args.datasets:
@@ -590,7 +593,8 @@ def main():
     for name in names:
         run_dataset(name, seeds, device, args.out_dir, objectives,
                     gbdt=name in FUNCAT and not args.no_gbdt, max_epochs=args.max_epochs,
-                    overrides={k: v for k, v in (("dropout", args.dropout), ("batch", args.batch))
+                    overrides={k: v for k, v in (("dropout", args.dropout), ("batch", args.batch),
+                                                 ("select", args.select))
                                if v is not None})
 
 
