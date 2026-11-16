@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "bootstrap-sha": "65fae5dfff69b332be53d61cf8b06f0d7c321652",
+  "packages": {
+    ".": {
+      "package-name": "hmc-torch",
+      "extra-files": [
+        "src/hmc/__init__.py",
+        ".bumpversion.toml"
+      ]
+    }
+  }
+}

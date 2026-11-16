@@ -96,5 +96,5 @@ if [ "$INSTALL_CHOICE" = "y" ] && [ "$DEVICE" = "cpu" ]; then
 fi
 
 chmod +x run.sh
-uv sync
+uv sync --extra download
 source .venv/bin/activate

@@ -79,13 +79,28 @@ class SparseRMatrix:
     Hierarchy object (avoids expensive r_matrix/node_levels properties).
     """
 
-    def __init__(self, graph, device: str = "cpu"):
+    def __init__(self, graph, device: str = "cpu", column_index: dict | None = None):
+        """
+        Args:
+            graph: child→parent DiGraph.
+            device: PyTorch device.
+            column_index: node → score-column mapping.  Pass the dataset's own
+                ``nodes_idx`` whenever its column order is not the internal
+                (depth, name) order, otherwise scores are read from and written
+                to the wrong columns.
+        """
         self.graph = graph  # child→parent DiGraph
         self.device = device
         self.n_nodes = graph.number_of_nodes()
         levels, node_index, nodes_sorted, parents_map = _compute_levels_and_index(graph)
+        if column_index is not None:
+            node_index = {
+                n: column_index[n] for n in graph.nodes() if n in column_index
+            }
         self.levels = levels
         self.node_idx = node_index
+        self._edges = None  # (child, parent) column tensors, built lazily
+        self._col_lvls = None  # cached depth level per score column
         self.nodes = nodes_sorted
         self._parents = parents_map
         # depth level per node (0 = root)
@@ -125,6 +140,49 @@ class SparseRMatrix:
         """
         raise NotImplementedError
 
+    def reconcile_with_depth_offsets(
+        self,
+        scores: torch.Tensor,
+        level_offsets: dict[int, float] | torch.Tensor,
+        eps: float = 1e-6,
+    ) -> torch.Tensor:
+        """Apply per-depth-level logit offsets followed by exact bottom-up reconciliation.
+
+        Unlike per-node Platt calibration (which fits ``2*C`` parameters and
+        overfits rare leaf classes), depth-level calibration adjusts only ``L``
+        scalar offsets (one per hierarchy depth level ``l``) before
+        ``self.reconcile``, recovering deep-level recall while guaranteeing
+        zero hierarchy violations.
+
+        Args:
+            scores: ``(batch, N)`` tensor of probabilities in ``[0, 1]``.
+            level_offsets: mapping ``{depth_level: delta_logit}`` or 1D tensor
+                indexed by depth level.
+            eps: numerical clamp before ``torch.logit``.
+
+        Returns:
+            torch.Tensor: depth-calibrated and reconciled probabilities ``(batch, N)``.
+        """
+        col_lvls = getattr(self, "_col_lvls", None)
+        if col_lvls is None or len(col_lvls) != scores.shape[1]:
+            col_lvls = [0] * scores.shape[1]
+            for node, col in self.node_idx.items():
+                if 0 <= col < scores.shape[1]:
+                    col_lvls[col] = int(self.node_levels.get(node, 0))
+            self._col_lvls = col_lvls
+        if isinstance(level_offsets, dict):
+            off_list = [float(level_offsets.get(lvl, 0.0)) for lvl in col_lvls]
+        else:
+            n_off = len(level_offsets)
+            off_list = [
+                float(level_offsets[lvl]) if 0 <= lvl < n_off else 0.0
+                for lvl in col_lvls
+            ]
+        col_offsets = torch.tensor(off_list, dtype=scores.dtype, device=scores.device)
+        clamped = scores.clamp(eps, 1.0 - eps)
+        adjusted = torch.sigmoid(torch.logit(clamped) + col_offsets.unsqueeze(0))
+        return self.reconcile(adjusted)
+
     def consistency_loss(
         self, probs: torch.Tensor, margin: float = 0.0
     ) -> torch.Tensor:
@@ -155,61 +213,57 @@ class BlockDiagonalR(SparseRMatrix):
     Memory: O(N) — graph edges + node metadata.
     """
 
+    def _edge_columns(self, device) -> tuple[torch.Tensor, torch.Tensor]:
+        """(child, parent) column tensors for every edge between indexed nodes."""
+        cache = getattr(self, "_edges", None)
+        if cache is None or cache[0].device != torch.device(device):
+            child, parent = [], []
+            for node, parents in self._parents.items():
+                if node not in self.node_idx:
+                    continue
+                for p in parents:
+                    if p in self.node_idx:
+                        child.append(self.node_idx[node])
+                        parent.append(self.node_idx[p])
+            cache = (
+                torch.tensor(child, dtype=torch.long, device=device),
+                torch.tensor(parent, dtype=torch.long, device=device),
+            )
+            self._edges = cache
+        return cache
+
     def reconcile(self, scores: torch.Tensor) -> torch.Tensor:
         """Bottom-up max propagation through graph edges.
 
-        For trees, one pass suffices.  For DAGs (multiple parents),
-        iterates up to max_depth times to ensure transitive closure:
-        after N passes, scores propagate N levels up the hierarchy.
-        Convergence is guaranteed after max_depth passes.
+        Each pass lifts every parent to at least the maximum of its direct
+        children, so after ``depth`` passes every ancestor is at least as high
+        as all of its descendants -- the same result as the dense R-matrix max,
+        in O(B·E) memory.  The operation is differentiable, so it can also be
+        used inside a loss (e.g. MCLoss).
         """
-        result = scores.clone()
-        max_depth = len(self.levels)
-        sorted_levels = sorted(self.levels.keys(), reverse=True)
-        for _ in range(max_depth):
-            changed = False
-            for level in sorted_levels:
-                if level == 0:
-                    continue
-                for node in self.levels[level]:
-                    parents = self.parents(node)
-                    if not parents:
-                        continue
-                    n_idx = self.node_idx[node]
-                    node_score = result[:, n_idx]
-                    for p in parents:
-                        if p not in self.node_idx:
-                            continue
-                        p_idx = self.node_idx[p]
-                        update = torch.maximum(result[:, p_idx], node_score)
-                        if not torch.equal(update, result[:, p_idx]):
-                            changed = True
-                            result[:, p_idx] = update
-            if not changed:
+        child, parent = self._edge_columns(scores.device)
+        result = scores
+        if child.numel() == 0:
+            return result
+        index = parent.unsqueeze(0).expand(scores.shape[0], -1)
+        is_cuda = scores.is_cuda
+        for _ in range(len(self.levels)):
+            updated = result.scatter_reduce(
+                1, index, result[:, child], reduce="amax", include_self=True
+            )
+            if not is_cuda and torch.equal(updated, result):
                 break
+            result = updated
         return result
 
     def consistency_loss(
         self, probs: torch.Tensor, margin: float = 0.0
     ) -> torch.Tensor:
         """Penalize child > parent violations using graph edges."""
-        violations = torch.tensor(0.0, device=probs.device)
-        count = 0
-        sorted_levels = sorted(self.levels.keys(), reverse=True)
-        for level in sorted_levels:
-            if level == 0:
-                continue
-            for node in self.levels[level]:
-                n_idx = self.node_idx[node]
-                parents = self.parents(node)
-                for p in parents:
-                    if p not in self.node_idx:
-                        continue
-                    p_idx = self.node_idx[p]
-                    diff = probs[:, n_idx] - probs[:, p_idx] + margin
-                    violations += torch.clamp(diff, min=0.0).sum()
-                    count += probs.shape[0]
-        return violations / max(count, 1)
+        child, parent = self._edge_columns(probs.device)
+        if child.numel() == 0:
+            return probs.new_zeros(())
+        return torch.clamp(probs[:, child] - probs[:, parent] + margin, min=0.0).mean()
 
     def to_dense(self) -> torch.Tensor:
         """Reconstruct dense R from graph for validation."""
@@ -234,8 +288,14 @@ class TopKR(SparseRMatrix):
     Memory: O(N·K) for ancestor cache.
     """
 
-    def __init__(self, hierarchy, K: int = 10, device: str = "cpu"):
-        super().__init__(hierarchy, device)
+    def __init__(
+        self,
+        hierarchy,
+        K: int = 10,
+        device: str = "cpu",
+        column_index: dict | None = None,
+    ):
+        super().__init__(hierarchy, device, column_index)
         self.K = K  # pylint: disable=invalid-name
         self._ancestors: dict[int, list[int]] = {}
         self._build()
@@ -304,7 +364,11 @@ class TopKR(SparseRMatrix):
 
 
 def create_sparse_r(
-    graph, method: str = "block_diag", K: int = 10, device: str = "cpu"
+    graph,
+    method: str = "block_diag",
+    K: int = 10,
+    device: str = "cpu",
+    column_index: dict | None = None,
 ) -> SparseRMatrix:
     """Factory for sparse R-matrix variants.
 
@@ -313,12 +377,13 @@ def create_sparse_r(
         method: One of ``"block_diag"`` or ``"topk"``.
         K: Number of ancestors for topk method.
         device: PyTorch device.
+        column_index: node → score-column mapping (see ``SparseRMatrix``).
 
     Returns:
         A SparseRMatrix instance.
     """
     if method == "block_diag":
-        return BlockDiagonalR(graph, device)
+        return BlockDiagonalR(graph, device, column_index)
     if method == "topk":
-        return TopKR(graph, K=K, device=device)
+        return TopKR(graph, K=K, device=device, column_index=column_index)
     raise ValueError(f"Unknown sparse R method: {method}")

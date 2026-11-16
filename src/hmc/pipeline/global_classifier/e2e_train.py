@@ -67,14 +67,15 @@ def _run_e2e_training_loop(model, args, optimizer, criterion) -> tuple:
     return log_system_info(args.device), time.perf_counter() - start
 
 
-def _collect_e2e_test_outputs(model, args) -> tuple:
-    """Run inference on test set; return (constr_test, y_test, to_eval)."""
+def _collect_e2e_test_outputs(model, args, loader=None) -> tuple:
+    """Run inference on ``loader`` (default: test); return (scores, y, to_eval)."""
     to_eval = args.to_eval.to("cpu")
     model.eval()
     constr_parts, y_parts = [], []
+    loader = args.test_loader if loader is None else loader
 
     with torch.no_grad():
-        for token_batch, target_batch in args.test_loader:
+        for token_batch, target_batch in loader:
             token_batch = _to_device(token_batch, args.device)
             labels = target_batch["global"]
             output = model(**token_batch).cpu()
@@ -107,8 +108,14 @@ def train_e2e_step(args, postprocess_fn=None):
 
     best_threshold = 0.5
     if args.best_threshold:
+        # Threshold from the validation split, never from test.
+        constr_val, y_val, _ = _collect_e2e_test_outputs(
+            model, args, loader=args.valid_loader
+        )
+        if postprocess_fn is not None:
+            constr_val = postprocess_fn(constr_val, y_val, to_eval, args)
         best_threshold, _ = find_global_best_threshold(
-            y_test[:, to_eval], constr_test[:, to_eval], args, mode="global"
+            y_val[:, to_eval], constr_val[:, to_eval], args, mode="global"
         )
 
     y_pred_local = global_to_local_predictions(

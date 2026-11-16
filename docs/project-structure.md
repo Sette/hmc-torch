@@ -83,8 +83,8 @@ despachados em `src/hmc/main.py`:
 | `local`, `localE2E` | `hmc.pipeline.local_classifier.main` |
 | `tabular_gbdt`, `tabular_mlp` | `hmc.pipeline.tabular.main` |
 
-O dispatch também reconhece aliases internos `global_baseline` e `globalLM`,
-mas eles não aparecem nas escolhas do parser CLI. Use os nomes listados acima.
+O dispatch também reconhece o alias interno `global_baseline`, mas ele não
+aparece nas escolhas do parser CLI. Use os nomes listados acima.
 
 ## Diretórios de trabalho
 
@@ -92,8 +92,7 @@ mas eles não aparecem nas escolhas do parser CLI. Use os nomes listados acima.
 - `output/`: resultados e artefatos de treino.
 - `models/`: cache de modelos/embeddings quando configurado.
 - `docs/`: documentação, planos e material do paper.
-- `docs/paper/`: fontes do paper mantidas neste repositório; alguns trabalhos
-  anteriores podem referenciar o checkout aninhado `docs/hmc-paper`.
+- `docs/hmc-paper/`: o paper (repositório git próprio, não versionado pelo hmc-torch).
 
 Comandos básicos de desenvolvimento e download estão no `README.md` e no
 `CLAUDE.md`. Os arquivos em `docs/*plan*.md` descrevem objetivos e experimentos,

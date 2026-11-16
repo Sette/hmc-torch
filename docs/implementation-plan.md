@@ -18,8 +18,8 @@
 | 7 | CI (GitHub Actions), 91 testes, mocks | ✅ |
 
 **Resultados experimentais prontos:**
-- ArXiv: Micro-F1 0.7295 (SOTA, +13.5)
-- WOS: Micro-F1 0.8743 (SOTA, +0.2)
+- ArXiv: Micro-F1 0.7295 (sem baseline publicado comparável)
+- WOS: Micro-F1 0.8743 (1 seed; no nível do HPT 0.8716, protocolo mais favorável)
 - FunCat: 8 datasets, competitivo com HMCN-F/C-HMCNN, abaixo do WWW'22
 - GPU: 14× speedup (RTX 3060)
 

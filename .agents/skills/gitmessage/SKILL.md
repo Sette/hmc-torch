@@ -12,10 +12,14 @@ Follow these instructions with maximum priority, always in english (Inclusion: A
 
 ## 1. Mandatory Format (Schema)
 The format must strictly be, in english:
-`[EMOJI] <type>(<scope>): <description>`
+`<type>(<scope>): <emoji> <description>`
+
+The conventional type MUST come first: release-please parses commit subjects and only
+recognizes messages that start with `<type>:`. The emoji goes after the colon, at the
+beginning of the description — never before the type.
 
 ## 2. Mapping Table (Emoji + Type)
-Always use the corresponding emoji at the beginning of the message:
+Always use the corresponding emoji at the beginning of the description:
 
 | Type | Emoji | Description |
 | :--- | :--- | :--- |
@@ -40,15 +44,16 @@ Always use the corresponding emoji at the beginning of the message:
 
 ✅ **CORRECT FORM (DO THIS):**
 
-* `✨ feat(auth): add google login`
-* `🐛 fix(api): fix timeout error`
-* `🔧 chore(deps): update node packages`
+* `feat(auth): ✨ add google login`
+* `fix(api): 🐛 fix timeout error`
+* `chore(deps): 🔧 update node packages`
 
 ❌ **INCORRECT FORM (NEVER DO THIS):**
 
-* `✨ Feat: Added Google login.` (Errors: uppercase, past tense, and period)
+* `✨ feat(auth): add google login` (Error: emoji before the type — release-please cannot parse it)
+* `✨ Feat: Added Google login.` (Errors: emoji before the type, uppercase, past tense, and period)
 * `feat(auth): add login` (Error: missing emoji)
-* `✨ feat: add login.` (Error: period at the end)
+* `feat: ✨ add login.` (Error: period at the end)
 
 ## 5. Execution Instruction
 

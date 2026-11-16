@@ -246,17 +246,19 @@ print("=" * 70)
 print(f"{'Dataset':<10} {'Method':<22} {'Micro-F1':>10} {'AUPRC':>10}")
 print("-" * 55)
 
-# Published SOTA numbers from HMC literature
+# Published WOS numbers, from Table 1 of HPT (Wang+ EMNLP'22).  The BERT+HiAGM
+# and BERT+HTCInfoMax rows are BERT reimplementations by the HGCLR authors.
+# ArXiv has no canonical HMC split, so there are no comparable published numbers.
 published = {
     "WOS": [
-        ("HiAGM (Zhou+ ACL'20)", 0.8604),
-        ("HTC-infoMAX (ICML'21)", 0.8720),
-        ("HMCN (Zhou+ ECML'20)", 0.8580),
+        ("BERT+HiAGM", 0.8604),
+        ("BERT+HTCInfoMax", 0.8630),
+        ("BERT+HiMatch (ACL'21)", 0.8670),
+        ("HGCLR (ACL'22)", 0.8711),
+        ("HPT (EMNLP'22)", 0.8716),
         ("Ours (global MLP+R)", None),  # will be filled
     ],
     "ArXiv": [
-        ("HiAGM (Zhou+ ACL'20)", 0.5950),
-        ("HTC-infoMAX (ICML'21)", 0.6130),
         ("Ours (global MLP+R)", None),
     ],
 }

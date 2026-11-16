@@ -274,26 +274,27 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
         train_ds = HMCDatasetArff(
             self.dataset_values["train_file"], is_go=self.dataset_values["is_go"]
         )
-        valid_file = self.dataset_values["valid_file"]
-        if valid_file:
-            logging.info("Loading dataset from %s", valid_file)
-            valid_ds = HMCDatasetArff(valid_file, is_go=self.dataset_values["is_go"])
-        else:
-            logging.info(
-                "No validation file for %s; holding out %d%% of the training "
-                "file for validation",
-                self.dataset_values["train_file"],
-                int(self.VALID_FRACTION * 100),
-            )
-            train_ds, valid_ds = train_ds.train_valid_split(
-                valid_fraction=self.VALID_FRACTION, seed=self.SPLIT_SEED
-            )
-        self.dataset_values["train"] = train_ds
-        self.dataset_values["valid"] = valid_ds
         logging.info("Loading dataset from %s", self.dataset_values["test_file"])
         self.dataset_values["test"] = HMCDatasetArff(
             self.dataset_values["test_file"], is_go=self.dataset_values["is_go"]
         )
+        if self.dataset_values["valid_file"] == self.dataset_values["test_file"]:
+            # No validation file: hold out 20% of train instead of reusing test.
+            from hmc.datasets.gofun.manager import (  # pylint: disable=import-outside-toplevel
+                VALID_HOLDOUT_FRACTION,
+                _holdout_split,
+            )
+
+            logging.info("No separate validation split; holding out 20%% of train")
+            (
+                self.dataset_values["train"],
+                self.dataset_values["valid"],
+            ) = _holdout_split(self.dataset_values["train"], VALID_HOLDOUT_FRACTION)
+        else:
+            logging.info("Loading dataset from %s", self.dataset_values["valid_file"])
+            self.dataset_values["valid"] = HMCDatasetArff(
+                self.dataset_values["valid_file"], is_go=self.dataset_values["is_go"]
+            )
         self.a = self.dataset_values["train"].a
         self.edge_index = self.dataset_values["train"].edge_index
         # self.r_matrix = self.compute_r_matrix(self.a)

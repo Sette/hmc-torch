@@ -105,11 +105,12 @@ def _run_training_loop(model, args, optimizer, criterion, to_eval):
     return usage, total_time
 
 
-def _collect_test_outputs(model, args, to_eval):
-    """Run inference on the test loader and return (constr_test, y_test)."""
+def _collect_test_outputs(model, args, to_eval, loader=None):
+    """Run inference on ``loader`` (default: the test loader); return (scores, y)."""
     constr_test = None
     y_test = None
-    for i, (x, y) in enumerate(args.test_loader):
+    loader = args.test_loader if loader is None else loader
+    for i, (x, y) in enumerate(loader):
         model.eval()
         x = x.to(args.device)
         y = y.to(args.device)
@@ -206,9 +207,14 @@ def train_step(args):
 
     best_threshold = 0.5
     if args.best_threshold:
+        # Pick the threshold on the validation split; the test split is only
+        # used for the final metrics.
+        constr_val, y_val, _ = _collect_test_outputs(
+            model, args, to_eval, loader=args.valid_loader
+        )
         best_threshold, _ = find_global_best_threshold(
-            y_test[:, to_eval],
-            constr_test.data[:, to_eval],
+            y_val[:, to_eval].cpu(),
+            constr_val.data[:, to_eval].cpu(),
             args,
             mode="global",
         )
