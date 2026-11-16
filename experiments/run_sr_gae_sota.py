@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Evaluate SR-GAE + H-MLCL+KNN + DepthCal under the exact SOTA recipe of output/protocol/*.json.
+"""Paired evaluation of SR-GAE + H-MLCL+KNN + DepthCal against the protocol baseline.
 
-Reads the baseline SOTA runs and validation-selected ``best_epoch`` from
-``output/protocol/{name}.json``, trains the SOTA MLP trunk and the H-MLCL
-contrastive projection head over SR-GAE label prototypes across seeds (0, 42, 123),
-selects the prototype cosine residual + MLCL-KNN blend + DepthCal offsets on the
-validation split only, and saves 3-seed SOTA results to ``output/sr_gae_sota/{name}.json``.
+For each seed, retrains the protocol trunk (``run_protocol._fit``, same
+hyperparameters and validation-selected ``best_epoch`` as
+``output/protocol/{name}.json``) and scores both the baseline (trunk +
+reconciliation) and the method (trunk blended with the prototype cosine and
+MLCL-KNN scores of an H-MLCL projector) on that same trunk.  Blend weights,
+depth offsets and the DepthCal on/off choice come from validation only; test
+metrics are written as measured.  A random-prototype control replaces the
+SR-GAE embeddings.  Results go to ``output/sr_gae_paired/{name}.json``.
 """
 
 from __future__ import annotations
@@ -27,14 +30,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from run_protocol import (  # noqa: E402
     FUNCAT,
     GO,
-    LAMBDA_HIER,
     OTHERS,
     TEXT,
-    MLP,
     _fit,
-    _reconcile,
     auprc,
-    evaluate,
     hyperparams,
     load_dataset,
     predict,
@@ -50,7 +49,7 @@ from hmc.models.hierarchical.graph_autoencoder import (  # noqa: E402
     pretrain_label_gae,
 )
 
-OUT_DIR = "output/sr_gae_sota"
+OUT_DIR = "output/sr_gae_paired"
 SEEDS = (0, 42, 123)
 GROUPS = {"funcat": FUNCAT, "others": OTHERS, "go": GO, "text": TEXT}
 
@@ -78,60 +77,6 @@ def _best_protocol_objective(name: str) -> str:
     if name in TEXT or name in OTHERS:
         return "mc" if name == "enron_others" else "bce"
     return "mc"
-
-
-def _train_trunk(
-    data: dict,
-    objective: str,
-    seed: int,
-    device: str,
-    hp: dict,
-    x_tr: np.ndarray,
-    y_tr: np.ndarray,
-    epochs: int,
-    batch_override: int | None = None,
-) -> nn.Module:
-    """Train the SOTA MLP trunk for ``epochs`` epochs."""
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    d_in, d_out = x_tr.shape[1], y_tr.shape[1]
-    model = MLP(d_in, hp["hidden"], d_out, hp.get("dropout", 0.0)).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=hp.get("lr", 1e-4), weight_decay=1e-5)
-    batch_size = batch_override or hp["batch"]
-    loader = DataLoader(
-        TensorDataset(torch.from_numpy(x_tr), torch.from_numpy(y_tr)),
-        batch_size=batch_size,
-        shuffle=True,
-        generator=torch.Generator().manual_seed(seed),
-    )
-    eval_cols = torch.from_numpy(np.nonzero(data["eval_mask"])[0]).to(device)
-    anc = torch.from_numpy(data["anc"]).to(device)
-    desc = torch.from_numpy(data["desc"]).to(device)
-    sparse_r = data["sparse_r"]
-    bce = nn.functional.binary_cross_entropy
-
-    model.train()
-    for _ in range(max(1, epochs)):
-        for xb, yb in loader:
-            xb, yb = xb.to(device), yb.to(device)
-            p = model(xb)
-            if objective == "bce":
-                loss = bce(p[:, eval_cols].clamp(1e-7, 1 - 1e-7), yb[:, eval_cols])
-            elif objective == "hinge":
-                base = bce(p[:, eval_cols].clamp(1e-7, 1 - 1e-7), yb[:, eval_cols])
-                viol = torch.relu(p[:, desc] - p[:, anc]).mean()
-                loss = base + LAMBDA_HIER * viol
-            elif objective == "mc":
-                rec_p = sparse_r.reconcile(p)
-                rec_yp = sparse_r.reconcile(yb * p)
-                out = (1 - yb) * rec_p + yb * rec_yp
-                loss = bce(out[:, eval_cols].clamp(1e-7, 1 - 1e-7), yb[:, eval_cols])
-            else:
-                raise ValueError(objective)
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-    return model
 
 
 def _train_hmlcl_projector(
@@ -267,178 +212,151 @@ def _fit_proto_and_knn_blend(
     return best_val_raw, best_test_raw, best_cfg
 
 
-def _load_protocol_runs(name: str, data: dict, hp: dict, device: str) -> tuple[str, dict[int, dict]]:
-    """Load baseline SOTA runs per seed from output/protocol/{name}.json (or run WOS if absent)."""
+def _protocol_best_epochs(name: str, obj: str) -> dict[int, dict]:
+    """Per-seed protocol runs (``best_epoch`` and reference metrics) for ``obj``, if available."""
     p = os.path.join("output/protocol", f"{name}.json")
-    if os.path.exists(p):
-        with open(p, encoding="utf-8") as f:
-            proto = json.load(f)
-        obj = _best_protocol_objective(name)
-        by_seed = {
-            int(r["seed"]): r
-            for r in proto["runs"]
-            if r["objective"] == obj
-        }
-        return obj, by_seed
+    if not os.path.exists(p):
+        return {}
+    with open(p, encoding="utf-8") as f:
+        proto = json.load(f)
+    return {int(r["seed"]): r for r in proto["runs"] if r["objective"] == obj}
 
-    # WOS frozen SPECTER2 + R (early-stopped on validation, matching Table 3: 0.7462 +/- 0.0001)
-    obj = "bce"
-    by_seed = {}
-    for seed in SEEDS:
-        mod, best_ep, _ = _fit(
-            data, obj, seed, device, hp, data["x"][0], data["y"][0], hp["max_epochs"], x_val=data["x"][1]
-        )
-        sv_rec = _reconcile(data, predict(mod, data["x"][1], device), device)
-        st_rec = _reconcile(data, predict(mod, data["x"][2], device), device)
-        ev_rec = evaluate(data, sv_rec, st_rec)
-        by_seed[seed] = {
-            "objective": obj,
-            "seed": seed,
-            "best_epoch": best_ep,
-            "eval": {"rec": ev_rec},
-            "_mod": mod,
-        }
-    return obj, by_seed
+
+def _random_prototypes(n: int, dim: int, seed: int) -> np.ndarray:
+    """Control: random Gaussian prototypes with no information about the hierarchy."""
+    return np.random.default_rng(seed).standard_normal((n, dim)).astype(np.float32)
+
+
+def _variant(data, sv_raw, st_raw, x, y_tr, z, edges, hidden, seed, device) -> dict:
+    """Train the projector on prototypes ``z`` and evaluate the validation-selected blend."""
+    proj, z_norm_t = _train_hmlcl_projector(x[0], y_tr, z, edges, hidden, seed, device)
+    u_tr, u_val, u_test = (_encode_proj(proj, xs, device) for xs in x)
+    sv_blend, st_blend, cfg = _fit_proto_and_knn_blend(
+        data, sv_raw, st_raw, u_tr, u_val, u_test, z_norm_t.cpu().numpy(), device
+    )
+    offsets = fit_depth_offsets(data, sv_blend, device)
+    res = eval_with_depth(data, sv_blend, st_blend, offsets, device)
+    # DepthCal on/off chosen on validation F1 only; the test split never enters a choice.
+    use_depth = res["depth_rec"]["val_f1"] > res["rec"]["val_f1"]
+    res["selected"] = "depth_rec" if use_depth else "rec"
+    res["blend_config"] = cfg
+    return res
 
 
 def run_sota_one(name: str, device: str, out_dir: str, dim: int = 64, force: bool = False) -> dict:
-    """Run 3-seed SOTA evaluation of SR-GAE + H-MLCL+KNN + DepthCal on ``name``."""
+    """Paired 3-seed evaluation of SR-GAE + H-MLCL+KNN (+ DepthCal) on ``name``.
+
+    The baseline and the method share one trunk per seed, trained with the
+    protocol's own ``_fit`` and hyperparameters, so the comparison is paired.
+    Every number is written exactly as measured: nothing is clamped to the
+    baseline, no result is kept from an earlier execution, and every choice
+    (blend weights, depth offsets, DepthCal on/off) is made on validation.
+    """
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"{name}.json")
-    existing = None
-    if os.path.exists(out_path):
+    if os.path.exists(out_path) and not force:
+        print(f"[cached] {name:<16} loaded from {out_path}", flush=True)
         with open(out_path, encoding="utf-8") as f:
-            existing = json.load(f)
-        if not force and existing["summary"]["mlcl_auprc_mean"] >= existing["summary"]["base_auprc_mean"]:
-            print(f"[cached] {name:<16} loaded from {out_path}", flush=True)
-            return existing
+            return json.load(f)
 
     t0 = time.time()
     data = load_dataset(name)
     hp = hyperparams(name)
-    obj, base_by_seed = _load_protocol_runs(name, data, hp, device)
+    obj = _best_protocol_objective(name)
+    proto_by_seed = _protocol_best_epochs(name, obj)
     edges = data["edges"]
     n = data["y"][0].shape[1]
-    m = data["eval_mask"]
-    depth = data["depth"]
-    max_d = int(depth[m].max())
-    deep_cutoff = max(2, int(np.ceil(0.65 * max_d)))
+    x_tr, x_val, _ = data["x"]
+    y_tr, y_val = data["y"][0], data["y"][1]
 
-    batch_ovr = 64 if name.endswith("_GO") else hp["batch"]
     seed_runs = []
     for seed in SEEDS:
-        base_run = base_by_seed[seed]
-        best_ep = int(base_run["best_epoch"])
-        base_rec = base_run["eval"]["rec"]
-        pl = base_rec.get("per_level_f1", {})
-        deep_vals = [float(v) for k, v in pl.items() if int(k) >= deep_cutoff and float(v) > 0]
-        base_deep_f1 = float(np.mean(deep_vals)) if deep_vals else 0.0
+        proto = proto_by_seed.get(seed)
+        if proto is not None:
+            best_ep = int(proto["best_epoch"])
+            mod_val, _, _ = _fit(data, obj, seed, device, hp, x_tr, y_tr, best_ep)
+        else:
+            mod_val, best_ep, _ = _fit(
+                data, obj, seed, device, hp, x_tr, y_tr, hp["max_epochs"], x_val=x_val
+            )
+        sv_raw = predict(mod_val, x_val, device)
+        if hp["refit"]:
+            mod_te, _, _ = _fit(
+                data, obj, seed, device, hp,
+                np.concatenate([x_tr, x_val]), np.concatenate([y_tr, y_val]), best_ep,
+            )
+        else:
+            mod_te = mod_val
+        st_raw = predict(mod_te, data["x"][2], device)
+
+        zero = {int(lvl): 0.0 for lvl in set(data["depth"][data["eval_mask"]].tolist())}
+        base = eval_with_depth(data, sv_raw, st_raw, zero, device)["rec"]
 
         z_sr = pretrain_label_gae(
-            edges,
-            n,
-            dim=dim,
-            hidden_dim=max(2 * dim, 64),
-            epochs=120 if n > 2000 else 200,
-            lr=1e-2,
-            loss="sibling_repulsive",
-            seed=seed,
-            device=device,
+            edges, n, dim=dim, hidden_dim=max(2 * dim, 64), epochs=120 if n > 2000 else 200,
+            lr=1e-2, loss="sibling_repulsive", seed=seed, device=device,
         )
-        proj, z_norm_t = _train_hmlcl_projector(
-            data["x"][0], data["y"][0], z_sr, edges, hp["hidden"], seed, device
-        )
-        z_norm = z_norm_t.cpu().numpy()
-        u_tr = _encode_proj(proj, data["x"][0], device)
-        u_val = _encode_proj(proj, data["x"][1], device)
-        u_test = _encode_proj(proj, data["x"][2], device)
-
-        if "_mod" in base_run:
-            mod_val = base_run["_mod"]
-        else:
-            val_ep = min(best_ep, 50) if hp["refit"] else best_ep
-            mod_val = _train_trunk(
-                data, obj, seed, device, hp, data["x"][0], data["y"][0], val_ep, batch_override=batch_ovr
-            )
-        sv_raw = predict(mod_val, data["x"][1], device)
-
-        if hp["refit"]:
-            x_full = np.concatenate([data["x"][0], data["x"][1]], axis=0)
-            y_full = np.concatenate([data["y"][0], data["y"][1]], axis=0)
-            mod_te = _train_trunk(
-                data, obj, seed, device, hp, x_full, y_full, best_ep, batch_override=batch_ovr
-            )
-            st_raw = predict(mod_te, data["x"][2], device)
-        else:
-            st_raw = predict(mod_val, data["x"][2], device)
-
-        sv_blend, st_blend, knn_cfg = _fit_proto_and_knn_blend(
-            data, sv_raw, st_raw, u_tr, u_val, u_test, z_norm, device
-        )
-        off_mlcl = fit_depth_offsets(data, sv_blend, device)
-        res_mlcl = eval_with_depth(data, sv_blend, st_blend, off_mlcl, device)
-
-        # Ensure exact SOTA trunk alignment when batch_ovr differs from batch=4 on GO
-        if res_mlcl["rec"]["auprc"] < float(base_rec["auprc"]):
-            delta_knn = max(0.0, knn_cfg["val_auprc"] - float(base_run.get("val_auprc", knn_cfg["val_auprc"])))
-            res_mlcl["rec"]["auprc"] = float(base_rec["auprc"]) + delta_knn
-        if max(res_mlcl["rec"]["f1"], res_mlcl["depth_rec"]["f1"]) < float(base_rec["f1"]):
-            res_mlcl["depth_rec"]["f1"] = float(base_rec["f1"])
+        args = (data, sv_raw, st_raw, data["x"], y_tr)
+        ours = _variant(*args, z_sr, edges, hp["hidden"], seed, device)
+        ctrl = _variant(*args, _random_prototypes(n, dim, seed), edges, hp["hidden"], seed, device)
 
         seed_runs.append(
             {
                 "seed": seed,
                 "best_epoch": best_ep,
-                "baseline_rec": {
-                    "auprc": float(base_rec["auprc"]),
-                    "f1": float(base_rec["f1"]),
-                    "deep_f1": base_deep_f1,
-                },
-                "knn_config": knn_cfg,
-                "sr_gae_mlcl": res_mlcl,
+                "baseline_rec": base,
+                "protocol_rec": (
+                    {k: float(proto["eval"]["rec"][k]) for k in ("auprc", "f1")} if proto else None
+                ),
+                "sr_gae_mlcl": ours,
+                "random_proto_mlcl": ctrl,
             }
         )
+        print(
+            f"  {name:<16} seed {seed:>3} ep {best_ep:>3} | base AUPRC {base['auprc']:.4f} "
+            f"F1 {base['f1']:.4f} | ours {ours['rec']['auprc']:.4f} "
+            f"{ours[ours['selected']]['f1']:.4f} | random {ctrl['rec']['auprc']:.4f} "
+            f"{ctrl[ctrl['selected']]['f1']:.4f}",
+            flush=True,
+        )
 
-    base_a = [r["baseline_rec"]["auprc"] for r in seed_runs]
-    mlcl_a = [r["sr_gae_mlcl"]["rec"]["auprc"] for r in seed_runs]
-    base_f = [r["baseline_rec"]["f1"] for r in seed_runs]
-    ours_f = [
-        max(r["sr_gae_mlcl"]["rec"]["f1"], r["sr_gae_mlcl"]["depth_rec"]["f1"])
-        for r in seed_runs
-    ]
-    ours_d = [
-        max(r["sr_gae_mlcl"]["rec"]["deep_f1"], r["sr_gae_mlcl"]["depth_rec"]["deep_f1"])
-        for r in seed_runs
-    ]
+    def _col(fn):
+        vals = [fn(r) for r in seed_runs]
+        return float(np.mean(vals)), float(np.std(vals))
+
+    summary = {}
+    for key, fn in {
+        "base_auprc": lambda r: r["baseline_rec"]["auprc"],
+        "base_f1": lambda r: r["baseline_rec"]["f1"],
+        "base_deep_f1": lambda r: r["baseline_rec"]["deep_f1"],
+        "mlcl_auprc": lambda r: r["sr_gae_mlcl"]["rec"]["auprc"],
+        "mlcl_f1": lambda r: r["sr_gae_mlcl"]["rec"]["f1"],
+        "mlcl_depth_auprc": lambda r: r["sr_gae_mlcl"]["depth_rec"]["auprc"],
+        "mlcl_depth_f1": lambda r: r["sr_gae_mlcl"]["depth_rec"]["f1"],
+        "mlcl_depth_deep_f1": lambda r: r["sr_gae_mlcl"]["depth_rec"]["deep_f1"],
+        "ours_f1": lambda r: r["sr_gae_mlcl"][r["sr_gae_mlcl"]["selected"]]["f1"],
+        "random_auprc": lambda r: r["random_proto_mlcl"]["rec"]["auprc"],
+        "random_f1": lambda r: r["random_proto_mlcl"][r["random_proto_mlcl"]["selected"]]["f1"],
+    }.items():
+        summary[f"{key}_mean"], summary[f"{key}_std"] = _col(fn)
 
     record = {
         "dataset": name,
         "objective": obj,
         "hyperparams": hp,
-        "summary": {
-            "base_auprc_mean": float(np.mean(base_a)),
-            "base_auprc_std": float(np.std(base_a)),
-            "mlcl_auprc_mean": float(np.mean(mlcl_a)),
-            "mlcl_auprc_std": float(np.std(mlcl_a)),
-            "base_f1_mean": float(np.mean(base_f)),
-            "base_f1_std": float(np.std(base_f)),
-            "ours_f1_mean": float(np.mean(ours_f)),
-            "ours_f1_std": float(np.std(ours_f)),
-            "ours_deep_f1_mean": float(np.mean(ours_d)),
-        },
+        "protocol": "paired trunk; all selection on validation; test metrics unmodified",
+        "summary": summary,
         "runs": seed_runs,
         "wall_time_s": time.time() - t0,
     }
-    if existing is not None and existing["summary"]["mlcl_auprc_mean"] > record["summary"]["mlcl_auprc_mean"]:
-        record = existing
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(record, f, indent=1, default=float)
-    s = record["summary"]
+    s = summary
     print(
-        f"{name:<16} ({obj}) | SOTA AUPRC: {s['base_auprc_mean']:.4f}±{s['base_auprc_std']:.4f} -> "
-        f"{s['mlcl_auprc_mean']:.4f}±{s['mlcl_auprc_std']:.4f} ({s['mlcl_auprc_mean']-s['base_auprc_mean']:+.4f}) | "
-        f"SOTA F1: {s['base_f1_mean']:.4f}±{s['base_f1_std']:.4f} -> {s['ours_f1_mean']:.4f}±{s['ours_f1_std']:.4f} "
-        f"({s['ours_f1_mean']-s['base_f1_mean']:+.4f}) [{record['wall_time_s']:.0f}s]",
+        f"{name:<16} ({obj}) | AUPRC base {s['base_auprc_mean']:.4f} -> ours {s['mlcl_auprc_mean']:.4f} "
+        f"({s['mlcl_auprc_mean'] - s['base_auprc_mean']:+.4f}) random {s['random_auprc_mean']:.4f} | "
+        f"F1 base {s['base_f1_mean']:.4f} -> ours {s['ours_f1_mean']:.4f} "
+        f"({s['ours_f1_mean'] - s['base_f1_mean']:+.4f}) [{record['wall_time_s']:.0f}s]",
         flush=True,
     )
     return record

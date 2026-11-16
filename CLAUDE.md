@@ -145,6 +145,8 @@ Exigem `PYTHONPATH=src` e gravam em `./output/`. **Todos os números do paper v�
 | `run_label_embeddings.py --group {funcat,go,all}` | `output/label_embeddings/`: heads com embeddings de rótulos (livre, GCN, texto do `go.obo`, texto+GCN) no mesmo protocolo |
 | `run_autoencoder.py --stage {screen,final}` | `output/autoencoder/`: autoencoders no modelo global (GAE híbrido, DAE de features, AE de labels C2AE); triagem só na validação, vencedor com 3 seeds (Seção `sec:autoenc` do paper) |
 | `run_hpt.py --dataset {wos,aapd,arxiv,eurlex} --stage {screen,final}` | `output/hpt/<stage>/<dataset>/`: HPT + R-matrix. `screen` = seed 0, ≤10 épocas, só validação, {bert, specter2} × {none, mc, hinge} + o HPT publicado (`bert/none/down`); `final` = 3 seeds, test uma vez (`--auto` pega o melhor do screen). Bateria: `experiments/run_hpt_all.sh` |
+| `run_sr_gae_sota.py --group {funcat,go,others,text,all}` | `output/sr_gae_paired/<dataset>.json`: avaliação pareada (3 seeds, um tronco por seed) do blend H-MLCL+H-KNN com protótipos SR-GAE e com protótipos aleatórios; toda seleção na validação |
+| `run_sr_gae_depth.py` | `output/sr_gae_depth/`: offsets por profundidade (DepthCal) sobre o blend, ajustados na validação; F1 global e nos níveis profundos |
 | `measure_dense_r_memory.py --dataset seq_GO` | `output/scaling/dense_r_memory.json`: pico de memória de GPU de um passo de reconciliação (denso float64/float32 × esparso, com e sem backward) por batch; sustenta as afirmações de escala no GO |
 | `make_paper_artifacts.py --paper_dir docs/hmc-paper` | `data/protocol_summary.json`, `tables/*.tex`, figuras do paper e estatísticas (Friedman/Nemenyi, Wilcoxon, Spearman) |
 
