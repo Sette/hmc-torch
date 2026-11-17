@@ -28,9 +28,10 @@ def get_constr_out(x: torch.Tensor, r_matrix: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The constrained scores, ``(B, C)`` in float64.
     """
-    r = _as_square(r_matrix).to(torch.float64)
+    r = _as_square(r_matrix)
     scores = x.to(torch.float64)
     # (B, 1, C) * (1, C, C) -> (B, C, C); reduce over the candidate column j.
+    # Type promotion makes the product float64 without copying R.
     weighted = scores.unsqueeze(1) * r.unsqueeze(0)
     return weighted.max(dim=-1).values
 
