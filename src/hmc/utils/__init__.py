@@ -6,6 +6,6 @@ strings — just pass your labels and the framework derives everything else
 (adjacency, levels, edge indices, dimensions) automatically.
 """
 
-from hmc.utils.graph import build_digraph_from_labels
+from hmc.utils.graph import ancestor_closure, build_digraph_from_labels, build_r_matrix
 
-__all__ = ["build_digraph_from_labels"]
+__all__ = ["ancestor_closure", "build_digraph_from_labels", "build_r_matrix"]
