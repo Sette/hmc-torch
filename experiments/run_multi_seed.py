@@ -14,6 +14,7 @@ from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.datasets.manager.dataset_manager import (
     initialize_dataset_experiments as init_gf,
@@ -80,14 +81,7 @@ Xw_te = scaler_w.transform(Xw_te).astype(np.float32)
 print(f"  Train: {Xw.shape} Test: {Xw_te.shape} Nodes: {nw}")
 
 
-rw = np.zeros(aw.shape)
-np.fill_diagonal(rw, 1)
-gnx = nx.DiGraph(aw)
-for i in range(len(aw)):
-    ancestors = list(nx.descendants(gnx, i))
-    if ancestors:
-        rw[i, ancestors] = 1
-rm_w = torch.tensor(rw).transpose(1, 0).unsqueeze(0).to(DEVICE)
+rm_w = build_r_matrix(aw).to(DEVICE)
 
 
 wos_seeds = {}
@@ -179,14 +173,7 @@ for ds_name in ["cellcycle_FUN", "seq_FUN"]:
     Xf = scaler.fit_transform(imp.fit_transform(Xf)).astype(np.float32)
     Xf_te = scaler.transform(imp.transform(Xf_te)).astype(np.float32)
 
-    rf = np.zeros(af.shape)
-    np.fill_diagonal(rf, 1)
-    gnx2 = nx.DiGraph(af)
-    for i in range(len(af)):
-        ancestors = list(nx.descendants(gnx2, i))
-        if ancestors:
-            rf[i, ancestors] = 1
-    rm_f = torch.tensor(rf).transpose(1, 0).unsqueeze(0).to(DEVICE)
+    rm_f = build_r_matrix(af).to(DEVICE)
 
     dk = ds_name.replace("_FUN", "")
     hidden = reg.hidden_dims.get("FUN", {}).get(dk, 512)

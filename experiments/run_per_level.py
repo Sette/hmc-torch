@@ -13,6 +13,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from hmc.datasets.dataset_manager import initialize_dataset_experiments as init_aw
 from hmc.datasets.manager.dataset_manager import (
     initialize_dataset_experiments as init_gf,
@@ -29,13 +30,7 @@ os.makedirs("./output/week2", exist_ok=True)
 
 def build_r_from_adj(adj):
     n = adj.shape[0]
-    r = np.zeros((n, n))
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(adj)
-    for i in range(n):
-        for d in nx.descendants(g, i):
-            r[i, d] = 1
-    return torch.tensor(r).transpose(1, 0).unsqueeze(0).to(DEVICE)
+    return build_r_matrix(adj).to(DEVICE)
 
 
 def build_hier_from_adj(adj):
