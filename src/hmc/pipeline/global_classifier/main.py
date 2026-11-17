@@ -5,11 +5,11 @@ Train a global classifier
 import logging
 import os
 
-import networkx as nx
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from hmc.utils.graph import build_r_matrix
 from hmc.arguments import TrainingConfig
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 from hmc.models.global_classifier.constraint.model import (
@@ -104,16 +104,7 @@ def train_global(dataset_name, args):
         "weight_decay": args.weight_decay,
     }
 
-    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
-    np.fill_diagonal(args.r_matrix, 1)
-    g = nx.DiGraph(args.hmc_dataset.a)
-    for i in range(len(args.hmc_dataset.a)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            args.r_matrix[i, ancestors] = 1
-    args.r_matrix = torch.tensor(args.r_matrix)
-    args.r_matrix = args.r_matrix.transpose(1, 0)
-    args.r_matrix = args.r_matrix.unsqueeze(0).to(args.device)
+    args.r_matrix = build_r_matrix(args.hmc_dataset.a).to(args.device)
 
     # Undirected edge_index for ConstrainedGNNModel label-hierarchy GCN.
     rows, cols = np.where(args.hmc_dataset.a > 0)
@@ -228,16 +219,7 @@ def train_global_e2e(dataset_name, args):
     args.num_to_skip = 1
 
     # R-matrix for hierarchical constraint
-    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
-    np.fill_diagonal(args.r_matrix, 1)
-    g = nx.DiGraph(args.hmc_dataset.a)
-    for i in range(len(args.hmc_dataset.a)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            args.r_matrix[i, ancestors] = 1
-    args.r_matrix = (
-        torch.tensor(args.r_matrix).transpose(1, 0).unsqueeze(0).to(args.device)
-    )
+    args.r_matrix = build_r_matrix(args.hmc_dataset.a).to(args.device)
 
     args.results_path = f"output/train/{args.method}-{dataset_name}/{args.job_id}"
 
@@ -325,16 +307,7 @@ def train_global_sota(dataset_name, args):
     args.num_to_skip = 1
 
     # 2. R-matrix for hierarchical constraint
-    args.r_matrix = np.zeros(args.hmc_dataset.a.shape)
-    np.fill_diagonal(args.r_matrix, 1)
-    g = nx.DiGraph(args.hmc_dataset.a)
-    for i in range(len(args.hmc_dataset.a)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            args.r_matrix[i, ancestors] = 1
-    args.r_matrix = (
-        torch.tensor(args.r_matrix).transpose(1, 0).unsqueeze(0).to(args.device)
-    )
+    args.r_matrix = build_r_matrix(args.hmc_dataset.a).to(args.device)
 
     # 3. Undirected edge_index for label-hierarchy GCN
     rows, cols = np.where(args.hmc_dataset.a > 0)
