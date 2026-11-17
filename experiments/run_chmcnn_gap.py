@@ -41,9 +41,11 @@ from compare_chmcnn_loader import (  # noqa: E402  pylint: disable=wrong-import-
     HIDDEN,
     PUBLISHED,
     ConstrainedFFNNModel,
-    get_constr_out,
     load_ours,
     their_r,
+)
+from hmc.models.global_classifier.constraint.utils import (  # noqa: E402  pylint: disable=wrong-import-position
+    mc_training_outputs,
 )
 from hmc.utils.datasets.scaling import (  # noqa: E402  pylint: disable=wrong-import-position
     standardize_splits,
@@ -107,9 +109,7 @@ def fit(x, y, hp, seed, device, epochs, r, to_eval, x_val=None, y_val=None, pati
             labels = y[idx].double()
             opt.zero_grad()
             output = model(x[idx])
-            constr_output = get_constr_out(output, r)
-            train_output = get_constr_out(labels * output.double(), r)
-            train_output = (1 - labels) * constr_output + labels * train_output
+            train_output = mc_training_outputs(output, labels, r)
             loss = criterion(train_output[:, mask], labels[:, mask])
             loss.backward()
             opt.step()

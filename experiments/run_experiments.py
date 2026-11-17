@@ -12,6 +12,7 @@ import time
 
 import numpy as np
 import torch
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, "src")
@@ -124,14 +125,7 @@ def run_wos_experiments():
         from hmc.models.global_classifier.constraint.model import ConstrainedModel
 
         a = mgr.a
-        r_matrix_np = np.zeros(a.shape)
-        np.fill_diagonal(r_matrix_np, 1)
-        g_nx = nx.DiGraph(a)
-        for i in range(len(a)):
-            ancestors = list(nx.descendants(g_nx, i))
-            if ancestors:
-                r_matrix_np[i, ancestors] = 1
-        r_matrix = torch.tensor(r_matrix_np).transpose(1, 0).unsqueeze(0)
+        r_matrix = build_r_matrix(a)
 
         model = ConstrainedModel(
             input_dim=n_features,

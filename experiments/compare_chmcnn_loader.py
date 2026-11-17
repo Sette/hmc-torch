@@ -6,14 +6,18 @@ Stage 1 (data): parse every ARFF benchmark with C-HMCNN's ``utils/parser.py``
 with our ``HMCDatasetManager``, then compare node order, adjacency, ``to_eval``,
 features, labels and the R-matrix.
 
-Stage 2 (model): train C-HMCNN's own model and training loop (copied verbatim
-from ``C-HMCNN/main.py``: MCLoss, batch 4, dropout 0.7, Adam, fixed epochs,
-train + validation merged) on four data variants:
+Stage 2 (model): train C-HMCNN's own model (``ConstrainedFFNNModel`` and
+``get_constr_out``, imported from the local ``./C-HMCNN`` clone, which is not
+part of this repository) with its recipe (MCLoss, batch 4, dropout 0.7, Adam,
+fixed epochs, train + validation merged) on four data variants:
   * ``theirs``          -- their parser + their StandardScaler/imputer (train+val);
   * ``ours``            -- our parser + the same preprocessing;
   * ``ours_noscale``    -- our parser, raw features (what ``hmc.main --method global`` does);
   * ``ours_trainscale`` -- our parser, z-score on train only (what ``run_protocol.py`` does).
 The metric is C-HMCNN's: micro AUPRC on the test split over ``to_eval``.
+The MCLoss outputs come from :func:`hmc...constraint.utils.mc_training_outputs`.
+
+Needs ``git clone https://github.com/EGiunchiglia/C-HMCNN.git`` at the repo root.
 
 Usage:
     PYTHONPATH=src python experiments/compare_chmcnn_loader.py --group all --skip_train
@@ -23,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import random
@@ -41,11 +46,15 @@ from torch import nn
 
 sys.path.insert(0, "src")
 
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from hmc.datasets.dataset_manager import (  # noqa: E402  pylint: disable=wrong-import-position
     initialize_dataset_experiments,
 )
 from hmc.datasets.gofun.dataset_arff import (  # noqa: E402  pylint: disable=wrong-import-position
     HMCDatasetArff,
+)
+from hmc.models.global_classifier.constraint.utils import (  # noqa: E402  pylint: disable=wrong-import-position
+    mc_training_outputs,
 )
 from hmc.models.hierarchical.sparse_r import (  # noqa: E402  pylint: disable=wrong-import-position
     BlockDiagonalR,
@@ -77,11 +86,27 @@ def _import_chmcnn():
     from utils import datasets as their_datasets  # pylint: disable=import-outside-toplevel
     from utils import parser as their_parser  # pylint: disable=import-outside-toplevel
 
+    # main.py imports a metric removed from scikit-learn 0.23, and resets
+    # DATA_FOLDER on import; neither matters for the two objects we take.
+    import sklearn.metrics  # pylint: disable=import-outside-toplevel
+
+    if not hasattr(sklearn.metrics, "jaccard_similarity_score"):
+        sklearn.metrics.jaccard_similarity_score = sklearn.metrics.jaccard_score
+    spec = importlib.util.spec_from_file_location(
+        "chmcnn_main", os.path.join(CHMCNN_DIR, "main.py")
+    )
+    their_main = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(their_main)
+    os.environ["DATA_FOLDER"] = CHMCNN_DIR
+
     sys.path.remove(CHMCNN_DIR)
-    return their_parser, their_datasets
+    return their_parser, their_datasets, their_main
 
 
-THEIR_PARSER, THEIR_DATASETS = _import_chmcnn()
+THEIR_PARSER, THEIR_DATASETS, THEIR_MAIN = _import_chmcnn()
+# C-HMCNN's model and max-constraint module, from their own main.py.
+ConstrainedFFNNModel = THEIR_MAIN.ConstrainedFFNNModel
+get_constr_out = THEIR_MAIN.get_constr_out
 
 FUNCAT = [n for n in THEIR_DATASETS if n.endswith("_FUN")]
 GO = [n for n in THEIR_DATASETS if n.endswith("_GO")]
@@ -140,25 +165,8 @@ def load_ours(name):
 
 
 def their_r(a):
-    """R-matrix exactly as C-HMCNN/main.py builds it (before unsqueeze)."""
-    r = np.zeros(a.shape)
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(a)
-    for i in range(len(a)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            r[i, ancestors] = 1
-    return torch.tensor(r).transpose(1, 0)
-
-
-def get_constr_out(x, r):
-    """C-HMCNN/main.py, verbatim."""
-    c_out = x.double()
-    c_out = c_out.unsqueeze(1)
-    c_out = c_out.expand(len(x), r.shape[1], r.shape[1])
-    r_batch = r.expand(len(x), r.shape[1], r.shape[1])
-    final_out, _ = torch.max(r_batch * c_out.double(), dim=2)
-    return final_out
+    """R-matrix in C-HMCNN's layout (row = ancestor), before the batch axis."""
+    return build_r_matrix(a)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -238,38 +246,6 @@ def _ok(res):
 # ---------------------------------------------------------------------------
 
 
-class ConstrainedFFNNModel(nn.Module):
-    """C-HMCNN(h), verbatim from C-HMCNN/main.py."""
-
-    def __init__(self, input_dim, hidden_dim, output_dim, hyperparams, r):
-        super().__init__()
-        self.nb_layers = hyperparams["num_layers"]
-        self.R = r  # pylint: disable=invalid-name
-        fc = []
-        for i in range(self.nb_layers):
-            if i == 0:
-                fc.append(nn.Linear(input_dim, hidden_dim))
-            elif i == self.nb_layers - 1:
-                fc.append(nn.Linear(hidden_dim, output_dim))
-            else:
-                fc.append(nn.Linear(hidden_dim, hidden_dim))
-        self.fc = nn.ModuleList(fc)
-        self.drop = nn.Dropout(hyperparams["dropout"])
-        self.sigmoid = nn.Sigmoid()
-        self.f = nn.Tanh() if hyperparams["non_lin"] == "tanh" else nn.ReLU()
-
-    def forward(self, x):
-        for i in range(self.nb_layers):
-            if i == self.nb_layers - 1:
-                x = self.sigmoid(self.fc[i](x))
-            else:
-                x = self.f(self.fc[i](x))
-                x = self.drop(x)
-        if self.training:
-            return x
-        return get_constr_out(x, self.R)
-
-
 def _preprocess(mode, x_tr, x_val, x_te):
     """Return float64 (train, val, test) features for one preprocessing variant."""
     if mode == "none":
@@ -316,7 +292,7 @@ def build_variants(name):
 
 
 def train_chmcnn(name, data, seed, device, epochs_override=None):  # pylint: disable=too-many-locals
-    """C-HMCNN/main.py's training + test evaluation on pre-built arrays."""
+    """C-HMCNN's recipe (their model, MCLoss) + test evaluation on pre-built arrays."""
     data_name, ontology = name.split("_")[0], name.split("_")[1]
     hidden_dim = HIDDEN[ontology][data_name]
     lr = LRS[ontology]
@@ -353,10 +329,7 @@ def train_chmcnn(name, data, seed, device, epochs_override=None):  # pylint: dis
         for x, labels in train_loader:
             optimizer.zero_grad()
             output = model(x.float())
-            constr_output = get_constr_out(output, r)
-            train_output = labels * output.double()
-            train_output = get_constr_out(train_output, r)
-            train_output = (1 - labels) * constr_output.double() + labels * train_output
+            train_output = mc_training_outputs(output, labels, r)
             loss = criterion(train_output[:, to_eval], labels[:, to_eval])
             loss.backward()
             optimizer.step()

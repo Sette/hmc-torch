@@ -84,17 +84,30 @@ nos três casos. O paper compara os três objetivos, cada um com e sem reconcili
 
 ---
 
+## Licença: nada copiado do C-HMCNN
+
+O hmc-torch é MIT; o repositório do C-HMCNN (`EGiunchiglia/C-HMCNN`) é **GPL-3.0**. O MCM, o
+MCLoss, o MLP restrito, a matriz R e o parser ARFF aqui foram escritos a partir do paper e do
+formato dos arquivos — não cole código de lá (nem "adaptado"). Para comparar com a implementação
+original, clone-a em `./C-HMCNN/` (gitignored) e importe dela, como faz
+`experiments/compare_chmcnn_loader.py`. O HPT é MIT; o AWX (origem do parser do C-HMCNN) também
+não é fonte de código.
+
 ## R-matrix: as duas convenções (leia antes de mexer)
 
 Existem **duas** convenções, transpostas entre si; usar a errada inverte a penalidade:
 
-- **Pipeline** (`src/hmc/pipeline/global_classifier/main.py`): `R[i,j] = 1` ⟺ *i é ancestral de j*
-  (linha = ancestral). É a matriz que os modelos e `get_constr_out` recebem.
+- **Pipeline** (`hmc.utils.graph.build_r_matrix(a)`, shape `(1, C, C)`, float64): `R[i,j] = 1` ⟺
+  *i é ancestral de j* (linha = ancestral). É a matriz que os modelos e `get_constr_out` recebem.
+  Não reescreva o laço com `nx.descendants` em scripts novos: chame `build_r_matrix`.
 - **`Hierarchy.r_matrix`** (`src/hmc/data/hierarchy.py`): a **transposta** (linha = descendente).
   É o layout que `HierarchicalConsistencyLoss` espera — por isso `_resolve_consistency()`
   transpõe antes de instanciá-la.
 - Os grafos de hierarquia (`a`, `g`) têm arestas **filho → pai** em todos os managers; logo
   `nx.descendants(g, n)` devolve os **ancestrais** de `n`.
+
+O MCLoss (BCE sobre `MCM(h)` nos negativos e `MCM(y·h)` nos positivos) é
+`mc_training_outputs` no mesmo módulo; os loops de treino chamam ele, não reimplementam.
 
 `get_constr_out` (`models/global_classifier/constraint/utils.py`) faz
 `out[i] = max(x[i], max dos descendentes de i)`: **folhas saem intactas** e só nós internos

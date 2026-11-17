@@ -7,8 +7,8 @@ from collections import defaultdict
 
 import networkx as nx
 import numpy as np
-import torch
 
+from hmc.utils.graph import build_r_matrix
 from hmc.datasets.gofun.dataset_arff import HMCDatasetArff
 from hmc.utils.datasets.paths import to_skip
 from hmc.utils.path.files import __load_json__
@@ -159,18 +159,7 @@ class HMCDatasetManager:  # pylint: disable=too-many-instance-attributes
         Returns:
             np.ndarray: Matrix of ancestors.
         """
-        matrix_r = np.zeros(edges_matrix.shape)
-        np.fill_diagonal(matrix_r, 1)
-        g = nx.DiGraph(edges_matrix)
-        for i in range(len(edges_matrix)):
-            descendants = list(nx.descendants(g, i))
-            if descendants:
-                matrix_r[i, descendants] = 1
-        matrix_r = torch.tensor(matrix_r)
-        # Transpose to get the ancestors for each node
-        matrix_r = matrix_r.transpose(1, 0)
-        matrix_r = matrix_r.unsqueeze(0)
-        return matrix_r
+        return build_r_matrix(edges_matrix)
 
     def compute_r_matrix_local(self):
         """

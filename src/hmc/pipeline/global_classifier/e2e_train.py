@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from hmc.models.global_classifier.constraint.model import get_constr_out
+from hmc.models.global_classifier.constraint.utils import mc_training_outputs
 from hmc.pipeline.global_classifier.core.train import (
     _compute_global_score,
     _compute_local_scores,
@@ -47,12 +47,7 @@ def _run_e2e_training_loop(model, args, optimizer, criterion) -> tuple:
             output = model(**token_batch)
 
             if consistency == "mc":
-                constr_output = get_constr_out(output, args.r_matrix)
-                train_output = labels * output.double()
-                train_output = get_constr_out(train_output, args.r_matrix)
-                train_output = (
-                    1 - labels
-                ) * constr_output.double() + labels * train_output
+                train_output = mc_training_outputs(output, labels, args.r_matrix)
             else:
                 train_output = output
 

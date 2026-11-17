@@ -21,6 +21,7 @@ from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from hmc.datasets.dataset_manager import initialize_dataset_experiments
 
 sys.path.insert(0, "src")
@@ -54,14 +55,7 @@ def compute_metrics(y_true, y_pred, eval_mask):
 
 
 def build_r_matrix(adj, device=DEVICE):
-    r = np.zeros(adj.shape)
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(adj)
-    for i in range(len(adj)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            r[i, ancestors] = 1
-    return torch.tensor(r).transpose(1, 0).unsqueeze(0).to(device)
+    return build_r_matrix(adj).to(device)
 
 
 def train_global(
