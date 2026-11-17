@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 import torch
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
@@ -81,14 +82,7 @@ def run_fun(name, X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes):
     rec_ep = reg.all_epochs.get("FUN", {}).get(dk, 50)
     epochs = min(rec_ep, 50)
 
-    r = np.zeros(adj.shape)
-    np.fill_diagonal(r, 1)
-    g_nx = nx.DiGraph(adj)
-    for i in range(len(adj)):
-        ancestors = list(nx.descendants(g_nx, i))
-        if ancestors:
-            r[i, ancestors] = 1
-    r_matrix = torch.tensor(r).transpose(1, 0).unsqueeze(0).to(DEVICE)
+    r_matrix = build_r_matrix(adj).to(DEVICE)
 
     t0 = time.time()
     model = ConstrainedModel(

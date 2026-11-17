@@ -10,6 +10,7 @@ import time
 import networkx as nx
 import numpy as np
 import torch
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
@@ -63,14 +64,7 @@ def load_data(name):
 
 def build_r_matrix(adj, device="cpu"):
     """Build ancestor R-matrix from adjacency."""
-    r = np.zeros(adj.shape)
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(adj)
-    for i in range(len(adj)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            r[i, ancestors] = 1
-    r = torch.tensor(r).transpose(1, 0).unsqueeze(0).to(device)
+    r = build_r_matrix(adj).to(device)
     return r
 
 

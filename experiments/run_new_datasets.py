@@ -17,6 +17,7 @@ import time
 import networkx as nx
 import numpy as np
 import torch
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
@@ -98,13 +99,7 @@ def load_data(dataset_name, max_records=0):
 def build_dense_r(adj):
     """Build dense R-matrix (ancestor matrix) from adjacency."""
     n = adj.shape[0]
-    r = np.zeros((n, n))
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(adj)
-    for i in range(n):
-        for d in nx.descendants(g, i):
-            r[i, d] = 1
-    return torch.tensor(r).transpose(1, 0).unsqueeze(0).to(DEVICE)
+    return build_r_matrix(adj).to(DEVICE)
 
 
 # ---------------------------------------------------------------------------
