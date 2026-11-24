@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.2.0...hmc-torch-v0.3.0) (2026-11-24)
+
+
+### Features
+
+* **utils:** ✨ add ancestor_closure and build_r_matrix ([29774f6](https://github.com/Sette/hmc-torch/commit/29774f6514886d5936eac6deba445ef964c126e0))
+
+
+### Documentation
+
+* **claude:** 📝 document the C-HMCNN license rule and build_r_matrix ([db106e1](https://github.com/Sette/hmc-torch/commit/db106e165c2dfd5a76497afe101d9efd18201b36))
+
 ## [0.2.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.1.1...hmc-torch-v0.2.0) (2026-11-16)
 
 
