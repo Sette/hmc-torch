@@ -1,0 +1,73 @@
+name: Sync main → dev
+
+# A cada push na main, abre o PR main → dev quando a main tem mudança que a
+# dev não tem: PRs mergeados direto na main (ex.: dependabot) e o bump de
+# versão e CHANGELOG do release-please. Não mergeia: o merge continua manual.
+# Um merge dev → main só traz o merge commit, sem diff, e é ignorado. Se já
+# houver PR main → dev aberto, ele recebe os commits novos sozinho.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: sync-main-dev
+  cancel-in-progress: false
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Abre o PR main → dev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          HEAD_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          open=$(gh api "repos/$REPO/pulls?state=open&base=dev&head=$OWNER:main" --jq 'length')
+          if [ "$open" != "0" ]; then
+            echo "Já existe PR main → dev aberto; nada a fazer."
+            exit 0
+          fi
+
+          ahead=$(gh api "repos/$REPO/compare/dev...main" --jq '.ahead_by')
+          if [ "$ahead" = "0" ]; then
+            echo "dev já contém a main; nada a fazer."
+            exit 0
+          fi
+
+          # Merge dev → main: a main fica à frente só pelo merge commit, sem
+          # nenhum arquivo diferente da dev.
+          files=$(gh api "repos/$REPO/compare/dev...main" --jq '.files | length')
+          if [ "$files" = "0" ]; then
+            echo "main à frente só por merge commit, sem diff; nada a fazer."
+            exit 0
+          fi
+
+          if [[ "$HEAD_MESSAGE" == "chore(main): release"* || "$HEAD_MESSAGE" == *"release-please--branches--main"* ]]; then
+            version=$(gh api "repos/$REPO/contents/.release-please-manifest.json?ref=main" \
+              --jq '.content' | base64 -d | jq -r '."."')
+            title="chore: sincroniza main na dev (release $version)"
+            motivo="depois da release **$version** (bump de versão e CHANGELOG do release-please)"
+          else
+            title="chore: sincroniza main na dev"
+            motivo="com os commits que entraram direto na \`main\`"
+          fi
+
+          url=$(gh api -X POST "repos/$REPO/pulls" \
+            -f base=dev \
+            -f head=main \
+            -f title="$title" \
+            -f body="Sincroniza a \`main\` na \`dev\` $motivo.
+
+          Aberto automaticamente pelo workflow \`sync-main-dev.yaml\`. Faça o merge com merge commit depois que os checks passarem." \
+            --jq '.html_url')
+          echo "PR aberto: $url" | tee -a "$GITHUB_STEP_SUMMARY"
