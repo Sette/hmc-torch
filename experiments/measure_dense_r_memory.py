@@ -5,7 +5,7 @@ Backs the scaling claims of the paper with measurements instead of estimates.
 For each batch size it runs one reconciliation step, with and without a
 backward pass, through:
 
-* ``dense_f64`` -- ``get_constr_out`` as shipped (C-HMCNN's float64 broadcast);
+* ``dense_f64`` -- ``get_constr_out`` as shipped (dense float64 broadcast);
 * ``dense_f32`` -- the same broadcast kept in float32;
 * ``sparse``    -- ``BlockDiagonalR.reconcile``.
 
@@ -34,11 +34,9 @@ from hmc.models.global_classifier.constraint.utils import (  # noqa: E402  pylin
 
 
 def dense_f32(x, r_matrix):
-    """``get_constr_out`` without the cast to float64."""
-    n = r_matrix.shape[1]
-    c_out = x.unsqueeze(1).expand(len(x), n, n)
-    r_batch = r_matrix.expand(len(x), n, n)
-    return torch.max(r_batch * c_out, dim=2)[0]
+    """``get_constr_out`` without the cast to float64 (same broadcast)."""
+    r = r_matrix.reshape(r_matrix.shape[-2], r_matrix.shape[-1]).to(x.dtype)
+    return (x.unsqueeze(1) * r.unsqueeze(0)).max(dim=-1).values
 
 
 def measure(fn, batch, n_classes, device, backward):

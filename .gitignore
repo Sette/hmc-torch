@@ -179,3 +179,6 @@ gene-ontology-original.zip
 /docs/tese/
 # Reference implementation (HPT, EMNLP'22) — clone local, não versionado
 /HPT/
+
+# Reference implementation (C-HMCNN, NeurIPS'20, GPL-3.0) — clone local, não versionado
+/C-HMCNN/

@@ -9,6 +9,7 @@ import time
 import networkx as nx
 import numpy as np
 import torch
+from hmc.utils.graph import build_r_matrix  # noqa: E402  pylint: disable=wrong-import-position
 from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
@@ -100,14 +101,7 @@ def load_arxiv():
 
 
 def build_r_matrix_gpu(adj, n_nodes):
-    r = np.zeros(adj.shape)
-    np.fill_diagonal(r, 1)
-    g = nx.DiGraph(adj)
-    for i in range(len(adj)):
-        ancestors = list(nx.descendants(g, i))
-        if ancestors:
-            r[i, ancestors] = 1
-    return torch.tensor(r).transpose(1, 0).unsqueeze(0).to(DEVICE)
+    return build_r_matrix(adj).to(DEVICE)
 
 
 def train_global(name, X_tr, y_tr, X_te, y_te, eval_mask, adj, n_nodes, epochs=30):

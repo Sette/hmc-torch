@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 import networkx as nx
 import numpy as np
 
+from hmc.utils.graph import ancestor_closure
+
 
 @dataclass
 class Hierarchy(ABC):
@@ -89,22 +91,7 @@ class Hierarchy(ABC):
         the transposed layout (rows = ancestors) in
         ``pipeline/global_classifier/main.py``.
         """
-        g_parent_to_child = self._graph.reverse()
-        n = self.n_nodes
-        node_list = self.nodes
-        node_idx = {name: i for i, name in enumerate(node_list)}
-
-        r = np.zeros((n, n), dtype=np.float32)
-        np.fill_diagonal(r, 1.0)
-
-        for i, node in enumerate(node_list):
-            descendants = list(nx.descendants(g_parent_to_child, node))
-            if descendants:
-                descendant_indices = [node_idx[d] for d in descendants]
-                r[i, descendant_indices] = 1.0
-
-        # Transpose so row i = descendants of node i (columns become ancestors)
-        return r.transpose(1, 0)
+        return ancestor_closure(self.adjacency).astype(np.float32)
 
     @property
     def to_eval(self) -> list[bool]:

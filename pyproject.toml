@@ -147,3 +147,7 @@ ignore = [
     "PLW1510", # subprocess.run without explicit check (handled via git wrappers)
     "I001",    # isort ordering: ruff format already handles import sorting
 ]
+
+[tool.pytest.ini_options]
+# Local, unversioned reference clones (HPT, C-HMCNN) ship their own scripts.
+norecursedirs = [".*", "*.egg", "build", "dist", "venv", "node_modules", "HPT", "C-HMCNN", "data", "output"]
