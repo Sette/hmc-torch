@@ -23,7 +23,6 @@ Usage:
 """
 
 import argparse
-import csv
 import json
 import os
 import sys
@@ -38,11 +37,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from hmc.features.protein import (  # noqa: E402  pylint: disable=wrong-import-position
     DEFAULT_PROTEIN_MODEL,
     ProteinFeatureEncoder,
+    orf_embedding_features,
 )
-from hmc.utils.datasets.scaling import (  # noqa: E402  pylint: disable=wrong-import-position
-    standardize_splits,
-)
-from recover_seq_ids import (  # noqa: E402  pylint: disable=wrong-import-position
+from hmc.features.yeast_orf import (  # noqa: E402  pylint: disable=wrong-import-position
+    read_orf_ids,
     read_proteome,
 )
 from run_protocol import (  # noqa: E402  pylint: disable=wrong-import-position
@@ -56,39 +54,6 @@ SPLITS = ("train", "valid", "test")
 VARIANTS = ("orig", "esm", "esm+orig")
 
 
-def read_ids(path):
-    """``{split: [orf or None per row]}`` from a ``recover_seq_ids.py`` table."""
-    ids = {s: [] for s in SPLITS}
-    with open(path, encoding="utf-8") as fh:
-        for rec in csv.DictReader(fh, delimiter="\t"):
-            ids[rec["split"]].append(rec["orf"] if rec["unique"] == "1" else None)
-    return ids
-
-
-def esm_features(data, ids, encoder, proteome):
-    """Per-split ESM matrices (standardized on train) with a missing-match column."""
-    seq_of = {orf: seq for orf, _, seq in proteome}
-    orfs = sorted({o for split in SPLITS for o in ids[split] if o})
-    emb = dict(zip(orfs, encoder.encode([seq_of[o] for o in orfs])))
-    dim = next(iter(emb.values())).shape[0]
-
-    mats = []
-    for split, x in zip(SPLITS, data["x"]):
-        if len(ids[split]) != len(x):
-            raise ValueError(f"{split}: {len(ids[split])} ids for {len(x)} rows")
-        m = np.full((len(x), dim), np.nan, dtype=np.float32)
-        for r, orf in enumerate(ids[split]):
-            if orf:
-                m[r] = emb[orf]
-        mats.append(m)
-    # standardize_splits imputes NaNs with the training mean before scaling.
-    mats = standardize_splits(*mats)
-    return [
-        np.hstack([m, np.array([[o is None] for o in ids[s]], dtype=np.float32)])
-        for m, s in zip(mats, SPLITS)
-    ]
-
-
 def run_dataset(name, args, encoder, proteome):
     model_tag = encoder.model_name.split("/")[-1]
     path = os.path.join(args.out_dir, model_tag, f"{name}.json")
@@ -97,8 +62,8 @@ def run_dataset(name, args, encoder, proteome):
         return
     t0 = time.time()
     data = load_dataset(name)
-    ids = read_ids(os.path.join(args.ids_dir, f"{name}_ids.tsv"))
-    esm = esm_features(data, ids, encoder, proteome)
+    ids = read_orf_ids(os.path.join(args.ids_dir, f"{name}_ids.tsv"))
+    esm = orf_embedding_features(data["x"], ids, encoder, proteome)
     feats = {
         "orig": list(data["x"]),
         "esm": esm,
