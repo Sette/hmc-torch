@@ -100,7 +100,49 @@ inspiradas nele e entram com o próprio rótulo.
 > `experiments/run_with_esm2.py` (exige `--out_dir` em `output/protein_lm*`), `HMC_PROTOCOL_DIR` e
 > `HMC_SOTA_OBJECTIVE` em `run_sr_gae_sota.py`, e `tests/test_esm2_adapter.py` (4 testes, incluindo
 > o das épocas). Mapeamento de ORFs/`esm_features` migrado para o pacote (PR #97, na `dev`).
-> Falta rodar os itens 1–5 (GPU ocupada pelo grid do spec 29) e o Surj (depende do release).
+> Falta rodar os itens 1–5 e o Surj. A fila `experiments/run_esm2_phase3.sh` (hinge → H-MLCL+H-KNN
+> com tronco MCLoss e BCE → DepthCal → cabeças de rótulos BCE/MCLoss → autoencoders
+> `gae_hybrid@64`, `feat_dae`, `label_ae@1`; saída em `output/protein_lm_methods/`) está armada
+> para começar quando o grid do spec 29 terminar (a GPU é uma só). O Surj depende do release
+> do `hmc-torch` (PR dev → main) e da publicação do `surj-repro` (remote com hífen no fim a
+> conferir; tag `surj-repro-2026-11` ainda só local).
+>
+> **Armadilha vivida (2026-11-26):** um lançador `sh -c 'while pgrep -f "<padrão>"...'` nunca
+> terminava, porque o `pgrep -f` casa com a própria linha de comando do `sh -c`; o grid
+> ficou ~11 h sem começar. Esperar por **PID** (`kill -0 <pid>`), como faz `run_esm2_phase3.sh`.
+
+> **Resultados parciais (2026-11-27, AUPRC reconciliado no test, média de 3 seeds):**
+>
+> | método | `seq_FUN` | `seq_GO` |
+> |---|---|---|
+> | HMCN-F (spec 29, reimpl.) | 0,5432 | 0,6148 |
+> | H-MLCL+H-KNN + DepthCal (BCE) | 0,5380 | 0,6087 |
+> | H-MLCL+H-KNN, protótipos SR-GAE (BCE) | 0,5360 | 0,6087 |
+> | H-MLCL+H-KNN, protótipos aleatórios (BCE) | 0,5356 | 0,6095 |
+> | H-MLCL+H-KNN, protótipos SR-GAE (MCLoss) | 0,5327 | 0,6036 |
+> | MLP hinge | 0,5299 ± 0,0025 | 0,6011 ± 0,0019 |
+> | MLP BCE (base do H-MLCL) | 0,5279 | 0,6011 |
+> | cabeça rótulo livre, BCE / MCLoss | 0,5284 / 0,5223 | pendente |
+> | cabeça rótulo = GCN, BCE / MCLoss | 0,5275 / 0,5207 | pendente |
+> | cabeça rótulo = GAE, BCE / MCLoss | 0,353 / 0,350 | pendente |
+> | cabeça GAE + livre, BCE / MCLoss | 0,5049 / 0,5069 | pendente |
+> | C-HMCNN (spec 29) | 0,5240 | 0,5938 |
+> | autoencoder GAE híbrido @64 | 0,5188 ± 0,0038 | 0,5850 ± 0,0009 |
+> | autoencoder DAE de features | 0,4845 ± 0,0014 | em execução |
+> | autoencoder de rótulos (`label_ae@1`) | pendente | pendente |
+>
+> Leitura: nossos H-MLCL+H-KNN superam o C-HMCNN em ~0,012–0,015 (> 1 desvio, 0,003–0,004), mas
+> ficam ~0,005 **abaixo** do HMCN-F (reimplementação) nos dois datasets. Protótipos SR-GAE = aleatórios
+> (sem ganho do GAE); hinge ≈ BCE ≈ MCLoss; embeddings de rótulo e autoencoders não ajudam
+> (GAE sozinho cai a 0,35 em `seq_FUN`). Os textos do `go.obo` só valem para `seq_GO` (cabeças
+> `text`, `text+graph`).
+>
+> **Incidente:** os `label_embeddings` de `seq_GO` falharam na 1ª passada (HTTP 403 ao baixar o
+> `go.obo`: o servidor bloqueia o `User-Agent` padrão do `urllib`; com `curl -A 'Mozilla/5.0'`
+> funciona). O arquivo foi baixado à mão (`data/ontologies/go.obo`, release 2026-07-26, 48.340
+> termos) e o passo foi reexecutado só para `seq_GO` (`output/protein_lm_labelemb_go.log`).
+> A versão do GO muda os textos: **fixar e citar o release** (Zenodo) antes de reportar. O código
+> (`label_embedding.py`, `urlretrieve`) ainda precisa de um `User-Agent`.
 
 1. **Adaptador de features** `experiments/esm2_features.py`: função `load_dataset_esm2(name)`
    (`run_protocol.load_dataset` + troca de `data["x"]`) e um lançador
