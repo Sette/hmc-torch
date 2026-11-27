@@ -177,3 +177,44 @@ class ProteinFeatureEncoder(FeatureEncoder):
             return split
         seqs = [self.sequences[s] for s in split.sample_ids]
         return replace(split, features=self.encode(seqs))
+
+
+def orf_embedding_features(
+    x_splits: list[np.ndarray],
+    ids: dict[str, list[str | None]],
+    encoder: ProteinFeatureEncoder,
+    proteome: list[tuple[str, str, str]],
+    splits: tuple[str, ...] = ("train", "valid", "test"),
+) -> list[np.ndarray]:
+    """Per-split protein-LM matrices for ARFF rows mapped to ORFs (see :mod:`hmc.features.yeast_orf`).
+
+    Every row with a unique ORF gets the embedding of its protein; the others are imputed with
+    the training mean.  The matrices are z-scored with training statistics and followed by a
+    0/1 column that flags the rows without an ORF.  ``x_splits`` is only used for the number of
+    rows of each split (its values and the labels never enter the features).
+
+    Returns:
+        list[np.ndarray]: one ``(n_rows, dim + 1)`` float32 matrix per split.
+    """
+    from hmc.utils.datasets.scaling import standardize_splits  # pylint: disable=import-outside-toplevel
+
+    seq_of = {orf: seq for orf, _, seq in proteome}
+    orfs = sorted({o for split in splits for o in ids[split] if o})
+    emb = dict(zip(orfs, encoder.encode([seq_of[o] for o in orfs])))
+    dim = next(iter(emb.values())).shape[0]
+
+    mats = []
+    for split, x in zip(splits, x_splits):
+        if len(ids[split]) != len(x):
+            raise ValueError(f"{split}: {len(ids[split])} ids for {len(x)} rows")
+        m = np.full((len(x), dim), np.nan, dtype=np.float32)
+        for r, orf in enumerate(ids[split]):
+            if orf:
+                m[r] = emb[orf]
+        mats.append(m)
+    # standardize_splits imputes NaNs with the training mean before scaling.
+    mats = standardize_splits(mats[0], *mats[1:])
+    return [
+        np.hstack([m, np.array([[o is None] for o in ids[s]], dtype=np.float32)])
+        for m, s in zip(mats, splits)
+    ]

@@ -27,9 +27,14 @@ Atualize a tabela ao concluir cada spec.
 | 20 | [Descrição do protocolo](20-descricao-do-protocolo.md) | P0 | [x] aplicado em IJCNN, KBS e tese | 22 (passo 1) |
 | 21 | [Números fora do protocolo](21-numeros-fora-do-protocolo.md) | P0 | [~] Platt, F1 por nível e tempos corrigidos; faltam script da fig. 4 e `make submission` | — |
 | 22 | [Proveniência e artefatos](22-proveniencia-artefatos.md) | P0 | [~] script pareado commitado, tag do Surj criada (falta push), texto ajustado; falta publicar artefatos | usuário (onde publicar) |
-| 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [~] código commitado; bateria rodando desde 16/11 | 22 |
+| 23 | [Controles experimentais](23-controles-experimentais.md) | P1 | [~] bateria concluída (`CONTROLS_DONE`); falta `summarize_controls.py` e o texto | 22 |
 | 24 | [Afirmações da KBS e da tese](24-afirmacoes-kbs-tese.md) | P1 | [~] texto corrigido; faltam título e negrito das tabelas | 20, 21 |
 | 25 | [Posicionamento frente ao C-HMCNN + tese](25-tese-estrutura.md) | P0/P1 | [~] passo 4 (P0) feito nos três; faltam título, cap. 2, ESM-2, arguição | 20, 21, 24 |
+| 26 | [IJCNN: submissão e camera-ready](26-ijcnn-submissao.md) | P0 | [ ] submeter até 27/01/2027 (CMT); congelar em 24/01 | 23 |
+| 27 | [KBS estendida: submissão em março](27-kbs-submissao.md) | P1 | [ ] restos dos specs 21–25 + seção ESM-2; submeter 16–31/03 | 26 |
+| 28 | [Artefatos no Zenodo](28-artefatos-zenodo.md) | P1 | [ ] rascunho com DOI até 15/01; publicar após 15/03 | 22, 23 |
+| 29 | [Comparação de métodos com ESM-2 (FunCat/GO)](29-esm2-comparacao-metodos.md) | P1 | [~] Fase 1 feita (nosso +0,004/+0,007 sobre C-HMCNN, porta passou por pouco); Fase 2: HMCN-F supera o nosso em `seq_FUN` (+0,015), `seq_GO` rodando; falta grid de HP; só `seq_FUN`/`seq_GO`; Fase 1 = nosso × C-HMCNN × MLP com ESM-2; Fase 2 só se a porta passar; sem Surj; fecha o passo 4 do spec 27 | 25, 27 |
+| 30 | [ESM-2: todos os métodos](30-esm2-todos-os-metodos.md) | P1 | [ ] adaptador de features + H-MLCL/H-KNN, DepthCal, cabeças de rótulos, autoencoders, hinge; reportar tudo, inclusive negativos; Surj como reprodução nossa em `~/git/surj-repro`; sem E2E | 29 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
