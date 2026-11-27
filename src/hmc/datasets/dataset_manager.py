@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Auto-register built-in datasets on first import
 # ---------------------------------------------------------------------------
-_registered_builtins: bool = False
+_registered_builtins: bool = False  # pylint: disable=invalid-name
 
 
 def _ensure_builtins() -> None:
