@@ -96,6 +96,12 @@ inspiradas nele e entram com o próprio rótulo.
    (acima) e esperar o release; (b) `surj-repro` com a dependência do release + `--features
    esm2` + teste de paridade das matrizes com as do spec 29; (c) rodar `seq_FUN` e `seq_GO`,
    3 seeds; commit lá, usuário faz o push.
+> **Estado (2026-11-27):** passos 1 e 2 feitos — `experiments/esm2_features.py`,
+> `experiments/run_with_esm2.py` (exige `--out_dir` em `output/protein_lm*`), `HMC_PROTOCOL_DIR` e
+> `HMC_SOTA_OBJECTIVE` em `run_sr_gae_sota.py`, e `tests/test_esm2_adapter.py` (4 testes, incluindo
+> o das épocas). Mapeamento de ORFs/`esm_features` migrado para o pacote (PR #97, na `dev`).
+> Falta rodar os itens 1–5 (GPU ocupada pelo grid do spec 29) e o Surj (depende do release).
+
 1. **Adaptador de features** `experiments/esm2_features.py`: função `load_dataset_esm2(name)`
    (`run_protocol.load_dataset` + troca de `data["x"]`) e um lançador
    `experiments/run_with_esm2.py <script> [args]` que aplica o patch **antes** de importar o
