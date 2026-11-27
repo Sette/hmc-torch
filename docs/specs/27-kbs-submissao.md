@@ -39,7 +39,9 @@ para cumprir o requisito (b) do PPGCC (submissão a periódico). Reúne as pend�
 3. **Spec 24, restos.** Título (decisão do orientador; sugestão em 24): atualizar
    `main.tex`, `cover_letter.md` e o pacote; negrito das tabelas só quando a diferença exceder
    um desvio-padrão; Holm, se for reportar.
-4. **Seção ESM-2** (curta, 1 tabela, capítulo de FunCat/GO):
+4. **Seção ESM-2** (curta, 1 tabela, capítulo de FunCat/GO). Deixar explícito no título, na
+   abertura e na legenda que é um experimento com **features ESM-2 congeladas**, não comparável
+   aos números publicados (regra completa no spec 29, "Regra de redação"):
    - reportar as duas linhas acima ao lado das features do benchmark;
    - dizer que a comparação troca o **encoder**, não o método; o C-HMCNN não foi rodado com
      ESM-2, então o ganho não se atribui ao nosso método;

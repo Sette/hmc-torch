@@ -50,6 +50,9 @@ from hmc.models.hierarchical.graph_autoencoder import (  # noqa: E402
 )
 
 OUT_DIR = "output/sr_gae_paired"
+# Where the per-seed protocol runs (best epochs) are read from.  ``run_with_esm2.py`` points it to
+# ``output/protocol_esm2`` so that ESM-2 features never reuse the epochs of the benchmark features.
+PROTOCOL_DIR = os.environ.get("HMC_PROTOCOL_DIR", "output/protocol")
 SEEDS = (0, 42, 123)
 GROUPS = {"funcat": FUNCAT, "others": OTHERS, "go": GO, "text": TEXT}
 
@@ -73,7 +76,12 @@ class ContrastiveProjector(nn.Module):
 
 
 def _best_protocol_objective(name: str) -> str:
-    """Return the SOTA objective reported in the main paper tables for ``name``."""
+    """Return the SOTA objective reported in the main paper tables for ``name``.
+
+    ``HMC_SOTA_OBJECTIVE`` (``bce``/``mc``) overrides it, e.g. for ESM-2 features where BCE wins.
+    """
+    if os.environ.get("HMC_SOTA_OBJECTIVE"):
+        return os.environ["HMC_SOTA_OBJECTIVE"]
     if name in TEXT or name in OTHERS:
         return "mc" if name == "enron_others" else "bce"
     return "mc"
@@ -214,7 +222,7 @@ def _fit_proto_and_knn_blend(
 
 def _protocol_best_epochs(name: str, obj: str) -> dict[int, dict]:
     """Per-seed protocol runs (``best_epoch`` and reference metrics) for ``obj``, if available."""
-    p = os.path.join("output/protocol", f"{name}.json")
+    p = os.path.join(PROTOCOL_DIR, f"{name}.json")
     if not os.path.exists(p):
         return {}
     with open(p, encoding="utf-8") as f:
