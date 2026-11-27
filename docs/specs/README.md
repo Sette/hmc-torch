@@ -33,8 +33,8 @@ Atualize a tabela ao concluir cada spec.
 | 26 | [IJCNN: submissão e camera-ready](26-ijcnn-submissao.md) | P0 | [ ] submeter até 27/01/2027 (CMT); congelar em 24/01 | 23 |
 | 27 | [KBS estendida: submissão em março](27-kbs-submissao.md) | P1 | [ ] restos dos specs 21–25 + seção ESM-2; submeter 16–31/03 | 26 |
 | 28 | [Artefatos no Zenodo](28-artefatos-zenodo.md) | P1 | [ ] rascunho com DOI até 15/01; publicar após 15/03 | 22, 23 |
-| 29 | [Comparação de métodos com ESM-2 (FunCat/GO)](29-esm2-comparacao-metodos.md) | P1 | [~] Fase 1 feita (nosso +0,004/+0,007 sobre C-HMCNN, porta passou por pouco); Fase 2: HMCN-F supera o nosso em `seq_FUN` (+0,015), `seq_GO` rodando; falta grid de HP; só `seq_FUN`/`seq_GO`; Fase 1 = nosso × C-HMCNN × MLP com ESM-2; Fase 2 só se a porta passar; sem Surj; fecha o passo 4 do spec 27 | 25, 27 |
-| 30 | [ESM-2: todos os métodos](30-esm2-todos-os-metodos.md) | P1 | [ ] adaptador de features + H-MLCL/H-KNN, DepthCal, cabeças de rótulos, autoencoders, hinge; reportar tudo, inclusive negativos; Surj como reprodução nossa em `~/git/surj-repro`; sem E2E | 29 |
+| 29 | [Comparação de métodos com ESM-2 (FunCat/GO)](29-esm2-comparacao-metodos.md) | P1 | [~] Fases 1–2 feitas: HMCN-F > nosso MLP ≳ C-HMCNN ≫ GBDT (`seq_FUN`/`seq_GO`); grid de HP completo: ordem se mantém; nosso MLP ≈ C-HMCNN em `seq_GO` | 25, 27 |
+| 30 | [ESM-2: todos os métodos](30-esm2-todos-os-metodos.md) | P1 | [~] adaptador feito (PR #97 + branch `feat/esm2-all-methods`); Fase 3 quase toda rodada (H-MLCL+H-KNN > C-HMCNN, < HMCN-F; rótulos/autoencoders sem ganho), faltam `label_emb` `seq_GO` e `feat_dae`/`label_ae`; Surj aguarda release e `surj-repro` | 29 |
 
 > **Rota atual:** IJCNN 2027 é a submissão principal (31/01/2027; notificação 15/03/2027).
 > A versão completa da KBS fica **congelada** em `docs/hmc-paper/` e será submetida em março,
