@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.4.0...hmc-torch-v0.4.1) (2026-11-27)
+
+
+### Documentation
+
+* **specs:** 📝 point kbs esm-2 section to the esm-2 writing rule ([44c0ec3](https://github.com/Sette/hmc-torch/commit/44c0ec39785c48e0f39a403d5d32f48828c7b832))
+* **specs:** 📝 record esm-2 phase 2 results, hp grid and writing rule ([09213d4](https://github.com/Sette/hmc-torch/commit/09213d448c152c39a269bec3e7faccf3e5c62b91))
+
 ## [0.4.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.3.0...hmc-torch-v0.4.0) (2026-11-27)
 
 
