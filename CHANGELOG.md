@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.3.0...hmc-torch-v0.4.0) (2026-11-27)
+
+
+### Features
+
+* **experiments:** ✨ add scripts for ESM-2 baselines and hyperparameter grid search ([b55a036](https://github.com/Sette/hmc-torch/commit/b55a03665b5785523307a6378ae622c1a75e8b73))
+* **features:** ✨ add yeast ORF mapping and ORF-based protein features ([a3a8d90](https://github.com/Sette/hmc-torch/commit/a3a8d9038acda7d2a80ea1886d99c66f39525d95))
+* **features:** ✨ add yeast ORF mapping and ORF-based protein features ([#97](https://github.com/Sette/hmc-torch/issues/97)) ([ce51f2c](https://github.com/Sette/hmc-torch/commit/ce51f2cdb64c1faed24555c43ee467ac6aac70d1))
+
 ## [0.3.0](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.2.0...hmc-torch-v0.3.0) (2026-11-24)
 
 
