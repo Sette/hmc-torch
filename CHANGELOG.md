@@ -1,6 +1,11 @@
 # Changelog
 
-## [0.4.1](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.4.0...hmc-torch-v0.4.1) (2026-11-27)
+## [0.4.1](https://github.com/Sette/hmc-torch/compare/hmc-torch-v0.4.0...hmc-torch-v0.4.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **datasets:** 🐛 silence pylint 4 invalid-name on module flag ([ce16731](https://github.com/Sette/hmc-torch/commit/ce167314d7f33253c08c1b3657fa7594758e93f1))
 
 
 ### Documentation
