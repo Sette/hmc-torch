@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hmc-torch"
-version = "0.4.0"
+version = "0.4.1"
 
 description = "A Modular Platform for Hierarchical Multi-Label Classification with R-Matrix Constraints"
 authors = [{ name = "Bruno Sette", email = "brunosilvasette@gmail.com" }]
@@ -37,16 +37,16 @@ classifiers = [
     "Topic :: Text Processing",
 ]
 dependencies = [
-    "tqdm==4.67.3",
-    "numpy==2.4.3",
+    "tqdm==4.70.1",
+    "numpy==2.4.6",
     "torch==2.10.0",
-    "pandas==3.0.1",
-    "scikit-learn==1.8.0",
+    "pandas==3.1.1",
+    "scikit-learn==1.9.1",
     "networkx>=3.4",
     "psutil>=6.0",
-    "lightning==2.6.1",
-    "torch-geometric==2.7.0",
-    "transformers==5.3.0",
+    "lightning==2.6.6",
+    "torch-geometric==2.8.1",
+    "transformers==5.24.1",
 ]
 
 [project.optional-dependencies]
@@ -71,15 +71,15 @@ Documentation = "https://github.com/Sette/hmc-torch#readme"
 [dependency-groups]
 dev = [
     "autopep8==2.3.2",
-    "flake8==7.2.0",
-    "black==25.1.0",
+    "flake8==7.5.0",
+    "black==26.10.1",
     "isort==6.0.1",
-    "pre-commit==4.2.0",
-    "pylint==3.3.7",
-    "pytest==9.0.2",
-    "jupyterlab==4.5.3",
-    "jq==1.11.0",
-    "yq==3.4.3",
+    "pre-commit==4.7.0",
+    "pylint==4.1.4",
+    "pytest==9.2.0",
+    "jupyterlab==4.6.6",
+    "jq==1.13.0",
+    "yq==4.4.5",
     "setuptools>=82.0.1",
     "ruff>=0.15.8",
     "pytest-cov>=7.1.0",
